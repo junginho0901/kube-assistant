@@ -69,14 +69,10 @@ export default function ClusterView() {
     enabled: !!namespaces,
   })
 
-  // 노드 목록 (향후 사용 예정)
-  const { data: _nodes } = useQuery({
+  // 노드 목록 (정렬용)
+  const { data: nodes } = useQuery({
     queryKey: ['nodes'],
-    queryFn: async () => {
-      // K8s API에서 노드 목록 가져오기
-      const response = await fetch('/api/v1/cluster/nodes')
-      return response.json()
-    },
+    queryFn: api.getNodes,
   })
 
   // 로그 스트리밍 (WebSocket)
@@ -227,6 +223,28 @@ export default function ClusterView() {
     acc[nodeName].push(pod)
     return acc
   }, {} as Record<string, any[]>)
+
+  // 노드 정렬: control-plane 먼저, 그 다음 워커 노드, 각 그룹 내에서는 이름 순
+  const sortedNodeEntries = Object.entries(podsByNode).sort(([nodeA], [nodeB]) => {
+    // 노드 정보 찾기
+    const nodeInfoA = nodes?.find(n => n.name === nodeA)
+    const nodeInfoB = nodes?.find(n => n.name === nodeB)
+    
+    // Unscheduled는 맨 뒤로
+    if (nodeA === 'Unscheduled') return 1
+    if (nodeB === 'Unscheduled') return -1
+    
+    // control-plane 역할 확인
+    const isControlPlaneA = nodeInfoA?.roles?.includes('control-plane') || false
+    const isControlPlaneB = nodeInfoB?.roles?.includes('control-plane') || false
+    
+    // control-plane이 먼저
+    if (isControlPlaneA && !isControlPlaneB) return -1
+    if (!isControlPlaneA && isControlPlaneB) return 1
+    
+    // 같은 그룹 내에서는 이름 순으로 정렬
+    return nodeA.localeCompare(nodeB)
+  })
 
   const getHealthIcon = (status: string, phase: string) => {
     if (phase === 'Running' && status === 'Running') {
@@ -385,8 +403,8 @@ export default function ClusterView() {
           )}
 
           {/* 노드별 Pod 표시 */}
-          {Object.keys(podsByNode).length > 0 ? (
-            Object.entries(podsByNode).map(([nodeName, pods]) => (
+          {sortedNodeEntries.length > 0 ? (
+            sortedNodeEntries.map(([nodeName, pods]) => (
             <div key={nodeName} className="card">
               <div className="flex items-center gap-3 mb-4">
                 <Server className="w-6 h-6 text-cyan-400" />
