@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 from typing import List, Dict, Optional
 import re
 import json
+import sys
 from app.config import settings
 from app.models.ai import (
     LogAnalysisRequest,
@@ -36,6 +37,7 @@ class AIService:
         self.model = settings.OPENAI_MODEL
         self.k8s_service = K8sService()
         self.tool_contexts: Dict[str, ToolContext] = {}  # {session_id: ToolContext}
+        print(f"[AI Service] 초기화 완료 - 사용 모델: {self.model}", flush=True)
     
     async def analyze_logs(self, request: LogAnalysisRequest) -> LogAnalysisResponse:
         """로그 분석"""
@@ -72,6 +74,7 @@ JSON 형식으로 응답해주세요:
 """
         
         try:
+            print(f"[AI Service] Analyze Logs API 호출 - 요청 모델: {self.model}", flush=True)
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -81,6 +84,7 @@ JSON 형식으로 응답해주세요:
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
+            print(f"[AI Service] Analyze Logs API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             import json
             result = json.loads(response.choices[0].message.content)
@@ -140,6 +144,7 @@ JSON 형식으로 응답해주세요:
 """
         
         try:
+            print(f"[AI Service] Troubleshoot API 호출 - 요청 모델: {self.model}", flush=True)
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -149,6 +154,7 @@ JSON 형식으로 응답해주세요:
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
+            print(f"[AI Service] Troubleshoot API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             import json
             result = json.loads(response.choices[0].message.content)
@@ -273,6 +279,7 @@ JSON 형식으로 응답해주세요:
         
         try:
             # 첫 번째 GPT 호출 (function calling 포함)
+            print(f"[AI Service] Chat API 호출 - 요청 모델: {self.model}", flush=True)
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -280,6 +287,7 @@ JSON 형식으로 응답해주세요:
                 tool_choice="auto",
                 temperature=0.7
             )
+            print(f"[AI Service] Chat API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             response_message = response.choices[0].message
             tool_calls = response_message.tool_calls
@@ -303,11 +311,13 @@ JSON 형식으로 응답해주세요:
                     })
                 
                 # 함수 결과를 바탕으로 최종 답변 생성
+                print(f"[AI Service] Chat API 두 번째 호출 - 요청 모델: {self.model}", flush=True)
                 second_response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     temperature=0.7
                 )
+                print(f"[AI Service] Chat API 두 번째 응답 - 실제 사용 모델: {second_response.model}", flush=True)
                 
                 message = second_response.choices[0].message.content
             else:
@@ -1061,6 +1071,7 @@ Deployment 상세:
                 print(f"[DEBUG] Iteration {iteration}/{max_iterations}")
                 
                 # GPT 호출 (Function Calling)
+                print(f"[AI Service] Session Chat API 호출 (Iteration {iteration}) - 요청 모델: {self.model}", flush=True)
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
@@ -1069,6 +1080,7 @@ Deployment 상세:
                     temperature=0.7,
                     max_tokens=1000  # 토큰 제한
                 )
+                print(f"[AI Service] Session Chat API 응답 (Iteration {iteration}) - 실제 사용 모델: {response.model}", flush=True)
                 
                 response_message = response.choices[0].message
                 
@@ -1124,6 +1136,7 @@ Deployment 상세:
                     
                     # 항상 스트리밍 모드로 최종 응답 생성
                     messages.append(response_message)
+                    print(f"[AI Service] Session Chat 스트리밍 API 호출 - 요청 모델: {self.model}", flush=True)
                     stream = await self.client.chat.completions.create(
                         model=self.model,
                         messages=messages,

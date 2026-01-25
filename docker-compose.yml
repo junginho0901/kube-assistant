@@ -37,8 +37,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
-    # extra_hosts: Uncomment and configure if needed
-    #   - "${K8S_API_HOST:-pd-dev-305-cmp.k8s-api}:${K8S_API_IP}"
+    extra_hosts:
+      - "${K8S_API_HOST:-pd-dev-305-cmp.k8s-api}:${K8S_API_IP}"
     networks:
       - k8s-devops
     depends_on:
