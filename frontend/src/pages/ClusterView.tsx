@@ -43,7 +43,8 @@ export default function ClusterView() {
   const [isStreamingLogs, setIsStreamingLogs] = useState(false)
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [downloadLines, setDownloadLines] = useState<number>(100)
+  const [downloadTailLines, setDownloadTailLines] = useState<number>(1000)
+  const [isDownloading, setIsDownloading] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const namespaceDropdownRef = useRef<HTMLDivElement>(null)
@@ -258,26 +259,6 @@ export default function ClusterView() {
     }
   }
 
-  const handleDownloadLogs = () => {
-    if (!logs || !selectedPod) return
-    
-    // 로그를 줄 단위로 분리
-    const logLines = logs.split('\n')
-    
-    // 지정한 줄 수만큼만 가져오기 (마지막 N줄)
-    const linesToDownload = downloadLines > 0 ? downloadLines : logLines.length
-    const downloadContent = logLines.slice(-linesToDownload).join('\n')
-    
-    // 파일로 다운로드
-    const blob = new Blob([downloadContent], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${selectedPod.name}-${selectedContainer}-logs-${linesToDownload}lines.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   const handlePodClick = async (pod: any) => {
     // Pod 상세 정보 조회
     const response = await fetch(
@@ -311,6 +292,33 @@ export default function ClusterView() {
     // 기본값을 Logs 탭으로 설정
     setShowLogs(true)
     setShowManifest(false)
+  }
+
+  const handleDownloadLogs = async () => {
+    if (!selectedPod || !selectedContainer) return
+    
+    setIsDownloading(true)
+    try {
+      const logs = await api.getPodLogs(
+        selectedPod.namespace,
+        selectedPod.name,
+        selectedContainer,
+        downloadTailLines
+      )
+      
+      const blob = new Blob([logs], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedPod.name}-${selectedContainer}-logs.txt`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('로그 다운로드 실패:', error)
+      alert('로그 다운로드에 실패했습니다.')
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
@@ -685,34 +693,30 @@ export default function ClusterView() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm text-slate-400 mb-2 block">마지막 N줄</label>
+                      <label className="text-sm text-slate-400 mb-2 block">다운로드 줄 수</label>
                       <select
-                        value={downloadLines}
-                        onChange={(e) => setDownloadLines(Number(e.target.value))}
+                        value={downloadTailLines}
+                        onChange={(e) => setDownloadTailLines(Number(e.target.value))}
                         className="h-10 px-4 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500"
                       >
                         <option value={100}>100줄</option>
                         <option value={500}>500줄</option>
                         <option value={1000}>1000줄</option>
+                        <option value={5000}>5000줄</option>
+                        <option value={10000}>10000줄</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-sm text-slate-400 mb-2 block opacity-0">다운로드</label>
+                      <label className="text-sm text-slate-400 mb-2 block invisible">다운로드</label>
                       <button
                         onClick={handleDownloadLogs}
-                        disabled={!logs || logs.trim() === ''}
-                        className="h-10 px-4 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2"
+                        disabled={isDownloading}
+                        className="h-10 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg border border-primary-500 focus:outline-none focus:border-primary-400 transition-colors flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
-                        다운로드
+                        {isDownloading ? '다운로드 중...' : '다운로드'}
                       </button>
                     </div>
-                    {isStreamingLogs && (
-                      <div className="flex items-center gap-2 text-green-400 text-sm mb-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        실시간 로그
-                      </div>
-                    )}
                   </div>
 
                   {/* 로그 - 스크롤 가능 */}
