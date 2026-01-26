@@ -384,7 +384,10 @@ export default function ClusterView() {
       </div>
 
       {isLoading ? (
-        <div className="text-slate-400">로딩 중...</div>
+        <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
+          <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
+          <p className="text-slate-400">데이터를 불러오는 중...</p>
+        </div>
       ) : (
         <div className="space-y-6">
           {/* 검색 결과 정보 */}
@@ -445,7 +448,7 @@ export default function ClusterView() {
             </div>
             ))
           ) : (
-            !searchQuery && (
+            !searchQuery && !isLoading && allPods !== undefined && (
               <div className="card text-center py-12">
                 <Box className="w-12 h-12 text-slate-600 mx-auto mb-4" />
                 <p className="text-slate-400">Pod가 없습니다</p>
