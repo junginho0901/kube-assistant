@@ -1,21 +1,31 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
-import { Box, ArrowRight, Network, RefreshCw } from 'lucide-react'
+import { Box, ArrowRight, Network, RefreshCw, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 export default function Namespaces() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   
   const { data: namespaces, isLoading } = useQuery({
     queryKey: ['namespaces'],
     queryFn: api.getNamespaces,
     staleTime: 30000, // 30초 동안 캐시 유지
   })
+  
+  // 검색어로 네임스페이스 필터링
+  const filteredNamespaces = useMemo(() => {
+    if (!namespaces) return []
+    if (!searchQuery.trim()) return namespaces
+    return namespaces.filter(ns => 
+      ns.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [namespaces, searchQuery])
   
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -51,8 +61,28 @@ export default function Namespaces() {
         </button>
       </div>
 
+      {/* 검색창 */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type="text"
+          placeholder="네임스페이스 검색..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* 검색 결과 개수 표시 */}
+      {searchQuery && (
+        <p className="text-sm text-slate-400">
+          {filteredNamespaces.length}개의 네임스페이스가 검색되었습니다
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {namespaces?.map((ns) => (
+        {filteredNamespaces.length > 0 ? (
+          filteredNamespaces.map((ns) => (
           <div key={ns.name} className="card hover:border-primary-500 transition-colors cursor-pointer">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -114,7 +144,14 @@ export default function Namespaces() {
               </button>
             </div>
           </div>
-        ))}
+          ))
+        ) : (
+          <div className="col-span-full text-center py-12">
+            <p className="text-slate-400">
+              {searchQuery ? '검색 결과가 없습니다' : '네임스페이스가 없습니다'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
