@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, Session } from '@/services/api'
+import SphereLoader from '@/components/SphereLoader'
 import { Send, Bot, User, Sparkles, Plus, MessageSquare, Trash2, Edit2, Check, X, StopCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -638,7 +639,9 @@ Executing...
 
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <Sparkles className="w-16 h-16 text-yellow-400 mb-4" />
+            <div className="mb-4">
+              <SphereLoader />
+            </div>
             <h2 className="text-2xl font-bold text-white mb-2">새 대화를 시작하세요</h2>
             <p className="text-slate-400 mb-6">아래 질문을 클릭하거나 직접 입력하세요</p>
             <div className="grid grid-cols-2 gap-3 w-full px-8">
