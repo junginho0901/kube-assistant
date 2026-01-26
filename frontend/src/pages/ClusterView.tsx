@@ -306,11 +306,21 @@ export default function ClusterView() {
         downloadTailLines
       )
       
+      // 날짜 시간 형식: YYYYMMDD-HHMMSS
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      const hours = String(now.getHours()).padStart(2, '0')
+      const minutes = String(now.getMinutes()).padStart(2, '0')
+      const seconds = String(now.getSeconds()).padStart(2, '0')
+      const dateTime = `${year}${month}${day}-${hours}${minutes}${seconds}`
+      
       const blob = new Blob([logs], { type: 'text/plain' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${selectedPod.name}-${selectedContainer}-logs.txt`
+      a.download = `${selectedPod.name}-${selectedContainer}-logs-${dateTime}.txt`
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
