@@ -24,6 +24,7 @@ export default function AIChat() {
   const [hasStoppedMessage, setHasStoppedMessage] = useState(false)  // 중단된 메시지 플래그
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)  // 다중 선택 모드
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())  // 선택된 세션들
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)  // 우클릭 컨텍스트 메뉴
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -101,6 +102,19 @@ export default function AIChat() {
   }
 
   useEffect(scrollToBottom, [messages])
+
+  // 외부 클릭 시 컨텍스트 메뉴 닫기
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu) {
+        setContextMenu(null)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [contextMenu])
 
   const handleStop = async () => {
     console.log('[DEBUG] Stop button clicked')
@@ -436,10 +450,26 @@ Executing...
     setSelectedSessionIds(new Set())
   }
 
-  const handleEditSession = (session: Session, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleEditSession = (session: Session, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     setEditingSessionId(session.id)
     setEditingTitle(session.title)
+    setContextMenu(null)
+  }
+
+  const handleContextMenu = (session: Session, e: React.MouseEvent) => {
+    if (isMultiSelectMode) return
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      sessionId: session.id,
+    })
+  }
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null)
   }
 
   const handleSaveEdit = (sessionId: string) => {
@@ -533,6 +563,10 @@ Executing...
                 <div
                   key={session.id}
                   onClick={() => handleSelectSession(session.id)}
+                  onContextMenu={(e) => {
+                    const sessionData = sessions.find(s => s.id === session.id)
+                    if (sessionData) handleContextMenu(sessionData, e)
+                  }}
                   className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${
                     isMultiSelectMode
                       ? selectedSessionIds.has(session.id)
@@ -562,12 +596,12 @@ Executing...
                   )}
                   
                   {editingSessionId === session.id ? (
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 -mx-3 -my-3 p-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="text"
                         value={editingTitle}
                         onChange={(e) => setEditingTitle(e.target.value)}
-                        className="flex-1 px-2 py-1 text-sm bg-slate-600 border border-slate-500 rounded text-white"
+                        className="flex-1 px-2 py-1 text-sm bg-slate-600 border border-slate-500 rounded text-white min-w-0"
                         autoFocus
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') handleSaveEdit(session.id)
@@ -576,43 +610,27 @@ Executing...
                       />
                       <button
                         onClick={() => handleSaveEdit(session.id)}
-                        className="p-1 hover:bg-slate-600 rounded"
+                        className="flex-shrink-0 p-1 hover:bg-slate-600 rounded"
                       >
                         <Check className="w-4 h-4 text-green-400" />
                       </button>
-                      <button onClick={handleCancelEdit} className="p-1 hover:bg-slate-600 rounded">
+                      <button 
+                        onClick={handleCancelEdit} 
+                        className="flex-shrink-0 p-1 hover:bg-slate-600 rounded"
+                      >
                         <X className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
                   ) : (
-                    <>
-                      <div className={`flex items-start gap-2 ${isMultiSelectMode ? 'ml-6' : ''}`}>
-                        <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{session.title}</div>
-                          <div className="text-xs text-slate-400 mt-1">
-                            {session.message_count}개 메시지
-                          </div>
+                    <div className={`flex items-start gap-2 ${isMultiSelectMode ? 'ml-6' : ''}`}>
+                      <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium break-words">{session.title}</div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          {session.message_count}개 메시지
                         </div>
                       </div>
-                      {/* 다중 선택 모드가 아닐 때만 편집/삭제 버튼 표시 */}
-                      {!isMultiSelectMode && (
-                        <div className="absolute right-2 top-2 hidden group-hover:flex gap-1">
-                          <button
-                            onClick={(e) => handleEditSession(session, e)}
-                            className="p-1 hover:bg-slate-600 rounded"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteSession(session.id, e)}
-                            className="p-1 hover:bg-slate-600 rounded"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-400" />
-                          </button>
-                        </div>
-                      )}
-                    </>
+                    </div>
                   )}
                 </div>
               ))}
@@ -622,6 +640,57 @@ Executing...
           )}
         </div>
       </div>
+
+      {/* 우클릭 컨텍스트 메뉴 */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={handleCloseContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              handleCloseContextMenu()
+            }}
+          />
+          <div
+            className="fixed z-50 bg-slate-700 border border-slate-600 rounded-lg shadow-lg py-1 min-w-[120px]"
+            style={{
+              left: `${contextMenu.x}px`,
+              top: `${contextMenu.y}px`,
+            }}
+          >
+            {sessions && (() => {
+              const session = sessions.find(s => s.id === contextMenu.sessionId)
+              if (!session) return null
+              return (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEditSession(session, e)
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    제목 바꾸기
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteSession(contextMenu.sessionId, e)
+                      handleCloseContextMenu()
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-600 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    삭제
+                  </button>
+                </>
+              )
+            })()}
+          </div>
+        </>
+      )}
 
       {/* 오른쪽 채팅 영역 */}
       <div className="flex-1 flex flex-col">
