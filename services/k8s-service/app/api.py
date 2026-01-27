@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from app.services.k8s_service import K8sService
-from app.models.cluster import (
+from app.cluster import (
     NamespaceInfo,
     ServiceInfo,
     DeploymentInfo,

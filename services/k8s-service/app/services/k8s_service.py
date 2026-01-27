@@ -10,7 +10,7 @@ import asyncio
 from functools import lru_cache
 from time import time
 from app.config import settings
-from app.models.cluster import (
+from app.cluster import (
     NamespaceInfo,
     ServiceInfo,
     DeploymentInfo,
