@@ -326,6 +326,12 @@ export default function ClusterView() {
     console.log('Phase:', detail.phase, 'Status:', detail.status)
     console.log('Created at:', detail.created_at)
     console.log('Node:', detail.node)
+    
+    // 탭 상태 초기화 (Summary 탭이 기본으로 열리도록)
+    setShowLogs(false)
+    setShowManifest(false)
+    setShowDescribe(false)
+    
     setSelectedPod(detail)
     setContainerSearchQuery('') // 모달 열 때 검색어 초기화
     
