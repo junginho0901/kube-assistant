@@ -7,9 +7,8 @@ from typing import List, Optional, Dict
 from datetime import datetime
 import os
 import asyncio
-from functools import lru_cache
-from time import time
 from app.config import settings
+from app.redis_cache import redis_cache
 from app.cluster import (
     NamespaceInfo,
     ServiceInfo,
@@ -48,16 +47,6 @@ class K8sService:
             self.apps_v1 = client.AppsV1Api(api_client=api_client)
             self.version_api = client.VersionApi(api_client=api_client)
             
-            # 간단한 메모리 캐시 (TTL 30초)
-            self._cache = {}
-            self._cache_ttl = 30  # seconds
-            self.v1 = client.CoreV1Api(api_client=api_client)
-            self.apps_v1 = client.AppsV1Api(api_client=api_client)
-            self.version_api = client.VersionApi(api_client=api_client)
-            
-            # 간단한 메모리 캐시 (TTL 30초)
-            self._cache = {}
-            self._cache_ttl = 30  # seconds
         except Exception as e:
             print(f"Warning: Kubernetes client initialization failed: {e}")
             self.v1 = None
@@ -77,27 +66,19 @@ class K8sService:
             print(f"Error creating fresh CoreV1Api: {e}")
             return self.v1  # 실패 시 기존 클라이언트 반환 (Fallback)
     
-    def _get_cache(self, key: str):
-        """캐시에서 데이터 가져오기"""
-        if key in self._cache:
-            data, timestamp = self._cache[key]
-            if time() - timestamp < self._cache_ttl:
-                return data
-            else:
-                del self._cache[key]
-        return None
-    
-    def _set_cache(self, key: str, data):
-        """캐시에 데이터 저장"""
-        self._cache[key] = (data, time())
-    
-    async def get_cluster_overview(self) -> ClusterOverview:
-        """클러스터 전체 개요 (캐시)"""
+    async def get_cluster_overview(self, force_refresh: bool = False) -> ClusterOverview:
+        """클러스터 전체 개요 (Redis 캐시)"""
         try:
-            # 캐시 확인
-            cached = self._get_cache("cluster_overview")
-            if cached:
-                return cached
+            cache_key = "k8s:cluster_overview"
+            
+            # force_refresh가 아니면 캐시 확인
+            if not force_refresh:
+                cached = redis_cache.get(cache_key)
+                if cached:
+                    print(f"✅ Cache HIT: {cache_key}")
+                    return ClusterOverview(**cached)
+            
+            print(f"🔄 Cache MISS: {cache_key}, fetching from K8s API...")
             
             namespaces = self.v1.list_namespace()
             pods = self.v1.list_pod_for_all_namespaces()
@@ -128,18 +109,27 @@ class K8sService:
                 cluster_version=version_info.git_version
             )
             
-            # 캐시 저장
-            self._set_cache("cluster_overview", result)
+            # Redis 캐시에 저장 (30초 TTL)
+            redis_cache.set(cache_key, result.model_dump(), ttl=30)
             
             return result
         except ApiException as e:
             raise Exception(f"Failed to get cluster overview: {e}")
     
-    async def get_namespaces(self) -> List[NamespaceInfo]:
+    async def get_namespaces(self, force_refresh: bool = False) -> List[NamespaceInfo]:
         """네임스페이스 목록 (캐시 + 병렬 처리)"""
         try:
             # 캐시 확인
-            cached = self._get_cache("namespaces")
+            cache_key = "k8s:namespaces"
+            
+            if not force_refresh:
+                cached = redis_cache.get(cache_key)
+                if cached:
+                    print(f"✅ Cache HIT: {cache_key}")
+                    return [NamespaceInfo(**ns) for ns in cached]
+            
+            print(f"🔄 Cache MISS: {cache_key}, fetching from K8s API...")
+            cached = None
             if cached:
                 return cached
             

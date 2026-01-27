@@ -45,19 +45,19 @@ async def startup_event():
 
 
 @router.get("/overview", response_model=ClusterOverview)
-async def get_cluster_overview():
+async def get_cluster_overview(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
     """클러스터 전체 개요"""
     try:
-        return await k8s_service.get_cluster_overview()
+        return await k8s_service.get_cluster_overview(force_refresh=force_refresh)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/namespaces", response_model=List[NamespaceInfo])
-async def get_namespaces():
+async def get_namespaces(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
     """네임스페이스 목록 조회"""
     try:
-        return await k8s_service.get_namespaces()
+        return await k8s_service.get_namespaces(force_refresh=force_refresh)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -83,11 +83,12 @@ async def get_deployments(namespace: str):
 @router.get("/namespaces/{namespace}/pods", response_model=List[PodInfo])
 async def get_pods(
     namespace: str,
-    label_selector: Optional[str] = Query(None, description="라벨 셀렉터 (예: app=nginx)")
+    label_selector: Optional[str] = Query(None, description="라벨 셀렉터 (예: app=nginx)"),
+    force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")
 ):
     """특정 네임스페이스의 파드 목록"""
     try:
-        return await k8s_service.get_pods(namespace, label_selector)
+        return await k8s_service.get_pods(namespace, label_selector, force_refresh=force_refresh)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

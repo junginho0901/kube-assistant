@@ -69,6 +69,9 @@ services:
       - .env
     environment:
       - KUBECONFIG_PATH=/app/kubeconfig.yaml
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     volumes:
       - ./kubeconfig.yaml:/app/kubeconfig.yaml:ro
     dns:
@@ -78,6 +81,9 @@ services:
       - "${K8S_API_HOST:-pd-dev-305-cmp.k8s-api}:${K8S_API_IP}"
     networks:
       - msa-network
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   # Session Service
