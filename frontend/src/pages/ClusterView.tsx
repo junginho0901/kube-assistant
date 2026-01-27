@@ -39,6 +39,7 @@ export default function ClusterView() {
   const [selectedContainer, setSelectedContainer] = useState<string>('')
   const [showLogs, setShowLogs] = useState(false)
   const [showManifest, setShowManifest] = useState(false)
+  const [showDescribe, setShowDescribe] = useState(false)
   const [logs, setLogs] = useState<string>('')
   const [isStreamingLogs, setIsStreamingLogs] = useState(false)
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
@@ -255,6 +256,16 @@ export default function ClusterView() {
       return data.yaml
     },
     enabled: showManifest && !!selectedPod,
+  })
+
+  // Describe 조회
+  const { data: describeData } = useQuery({
+    queryKey: ['pod-describe', selectedPod?.namespace, selectedPod?.name],
+    queryFn: async () => {
+      if (!selectedPod) return null
+      return await api.describePod(selectedPod.namespace, selectedPod.name)
+    },
+    enabled: showDescribe && !!selectedPod,
   })
 
   // 검색어로 Pod 필터링
@@ -580,9 +591,10 @@ export default function ClusterView() {
                 onClick={() => {
                   setShowLogs(false)
                   setShowManifest(false)
+                  setShowDescribe(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors ${
-                  !showLogs && !showManifest
+                  !showLogs && !showManifest && !showDescribe
                     ? 'text-primary-400 border-b-2 border-primary-400'
                     : 'text-slate-400 hover:text-white'
                 }`}
@@ -613,6 +625,7 @@ export default function ClusterView() {
                   
                   setShowLogs(true)
                   setShowManifest(false)
+                  setShowDescribe(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showLogs
@@ -626,7 +639,23 @@ export default function ClusterView() {
               <button
                 onClick={() => {
                   setShowLogs(false)
+                  setShowManifest(false)
+                  setShowDescribe(true)
+                }}
+                className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+                  showDescribe
+                    ? 'text-primary-400 border-b-2 border-primary-400'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileCode className="w-4 h-4" />
+                Describe
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogs(false)
                   setShowManifest(true)
+                  setShowDescribe(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showManifest
@@ -641,7 +670,7 @@ export default function ClusterView() {
 
             {/* 모달 내용 */}
             <div className="flex-1 overflow-y-auto p-6">
-              {!showLogs && !showManifest && (
+              {!showLogs && !showManifest && !showDescribe && (
                 <div className="space-y-6">
                   {/* 기본 정보 */}
                   <div className="grid grid-cols-2 gap-4">
@@ -932,6 +961,166 @@ export default function ClusterView() {
                     <pre className="whitespace-pre-wrap break-words">{logs || '로그를 불러오는 중...'}</pre>
                     <div ref={logsEndRef} />
                   </div>
+                </div>
+              )}
+
+              {showDescribe && describeData && (
+                <div className="space-y-6">
+                  {/* 기본 정보 */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4">기본 정보</h3>
+                    <div className="grid grid-cols-2 gap-4 bg-slate-800 rounded-lg p-4">
+                      <div>
+                        <p className="text-sm text-slate-400">Name</p>
+                        <p className="text-white font-medium">{describeData.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Namespace</p>
+                        <p className="text-white font-medium">{describeData.namespace}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Node</p>
+                        <p className="text-white font-medium">{describeData.node || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Phase</p>
+                        <p className="text-white font-medium">{describeData.phase}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Created At</p>
+                        <p className="text-white font-medium">
+                          {new Date(describeData.created_at).toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                      {describeData.pod_ip && (
+                        <div>
+                          <p className="text-sm text-slate-400">Pod IP</p>
+                          <p className="text-white font-medium">{describeData.pod_ip}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 레이블 */}
+                  {describeData.labels && Object.keys(describeData.labels).length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Labels</h3>
+                      <div className="bg-slate-800 rounded-lg p-4">
+                        <div className="space-y-2">
+                          {Object.entries(describeData.labels).map(([key, value]) => (
+                            <div key={key} className="flex items-start gap-2">
+                              <span className="text-slate-400 font-mono text-sm">{key}:</span>
+                              <span className="text-white font-mono text-sm">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 컨테이너 */}
+                  {describeData.containers && describeData.containers.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Containers</h3>
+                      <div className="space-y-4">
+                        {describeData.containers.map((container: any, idx: number) => (
+                          <div key={idx} className="bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-white font-medium">{container.name}</h4>
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                container.ready ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                              }`}>
+                                {container.ready ? 'Ready' : 'Not Ready'}
+                              </span>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="text-slate-400">Image: </span>
+                                <span className="text-white font-mono">{container.image}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">State: </span>
+                                <span className="text-white">
+                                  {container.state?.running ? 'Running' : 
+                                   container.state?.waiting ? `Waiting (${container.state.waiting.reason || 'Unknown'})` :
+                                   container.state?.terminated ? `Terminated (${container.state.terminated.reason || 'Unknown'})` :
+                                   'Unknown'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Restart Count: </span>
+                                <span className="text-white">{container.restart_count}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conditions */}
+                  {describeData.conditions && describeData.conditions.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Conditions</h3>
+                      <div className="bg-slate-800 rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-slate-700">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Type</th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Status</th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Last Transition</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-700">
+                            {describeData.conditions.map((condition: any, idx: number) => (
+                              <tr key={idx}>
+                                <td className="px-4 py-2 text-sm text-white">{condition.type}</td>
+                                <td className="px-4 py-2 text-sm">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    condition.status === 'True' ? 'bg-green-500/20 text-green-400' : 'bg-slate-600 text-slate-300'
+                                  }`}>
+                                    {condition.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-sm text-slate-300">
+                                  {new Date(condition.last_transition_time).toLocaleString('ko-KR')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Events */}
+                  {describeData.events && describeData.events.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4">Events</h3>
+                      <div className="bg-slate-800 rounded-lg p-4 space-y-3 max-h-96 overflow-y-auto">
+                        {describeData.events.map((event: any, idx: number) => (
+                          <div key={idx} className="border-l-2 border-slate-600 pl-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    event.type === 'Normal' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {event.type}
+                                  </span>
+                                  <span className="text-white text-sm font-medium">{event.reason}</span>
+                                </div>
+                                <p className="text-slate-300 text-sm mt-1">{event.message}</p>
+                              </div>
+                              <span className="text-slate-400 text-xs whitespace-nowrap ml-4">
+                                {new Date(event.last_timestamp).toLocaleString('ko-KR')}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

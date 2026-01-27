@@ -756,6 +756,7 @@ class K8sService:
                 "status": phase,
                 "phase": phase,  # 프론트엔드에서 사용하는 필드
                 "node": node,
+                "pod_ip": pod.status.pod_ip if hasattr(pod.status, 'pod_ip') else None,
                 "start_time": str(pod.status.start_time) if hasattr(pod.status, 'start_time') and pod.status.start_time else None,
                 "created_at": created_at,  # 프론트엔드에서 사용하는 필드 (ISO 형식)
                 "labels": pod.metadata.labels or {},
@@ -797,7 +798,8 @@ class K8sService:
                         "type": condition.type,
                         "status": condition.status,
                         "reason": condition.reason,
-                        "message": condition.message
+                        "message": condition.message,
+                        "last_transition_time": str(condition.last_transition_time) if condition.last_transition_time else None
                     })
             
             # Events
