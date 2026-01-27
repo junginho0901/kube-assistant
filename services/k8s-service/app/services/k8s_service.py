@@ -137,11 +137,13 @@ class K8sService:
             all_pods = self.v1.list_pod_for_all_namespaces()
             all_services = self.v1.list_service_for_all_namespaces()
             all_deployments = self.apps_v1.list_deployment_for_all_namespaces()
+            all_pvcs = self.v1.list_persistent_volume_claim_for_all_namespaces()
             
             # 네임스페이스별로 집계
             pod_counts = {}
             service_counts = {}
             deployment_counts = {}
+            pvc_counts = {}
             
             for pod in all_pods.items:
                 ns = pod.metadata.namespace
@@ -155,6 +157,10 @@ class K8sService:
                 ns = deploy.metadata.namespace
                 deployment_counts[ns] = deployment_counts.get(ns, 0) + 1
             
+            for pvc in all_pvcs.items:
+                ns = pvc.metadata.namespace
+                pvc_counts[ns] = pvc_counts.get(ns, 0) + 1
+            
             result = []
             for ns in namespaces.items:
                 ns_name = ns.metadata.name
@@ -166,7 +172,8 @@ class K8sService:
                     resource_count={
                         "pods": pod_counts.get(ns_name, 0),
                         "services": service_counts.get(ns_name, 0),
-                        "deployments": deployment_counts.get(ns_name, 0)
+                        "deployments": deployment_counts.get(ns_name, 0),
+                        "pvcs": pvc_counts.get(ns_name, 0)
                     }
                 ))
             

@@ -112,7 +112,7 @@ export default function Namespaces() {
               </span>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-6 grid grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-slate-400">Pods</p>
                 <p className="text-2xl font-bold text-white">
@@ -129,6 +129,12 @@ export default function Namespaces() {
                 <p className="text-sm text-slate-400">Deployments</p>
                 <p className="text-2xl font-bold text-white">
                   {ns.resource_count?.deployments || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-400">PVCs</p>
+                <p className="text-2xl font-bold text-white">
+                  {ns.resource_count?.pvcs || 0}
                 </p>
               </div>
             </div>
