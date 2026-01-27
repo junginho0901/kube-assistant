@@ -129,9 +129,6 @@ class K8sService:
                     return [NamespaceInfo(**ns) for ns in cached]
             
             print(f"🔄 Cache MISS: {cache_key}, fetching from K8s API...")
-            cached = None
-            if cached:
-                return cached
             
             # 전체 네임스페이스 조회
             namespaces = self.v1.list_namespace()
@@ -173,8 +170,8 @@ class K8sService:
                     }
                 ))
             
-            # 캐시 저장
-            self._set_cache("namespaces", result)
+            # Redis 캐시에 저장 (30초 TTL)
+            redis_cache.set(cache_key, [ns.model_dump() for ns in result], ttl=30)
             
             return result
         except ApiException as e:
