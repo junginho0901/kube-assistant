@@ -31,11 +31,30 @@ export default function Namespaces() {
     setIsRefreshing(true)
     // 새로고침은 항상 강제 갱신
     try {
-      const namespacesData = await api.getNamespaces(true)
+      // 네임스페이스와 전체 Pod를 병렬로 조회
+      const [namespacesData, allPodsData] = await Promise.all([
+        api.getNamespaces(true),
+        api.getAllPods(true)
+      ])
+      
+      // 네임스페이스별 실제 Pod 개수 계산
+      const podCountsByNs: Record<string, number> = {}
+      allPodsData.forEach((pod: any) => {
+        podCountsByNs[pod.namespace] = (podCountsByNs[pod.namespace] || 0) + 1
+      })
+      
+      // 네임스페이스 데이터에 실제 Pod 개수로 보정
+      const correctedNamespaces = namespacesData.map((ns: any) => ({
+        ...ns,
+        resource_count: {
+          ...ns.resource_count,
+          pods: podCountsByNs[ns.name] || 0
+        }
+      }))
       
       // 캐시 제거 후 새 데이터로 업데이트
       queryClient.removeQueries({ queryKey: ['namespaces'] })
-      queryClient.setQueryData(['namespaces'], namespacesData)
+      queryClient.setQueryData(['namespaces'], correctedNamespaces)
     } catch (error) {
       console.error('새로고침 실패:', error)
     }
