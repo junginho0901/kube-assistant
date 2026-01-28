@@ -148,6 +148,15 @@ export default function Dashboard() {
       })
       console.log('📊 현재 화면에 표시중인 overview:', overview)
       
+      // allPodsData의 실제 개수로 overview의 total_pods를 덮어쓰기 (타이밍 이슈 방지)
+      const correctedOverview = {
+        ...overviewData,
+        total_pods: allPodsData.length,
+        total_namespaces: namespacesData.length,
+      }
+      
+      console.log('✏️  보정된 overview:', correctedOverview)
+      
       // 캐시를 완전히 제거하고 새 데이터로 설정 (강제 리렌더링)
       queryClient.removeQueries({ queryKey: ['cluster-overview'] })
       queryClient.removeQueries({ queryKey: ['namespaces'] })
@@ -156,8 +165,8 @@ export default function Dashboard() {
       queryClient.removeQueries({ queryKey: ['modal-nodes'] })
       queryClient.removeQueries({ queryKey: ['all-pods'] })
       
-      // 새 데이터로 캐시 설정
-      queryClient.setQueryData(['cluster-overview'], overviewData)
+      // 새 데이터로 캐시 설정 (보정된 overview 사용)
+      queryClient.setQueryData(['cluster-overview'], correctedOverview)
       queryClient.setQueryData(['namespaces'], namespacesData)
       queryClient.setQueryData(['all-namespaces'], namespacesData)
       queryClient.setQueryData(['nodes'], nodesData)
