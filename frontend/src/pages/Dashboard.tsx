@@ -129,16 +129,21 @@ export default function Dashboard() {
     setIsRefreshing(true)
     // 새로고침은 항상 강제 갱신 (force_refresh=true)
     try {
-      // 모든 데이터를 강제로 새로 가져오기
-      await Promise.all([
-        api.getClusterOverview(true).then(() => queryClient.invalidateQueries({ queryKey: ['cluster-overview'] })),
-        api.getNamespaces(true).then(() => queryClient.invalidateQueries({ queryKey: ['namespaces'] })),
-        api.getNamespaces(true).then(() => queryClient.invalidateQueries({ queryKey: ['all-namespaces'] })),
-        api.getNodes(true).then(() => queryClient.invalidateQueries({ queryKey: ['nodes'] })),
-        api.getNodes(true).then(() => queryClient.invalidateQueries({ queryKey: ['modal-nodes'] })),
+      // API를 직접 호출하고 캐시에 수동으로 업데이트
+      const [overviewData, namespacesData, nodesData] = await Promise.all([
+        api.getClusterOverview(true),
+        api.getNamespaces(true),
+        api.getNodes(true),
       ])
       
-      // Pod, Service, Deployment, PVC는 네임스페이스별로 조회하므로 invalidate만
+      // 캐시에 수동으로 데이터 설정
+      queryClient.setQueryData(['cluster-overview'], overviewData)
+      queryClient.setQueryData(['namespaces'], namespacesData)
+      queryClient.setQueryData(['all-namespaces'], namespacesData)
+      queryClient.setQueryData(['nodes'], nodesData)
+      queryClient.setQueryData(['modal-nodes'], nodesData)
+      
+      // 나머지는 invalidate해서 다시 fetch하도록
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['all-pods'] }),
         queryClient.invalidateQueries({ queryKey: ['all-services'] }),
