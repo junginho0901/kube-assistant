@@ -159,13 +159,17 @@ export const api = {
     return data
   },
 
-  getServices: async (namespace: string): Promise<ServiceInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/services`)
+  getServices: async (namespace: string, forceRefresh = false): Promise<ServiceInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/services`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
-  getDeployments: async (namespace: string): Promise<DeploymentInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/deployments`)
+  getDeployments: async (namespace: string, forceRefresh = false): Promise<DeploymentInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/deployments`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 

@@ -1,6 +1,5 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/services/api'
 import { FileCode, Package, Network as NetworkIcon, Database, Key, Box, Clock, Globe, FileBox, HardDrive } from 'lucide-react'
 import { useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'

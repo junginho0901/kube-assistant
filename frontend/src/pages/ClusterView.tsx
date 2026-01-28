@@ -71,13 +71,13 @@ export default function ClusterView() {
   }, [selectedPod])
 
   // 네임스페이스 목록
-  const { data: namespaces, refetch: refetchNamespaces } = useQuery({
+  const { data: namespaces } = useQuery({
     queryKey: ['namespaces'],
     queryFn: () => api.getNamespaces(false), // 자동 갱신은 캐시 사용
   })
 
   // 전체 Pod 조회
-  const { data: allPods, isLoading, refetch: refetchPods } = useQuery({
+  const { data: allPods, isLoading } = useQuery({
     queryKey: ['all-pods', selectedNamespace],
     queryFn: async () => {
       const forceRefresh = true // Pod 조회는 항상 강제 갱신
@@ -96,7 +96,7 @@ export default function ClusterView() {
   // 노드 목록 (정렬용)
   const { data: nodes } = useQuery({
     queryKey: ['nodes'],
-    queryFn: api.getNodes,
+    queryFn: () => api.getNodes(false),
   })
 
   // 로그 스트리밍 (WebSocket)
@@ -301,8 +301,8 @@ export default function ClusterView() {
   // 노드 정렬: control-plane 먼저, 그 다음 워커 노드, 각 그룹 내에서는 이름 순
   const sortedNodeEntries = Object.entries(podsByNode).sort(([nodeA], [nodeB]) => {
     // 노드 정보 찾기
-    const nodeInfoA = nodes?.find(n => n.name === nodeA)
-    const nodeInfoB = nodes?.find(n => n.name === nodeB)
+    const nodeInfoA = nodes?.find((n: any) => n.name === nodeA)
+    const nodeInfoB = nodes?.find((n: any) => n.name === nodeB)
     
     // Unscheduled는 맨 뒤로
     if (nodeA === 'Unscheduled') return 1

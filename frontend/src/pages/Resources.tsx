@@ -17,25 +17,25 @@ export default function Resources() {
   const [activeTab, setActiveTab] = useState<ResourceType>('deployments')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const { data: services, refetch: refetchServices } = useQuery({
+  const { data: services } = useQuery({
     queryKey: ['services', namespace],
     queryFn: () => api.getServices(namespace!),
     enabled: !!namespace && activeTab === 'services',
   })
 
-  const { data: deployments, refetch: refetchDeployments } = useQuery({
+  const { data: deployments } = useQuery({
     queryKey: ['deployments', namespace],
     queryFn: () => api.getDeployments(namespace!),
     enabled: !!namespace && activeTab === 'deployments',
   })
 
-  const { data: pods, refetch: refetchPods } = useQuery({
+  const { data: pods } = useQuery({
     queryKey: ['pods', namespace],
     queryFn: () => api.getPods(namespace!, undefined, false), // 자동 갱신은 캐시 사용
     enabled: !!namespace && activeTab === 'pods',
   })
 
-  const { data: pvcs, refetch: refetchPVCs } = useQuery({
+  const { data: pvcs } = useQuery({
     queryKey: ['pvcs', namespace],
     queryFn: () => api.getPVCs(namespace),
     enabled: activeTab === 'pvcs',
