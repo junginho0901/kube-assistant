@@ -31,24 +31,44 @@ export default function Namespaces() {
     setIsRefreshing(true)
     // 새로고침은 항상 강제 갱신
     try {
-      // 네임스페이스와 전체 Pod를 병렬로 조회
-      const [namespacesData, allPodsData] = await Promise.all([
-        api.getNamespaces(true),
-        api.getAllPods(true)
+      // 먼저 네임스페이스 목록을 가져옴
+      const namespacesData = await api.getNamespaces(true)
+      
+      // 모든 리소스를 병렬로 조회
+      const [allPodsData, allServicesData, allDeploymentsData, allPVCsData] = await Promise.all([
+        api.getAllPods(true),
+        Promise.all(namespacesData.map((ns: any) => api.getServices(ns.name, true))).then(results => results.flat()),
+        Promise.all(namespacesData.map((ns: any) => api.getDeployments(ns.name, true))).then(results => results.flat()),
+        api.getPVCs(undefined, true),
       ])
       
-      // 네임스페이스별 실제 Pod 개수 계산
+      // 네임스페이스별 실제 리소스 개수 계산
       const podCountsByNs: Record<string, number> = {}
+      const serviceCountsByNs: Record<string, number> = {}
+      const deploymentCountsByNs: Record<string, number> = {}
+      const pvcCountsByNs: Record<string, number> = {}
+      
       allPodsData.forEach((pod: any) => {
         podCountsByNs[pod.namespace] = (podCountsByNs[pod.namespace] || 0) + 1
       })
+      allServicesData.forEach((svc: any) => {
+        serviceCountsByNs[svc.namespace] = (serviceCountsByNs[svc.namespace] || 0) + 1
+      })
+      allDeploymentsData.forEach((deploy: any) => {
+        deploymentCountsByNs[deploy.namespace] = (deploymentCountsByNs[deploy.namespace] || 0) + 1
+      })
+      allPVCsData.forEach((pvc: any) => {
+        pvcCountsByNs[pvc.namespace] = (pvcCountsByNs[pvc.namespace] || 0) + 1
+      })
       
-      // 네임스페이스 데이터에 실제 Pod 개수로 보정
+      // 네임스페이스 데이터에 실제 리소스 개수로 보정
       const correctedNamespaces = namespacesData.map((ns: any) => ({
         ...ns,
         resource_count: {
-          ...ns.resource_count,
-          pods: podCountsByNs[ns.name] || 0
+          pods: podCountsByNs[ns.name] || 0,
+          services: serviceCountsByNs[ns.name] || 0,
+          deployments: deploymentCountsByNs[ns.name] || 0,
+          pvcs: pvcCountsByNs[ns.name] || 0,
         }
       }))
       

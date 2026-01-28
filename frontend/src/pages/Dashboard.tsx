@@ -132,11 +132,21 @@ export default function Dashboard() {
     try {
       // 메인 데이터를 직접 호출하고 캐시에 수동으로 업데이트
       console.log('📡 API 호출 중 (force_refresh=true)...')
-      const [overviewData, namespacesData, nodesData, allPodsData] = await Promise.all([
+      
+      // 먼저 네임스페이스 목록을 가져옴 (다른 API 호출에 필요)
+      const namespacesData = await api.getNamespaces(true)
+      
+      // 나머지를 병렬로 호출 (네임스페이스별 리소스 조회 포함)
+      const [overviewData, nodesData, allPodsData, allServicesData, allDeploymentsData, allPVCsData] = await Promise.all([
         api.getClusterOverview(true),
-        api.getNamespaces(true),
         api.getNodes(true),
         api.getAllPods(true),
+        // 모든 네임스페이스의 Services 조회
+        Promise.all(namespacesData.map((ns: any) => api.getServices(ns.name, true))).then(results => results.flat()),
+        // 모든 네임스페이스의 Deployments 조회
+        Promise.all(namespacesData.map((ns: any) => api.getDeployments(ns.name, true))).then(results => results.flat()),
+        // 모든 네임스페이스의 PVCs 조회
+        api.getPVCs(undefined, true),
       ])
       
       console.log('✅ API 응답 받음:', {
@@ -144,15 +154,21 @@ export default function Dashboard() {
         overviewPods: overviewData?.total_pods,
         namespaces: namespacesData?.length,
         nodes: nodesData?.length,
-        pods: allPodsData?.length
+        pods: allPodsData?.length,
+        services: allServicesData?.length,
+        deployments: allDeploymentsData?.length,
+        pvcs: allPVCsData?.length
       })
       console.log('📊 현재 화면에 표시중인 overview:', overview)
       
-      // allPodsData의 실제 개수로 overview의 total_pods를 덮어쓰기 (타이밍 이슈 방지)
+      // 실제 데이터로 overview 보정 (타이밍 이슈 방지)
       const correctedOverview = {
         ...overviewData,
         total_pods: allPodsData.length,
         total_namespaces: namespacesData.length,
+        total_services: allServicesData.length,
+        total_deployments: allDeploymentsData.length,
+        total_pvcs: allPVCsData.length,
       }
       
       console.log('✏️  보정된 overview:', correctedOverview)
@@ -164,6 +180,9 @@ export default function Dashboard() {
       queryClient.removeQueries({ queryKey: ['nodes'] })
       queryClient.removeQueries({ queryKey: ['modal-nodes'] })
       queryClient.removeQueries({ queryKey: ['all-pods'] })
+      queryClient.removeQueries({ queryKey: ['all-services'] })
+      queryClient.removeQueries({ queryKey: ['all-deployments'] })
+      queryClient.removeQueries({ queryKey: ['all-pvcs'] })
       
       // 새 데이터로 캐시 설정 (보정된 overview 사용)
       queryClient.setQueryData(['cluster-overview'], correctedOverview)
@@ -172,13 +191,11 @@ export default function Dashboard() {
       queryClient.setQueryData(['nodes'], nodesData)
       queryClient.setQueryData(['modal-nodes'], nodesData)
       queryClient.setQueryData(['all-pods'], allPodsData)
+      queryClient.setQueryData(['all-services'], allServicesData)
+      queryClient.setQueryData(['all-deployments'], allDeploymentsData)
+      queryClient.setQueryData(['all-pvcs'], allPVCsData)
       
       console.log('💾 React Query 캐시 업데이트 완료')
-      
-      // Services, Deployments, PVCs는 모달이 열려있을 때만 필요하므로 invalidate
-      queryClient.invalidateQueries({ queryKey: ['all-services'] })
-      queryClient.invalidateQueries({ queryKey: ['all-deployments'] })
-      queryClient.invalidateQueries({ queryKey: ['all-pvcs'] })
     } catch (error) {
       console.error('❌ 새로고침 실패:', error)
     }
