@@ -429,7 +429,7 @@ export default function Dashboard() {
     : []
 
   // 노드 상태 차트 데이터
-  const nodeStatusData = nodes
+  const nodeStatusData = nodes && Array.isArray(nodes)
     ? nodes.reduce((acc: Record<string, number>, node) => {
         const status = node.status || 'Unknown'
         acc[status] = (acc[status] || 0) + 1
