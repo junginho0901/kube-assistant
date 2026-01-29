@@ -68,26 +68,33 @@ export default function Topology() {
       const category = resourceCategories.find(c => c.type === selectedType)
       if (!category) return null
       
-      const response = await fetch(
-        `http://localhost:8000/api/v1/cluster/namespaces/${namespace}/${category.endpoint}/${selectedResource}/yaml`
-      )
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || `Failed to fetch YAML: ${response.status}`)
+      try {
+        const response = await fetch(
+          `http://localhost:8000/api/v1/cluster/namespaces/${namespace}/${category.endpoint}/${selectedResource}/yaml`
+        )
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          // 콘솔에 일반 로그로만 출력
+          console.log(`ℹ️ 리소스를 찾을 수 없습니다: ${selectedType}/${selectedResource} (${namespace})`)
+          throw new Error(errorData.detail || `리소스를 찾을 수 없습니다`)
+        }
+        
+        const data = await response.json()
+        return data.yaml
+      } catch (error) {
+        // fetch 에러를 잡아서 일반 로그로만 출력
+        if (error instanceof Error && error.message !== '리소스를 찾을 수 없습니다') {
+          console.log(`ℹ️ YAML 조회 실패: ${selectedType}/${selectedResource}`)
+        }
+        throw error
       }
-      
-      const data = await response.json()
-      return data.yaml
     },
     enabled: !!namespace && !!selectedResource,
     staleTime: 0, // 데이터를 항상 stale로 간주
     cacheTime: 0, // 캐시 비활성화 (항상 새로 가져오기)
     retry: false, // 에러 시 재시도하지 않음
     useErrorBoundary: false, // 에러 바운더리 사용 안 함
-    onError: () => {
-      // 에러 발생 시 콘솔 로그 방지 (이미 UI에 표시됨)
-    },
   })
 
   if (!namespace) {
@@ -179,10 +186,9 @@ export default function Topology() {
               <button
                 onClick={() => {
                   refetchYaml()
-                  refetchResources()
                 }}
                 className="btn btn-secondary text-sm"
-                title="목록 및 YAML 새로고침"
+                title="YAML 새로고침"
               >
                 새로고침
               </button>
