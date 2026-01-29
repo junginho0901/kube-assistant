@@ -80,11 +80,16 @@ export default function Monitoring() {
             노드 및 Pod의 실시간 리소스 사용량을 모니터링하세요
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          <Clock className="w-4 h-4" />
-          <span>마지막 업데이트: {lastUpdate.toLocaleTimeString()}</span>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-2"></div>
-          <span className="text-green-400">5초마다 자동 갱신</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Clock className="w-4 h-4" />
+            <span>마지막 업데이트: {lastUpdate.toLocaleTimeString()}</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-2"></div>
+            <span className="text-green-400">5초마다 자동 갱신</span>
+          </div>
+          <p className="text-xs text-slate-500">
+            * 데이터를 가져오는 데 5초 이상 걸릴 수 있습니다
+          </p>
         </div>
       </div>
 
