@@ -12,7 +12,7 @@ import {
 import { useState, useEffect } from 'react'
 
 export default function Monitoring() {
-  const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
+  const [selectedNamespace, setSelectedNamespace] = useState<string>('')
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   // 노드 리소스 사용량 (5초마다 자동 갱신)
@@ -30,23 +30,24 @@ export default function Monitoring() {
     staleTime: 30000,
   })
 
-  // Pod 리소스 사용량 (5초마다 자동 갱신)
+  // Pod 리소스 사용량 (네임스페이스 선택 시에만 활성화, 5초마다 자동 갱신)
   const { data: podMetrics, isLoading: isLoadingPods, error: podMetricsError } = useQuery({
     queryKey: ['pod-metrics', selectedNamespace],
     queryFn: () => api.getPodMetrics(selectedNamespace === 'all' ? undefined : selectedNamespace),
     staleTime: 5000,
     refetchInterval: 5000,
-    enabled: !!selectedNamespace,
+    enabled: !!selectedNamespace, // 네임스페이스가 선택되었을 때만 활성화
     retry: 3, // 3번 재시도
     retryDelay: 1000, // 1초 대기 후 재시도
   })
 
-  // Pod 상세 정보 (Limit/Request 포함)
+  // Pod 상세 정보 (Limit/Request 포함) - 네임스페이스 선택 시에만 활성화
   const { data: allPods } = useQuery({
     queryKey: ['all-pods-detail'],
     queryFn: () => api.getAllPods(false),
     staleTime: 10000,
     refetchInterval: 10000,
+    enabled: !!selectedNamespace, // 네임스페이스가 선택되었을 때만 활성화
   })
 
   // 마지막 업데이트 시간 갱신
@@ -227,6 +228,7 @@ export default function Monitoring() {
             onChange={(e) => setSelectedNamespace(e.target.value)}
             className="w-full md:w-64 px-4 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500"
           >
+            <option value="">네임스페이스를 선택하세요</option>
             <option value="all">전체 네임스페이스</option>
             {namespaces && namespaces.map((ns) => (
               <option key={ns.name} value={ns.name}>
@@ -236,8 +238,19 @@ export default function Monitoring() {
           </select>
         </div>
 
+        {/* 네임스페이스 미선택 시 안내 메시지 */}
+        {!selectedNamespace && (
+          <div className="text-center py-12 bg-slate-700/50 rounded-lg border-2 border-dashed border-slate-600">
+            <Box className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+            <p className="text-slate-400 text-lg font-medium">네임스페이스를 선택하세요</p>
+            <p className="text-sm text-slate-500 mt-2">
+              Pod 리소스 사용량을 확인하려면 위에서 네임스페이스를 선택하세요
+            </p>
+          </div>
+        )}
+
         {/* Pod 통계 카드 */}
-        {podStats && (
+        {selectedNamespace && podStats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-slate-700 rounded-lg">
               <div className="flex items-center justify-between">
@@ -269,12 +282,12 @@ export default function Monitoring() {
           </div>
         )}
 
-        {isLoadingPods ? (
+        {selectedNamespace && isLoadingPods ? (
           <div className="flex flex-col items-center justify-center py-12">
             <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
             <p className="text-slate-400">데이터를 불러오는 중...</p>
           </div>
-        ) : podMetrics && podMetrics.length > 0 ? (
+        ) : selectedNamespace && podMetrics && podMetrics.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -403,7 +416,7 @@ export default function Monitoring() {
               </tbody>
             </table>
           </div>
-        ) : podMetricsError ? (
+        ) : selectedNamespace && podMetricsError ? (
           <div className="text-center py-12">
             <div className="flex flex-col items-center gap-4">
               <Activity className="w-12 h-12 text-red-400 animate-pulse" />
@@ -415,7 +428,7 @@ export default function Monitoring() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : selectedNamespace ? (
           <div className="text-center py-12">
             <p className="text-slate-400">
               {selectedNamespace === 'all' 
@@ -428,7 +441,7 @@ export default function Monitoring() {
               </p>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

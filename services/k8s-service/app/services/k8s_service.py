@@ -1066,77 +1066,103 @@ class K8sService:
     
     async def get_pod_metrics(self, namespace: Optional[str] = None) -> List[Dict]:
         """Pod 리소스 사용량 조회 (kubectl top pods)"""
-        try:
-            custom_api = client.CustomObjectsApi()
-            
-            if namespace:
-                # 특정 네임스페이스의 Pod 메트릭
-                print(f"[DEBUG] Fetching pod metrics for namespace: {namespace}")
-                metrics = custom_api.list_namespaced_custom_object(
-                    group="metrics.k8s.io",
-                    version="v1beta1",
-                    namespace=namespace,
-                    plural="pods"
-                )
-            else:
-                # 전체 네임스페이스의 Pod 메트릭
-                print(f"[DEBUG] Fetching pod metrics for all namespaces")
-                metrics = custom_api.list_cluster_custom_object(
-                    group="metrics.k8s.io",
-                    version="v1beta1",
-                    plural="pods"
-                )
-            
-            result = []
-            for item in metrics.get("items", []):
-                pod_name = item["metadata"]["name"]
-                pod_namespace = item["metadata"]["namespace"]
+        import time
+        
+        max_retries = 3
+        retry_delay = 0.5  # 0.5초
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                custom_api = client.CustomObjectsApi()
                 
-                # 컨테이너별 리소스 합산
-                total_cpu = 0
-                total_memory = 0
+                if namespace:
+                    # 특정 네임스페이스의 Pod 메트릭
+                    print(f"[DEBUG] Fetching pod metrics for namespace: {namespace} (attempt {attempt}/{max_retries})")
+                    metrics = custom_api.list_namespaced_custom_object(
+                        group="metrics.k8s.io",
+                        version="v1beta1",
+                        namespace=namespace,
+                        plural="pods",
+                        _request_timeout=5  # 5초 타임아웃
+                    )
+                else:
+                    # 전체 네임스페이스의 Pod 메트릭
+                    print(f"[DEBUG] Fetching pod metrics for all namespaces (attempt {attempt}/{max_retries})")
+                    metrics = custom_api.list_cluster_custom_object(
+                        group="metrics.k8s.io",
+                        version="v1beta1",
+                        plural="pods",
+                        _request_timeout=5  # 5초 타임아웃
+                    )
                 
-                for container in item.get("containers", []):
-                    usage = container.get("usage", {})
+                result = []
+                for item in metrics.get("items", []):
+                    pod_name = item["metadata"]["name"]
+                    pod_namespace = item["metadata"]["namespace"]
                     
-                    # CPU (nanocores -> millicores)
-                    cpu_str = usage.get("cpu", "0")
-                    if cpu_str.endswith("n"):
-                        total_cpu += int(cpu_str[:-1]) / 1_000_000
-                    elif cpu_str.endswith("m"):
-                        total_cpu += int(cpu_str[:-1])
-                    else:
-                        total_cpu += int(cpu_str) * 1000
+                    # 컨테이너별 리소스 합산
+                    total_cpu = 0
+                    total_memory = 0
                     
-                    # Memory (bytes -> Mi)
-                    memory_str = usage.get("memory", "0")
-                    if memory_str.endswith("Ki"):
-                        total_memory += int(memory_str[:-2]) / 1024
-                    elif memory_str.endswith("Mi"):
-                        total_memory += int(memory_str[:-2])
-                    elif memory_str.endswith("Gi"):
-                        total_memory += int(memory_str[:-2]) * 1024
-                    else:
-                        total_memory += int(memory_str) / (1024 * 1024)
+                    for container in item.get("containers", []):
+                        usage = container.get("usage", {})
+                        
+                        # CPU (nanocores -> millicores)
+                        cpu_str = usage.get("cpu", "0")
+                        if cpu_str.endswith("n"):
+                            total_cpu += int(cpu_str[:-1]) / 1_000_000
+                        elif cpu_str.endswith("m"):
+                            total_cpu += int(cpu_str[:-1])
+                        else:
+                            total_cpu += int(cpu_str) * 1000
+                        
+                        # Memory (bytes -> Mi)
+                        memory_str = usage.get("memory", "0")
+                        if memory_str.endswith("Ki"):
+                            total_memory += int(memory_str[:-2]) / 1024
+                        elif memory_str.endswith("Mi"):
+                            total_memory += int(memory_str[:-2])
+                        elif memory_str.endswith("Gi"):
+                            total_memory += int(memory_str[:-2]) * 1024
+                        else:
+                            total_memory += int(memory_str) / (1024 * 1024)
+                    
+                    result.append({
+                        "namespace": pod_namespace,
+                        "name": pod_name,
+                        "cpu": f"{int(total_cpu)}m",
+                        "memory": f"{int(total_memory)}Mi"
+                    })
                 
-                result.append({
-                    "namespace": pod_namespace,
-                    "name": pod_name,
-                    "cpu": f"{int(total_cpu)}m",
-                    "memory": f"{int(total_memory)}Mi"
-                })
-            
-            print(f"[DEBUG] Pod metrics result count: {len(result)}")
-            return result
-        except ApiException as e:
-            print(f"[ERROR] Failed to get pod metrics: {e.status} - {e.reason}")
-            print(f"[ERROR] Response body: {e.body}")
-            raise Exception(f"Failed to get pod metrics: {e.status} - {e.reason}")
-        except Exception as e:
-            print(f"[ERROR] Unexpected error in get_pod_metrics: {type(e).__name__} - {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise Exception(f"Failed to get pod metrics: {str(e)}")
+                print(f"[DEBUG] Pod metrics result count: {len(result)}")
+                return result
+                
+            except ApiException as e:
+                print(f"[ERROR] Failed to get pod metrics (attempt {attempt}/{max_retries}): {e.status} - {e.reason}")
+                if attempt < max_retries:
+                    print(f"[INFO] Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # 지수 백오프
+                else:
+                    print(f"[ERROR] All retries exhausted. Response body: {e.body}")
+                    # 마지막 시도 실패 시 빈 배열 반환 (500 에러 대신)
+                    print(f"[WARN] Returning empty metrics array due to API failure")
+                    return []
+            except Exception as e:
+                print(f"[ERROR] Unexpected error in get_pod_metrics (attempt {attempt}/{max_retries}): {type(e).__name__} - {str(e)}")
+                if attempt < max_retries:
+                    print(f"[INFO] Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    import traceback
+                    traceback.print_exc()
+                    # 마지막 시도 실패 시 빈 배열 반환 (500 에러 대신)
+                    print(f"[WARN] Returning empty metrics array due to unexpected error")
+                    return []
+        
+        # 이 줄에 도달하지 않지만 타입 체커를 위해
+        return []
     
     async def get_node_metrics(self) -> List[Dict]:
         """Node 리소스 사용량 조회 (kubectl top nodes)"""
