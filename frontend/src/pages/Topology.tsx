@@ -84,6 +84,10 @@ export default function Topology() {
     staleTime: 0, // 데이터를 항상 stale로 간주
     cacheTime: 0, // 캐시 비활성화 (항상 새로 가져오기)
     retry: false, // 에러 시 재시도하지 않음
+    useErrorBoundary: false, // 에러 바운더리 사용 안 함
+    onError: () => {
+      // 에러 발생 시 콘솔 로그 방지 (이미 UI에 표시됨)
+    },
   })
 
   if (!namespace) {
