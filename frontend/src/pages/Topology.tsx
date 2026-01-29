@@ -92,9 +92,8 @@ export default function Topology() {
     },
     enabled: !!namespace && !!selectedResource,
     staleTime: 0, // 데이터를 항상 stale로 간주
-    cacheTime: 0, // 캐시 비활성화 (항상 새로 가져오기)
+    gcTime: 0, // 캐시 비활성화 (항상 새로 가져오기)
     retry: false, // 에러 시 재시도하지 않음
-    useErrorBoundary: false, // 에러 바운더리 사용 안 함
   })
 
   if (!namespace) {
@@ -227,7 +226,7 @@ export default function Topology() {
                   fontSize: '0.875rem'
                 }}
               >
-                {yaml}
+                {String(yaml)}
               </SyntaxHighlighter>
             </div>
           ) : (
