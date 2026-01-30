@@ -1135,6 +1135,13 @@ class K8sService:
                     })
                 
                 print(f"[DEBUG] Pod metrics result count: {len(result)}")
+                
+                # 전체 네임스페이스 조회 시 결과가 없으면(빈 배열) 에러로 처리
+                # (K8s Metrics Server가 일시적으로 데이터를 못 가져오는 경우 등)
+                if not namespace and not result:
+                    print(f"[WARN] No pod metrics found for all namespaces. Treating as error to preserve stale data.")
+                    raise Exception("No pod metrics found (empty list returned from K8s API)")
+
                 return result
                 
             except ApiException as e:
@@ -1146,8 +1153,8 @@ class K8sService:
                 else:
                     print(f"[ERROR] All retries exhausted. Response body: {e.body}")
                     # 마지막 시도 실패 시 빈 배열 반환 (500 에러 대신)
-                    print(f"[WARN] Returning empty metrics array due to API failure")
-                    return []
+                    print(f"[WARN] Failed to get pod metrics: {e.body}")
+                    raise
             except Exception as e:
                 print(f"[ERROR] Unexpected error in get_pod_metrics (attempt {attempt}/{max_retries}): {type(e).__name__} - {str(e)}")
                 if attempt < max_retries:
@@ -1158,8 +1165,8 @@ class K8sService:
                     import traceback
                     traceback.print_exc()
                     # 마지막 시도 실패 시 빈 배열 반환 (500 에러 대신)
-                    print(f"[WARN] Returning empty metrics array due to unexpected error")
-                    return []
+                    print(f"[WARN] Unexpected error in get_pod_metrics: {str(e)}")
+                    raise
         
         # 이 줄에 도달하지 않지만 타입 체커를 위해
         return []
