@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { 
-  Server, 
-  Box, 
-  Database, 
+import {
+  Server,
+  Box,
+  Database,
   HardDrive,
   TrendingUp,
   AlertCircle,
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const [selectedPodStatus, setSelectedPodStatus] = useState<string | null>(null)
   const [selectedNodeStatus, setSelectedNodeStatus] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<any | null>(null)
-  
+
   const { data: overview, isLoading } = useQuery({
     queryKey: ['cluster-overview'],
     queryFn: () => api.getClusterOverview(false), // 자동 갱신은 캐시 사용
@@ -97,13 +97,18 @@ export default function Dashboard() {
   })
 
   // Top 리소스 사용 파드/노드 (5초마다 갱신)
-  const { data: topResources, isLoading: isLoadingTopResources } = useQuery({
+  const {
+    data: topResources,
+    isLoading: isLoadingTopResources,
+    isFetching: isFetchingTopResources,
+    isError: isTopResourcesError
+  } = useQuery({
     queryKey: ['top-resources'],
     queryFn: () => api.getTopResources(5, 3), // 파드 5개, 노드 3개
-    staleTime: 10000, // 10초간 fresh 상태 유지
+    staleTime: 5000, // 5초간 fresh 상태 유지
     refetchInterval: 5000, // 5초마다 백그라운드 갱신
     placeholderData: (previousData) => previousData, // 이전 데이터 유지 (깜빡임 방지)
-    retry: 1, // 실패 시 1번만 재시도
+    retry: 3, // 실패 시 3번까지 재시도 (더 끈기있게)
   })
 
   // 노드 목록 (모달용)
@@ -126,7 +131,7 @@ export default function Dashboard() {
     queryFn: api.getComponentStatuses,
     enabled: !!selectedNode,
   })
-  
+
   const handleRefresh = async () => {
     console.log('🔄 새로고침 시작...')
     setIsRefreshing(true)
@@ -134,10 +139,10 @@ export default function Dashboard() {
     try {
       // 메인 데이터를 직접 호출하고 캐시에 수동으로 업데이트
       console.log('📡 API 호출 중 (force_refresh=true)...')
-      
+
       // 먼저 네임스페이스 목록을 가져옴 (다른 API 호출에 필요)
       const namespacesData = await api.getNamespaces(true)
-      
+
       // 나머지를 병렬로 호출 (네임스페이스별 리소스 조회 포함)
       const [overviewData, nodesData, allPodsData, allServicesData, allDeploymentsData, allPVCsData] = await Promise.all([
         api.getClusterOverview(true),
@@ -150,7 +155,7 @@ export default function Dashboard() {
         // 모든 네임스페이스의 PVCs 조회
         api.getPVCs(undefined, true),
       ])
-      
+
       console.log('✅ API 응답 받음:', {
         overview: overviewData,
         overviewPods: overviewData?.total_pods,
@@ -162,7 +167,7 @@ export default function Dashboard() {
         pvcs: allPVCsData?.length
       })
       console.log('📊 현재 화면에 표시중인 overview:', overview)
-      
+
       // 실제 데이터로 overview 보정 (타이밍 이슈 방지)
       const correctedOverview = {
         ...overviewData,
@@ -172,9 +177,9 @@ export default function Dashboard() {
         total_deployments: allDeploymentsData.length,
         total_pvcs: allPVCsData.length,
       }
-      
+
       console.log('✏️  보정된 overview:', correctedOverview)
-      
+
       // 캐시를 완전히 제거하고 새 데이터로 설정 (강제 리렌더링)
       queryClient.removeQueries({ queryKey: ['cluster-overview'] })
       queryClient.removeQueries({ queryKey: ['namespaces'] })
@@ -185,7 +190,7 @@ export default function Dashboard() {
       queryClient.removeQueries({ queryKey: ['all-services'] })
       queryClient.removeQueries({ queryKey: ['all-deployments'] })
       queryClient.removeQueries({ queryKey: ['all-pvcs'] })
-      
+
       // 새 데이터로 캐시 설정 (보정된 overview 사용)
       queryClient.setQueryData(['cluster-overview'], correctedOverview)
       queryClient.setQueryData(['namespaces'], namespacesData)
@@ -196,7 +201,7 @@ export default function Dashboard() {
       queryClient.setQueryData(['all-services'], allServicesData)
       queryClient.setQueryData(['all-deployments'], allDeploymentsData)
       queryClient.setQueryData(['all-pvcs'], allPVCsData)
-      
+
       console.log('💾 React Query 캐시 업데이트 완료')
     } catch (error) {
       console.error('❌ 새로고침 실패:', error)
@@ -292,7 +297,7 @@ export default function Dashboard() {
   // 검색어로 리소스 필터링
   const getFilteredResources = () => {
     let resources: any[] = []
-    
+
     // 리소스 타입별 기본 데이터 - 항상 배열 보장
     if (selectedResourceType === 'namespaces') resources = Array.isArray(namespaces) ? namespaces : []
     else if (selectedResourceType === 'pods') resources = Array.isArray(allPods) ? allPods : []
@@ -300,30 +305,30 @@ export default function Dashboard() {
     else if (selectedResourceType === 'deployments') resources = Array.isArray(allDeployments) ? allDeployments : []
     else if (selectedResourceType === 'pvcs') resources = Array.isArray(allPVCs) ? allPVCs : []
     else if (selectedResourceType === 'nodes') resources = Array.isArray(modalNodes) ? modalNodes : []
-    
+
     // Pod 상태 필터링
     if (selectedPodStatus && selectedResourceType === 'pods') {
       resources = resources.filter((pod: any) => pod.phase === selectedPodStatus)
     }
-    
+
     // Node 상태 필터링
     if (selectedNodeStatus && selectedResourceType === 'nodes') {
       resources = resources.filter((node: any) => node.status === selectedNodeStatus)
     }
-    
+
     // 검색어 필터링
     if (!modalSearchQuery.trim()) return resources
 
     const query = modalSearchQuery.toLowerCase()
 
     if (selectedResourceType === 'namespaces') {
-      return resources.filter((ns: any) => 
+      return resources.filter((ns: any) =>
         ns.name.toLowerCase().includes(query)
       )
     }
 
     if (selectedResourceType === 'pods') {
-      return resources.filter((pod: any) => 
+      return resources.filter((pod: any) =>
         pod.name.toLowerCase().includes(query) ||
         pod.namespace.toLowerCase().includes(query) ||
         (pod.node_name && pod.node_name.toLowerCase().includes(query))
@@ -331,7 +336,7 @@ export default function Dashboard() {
     }
 
     if (selectedResourceType === 'services') {
-      return resources.filter((svc: any) => 
+      return resources.filter((svc: any) =>
         svc.name.toLowerCase().includes(query) ||
         svc.namespace.toLowerCase().includes(query) ||
         (svc.type && svc.type.toLowerCase().includes(query)) ||
@@ -340,14 +345,14 @@ export default function Dashboard() {
     }
 
     if (selectedResourceType === 'deployments') {
-      return resources.filter((deploy: any) => 
+      return resources.filter((deploy: any) =>
         deploy.name.toLowerCase().includes(query) ||
         deploy.namespace.toLowerCase().includes(query)
       )
     }
 
     if (selectedResourceType === 'pvcs') {
-      return resources.filter(pvc => 
+      return resources.filter(pvc =>
         pvc.name.toLowerCase().includes(query) ||
         pvc.namespace.toLowerCase().includes(query) ||
         (pvc.storage_class && pvc.storage_class.toLowerCase().includes(query))
@@ -355,7 +360,7 @@ export default function Dashboard() {
     }
 
     if (selectedResourceType === 'nodes') {
-      return resources.filter(node => 
+      return resources.filter(node =>
         node.name.toLowerCase().includes(query) ||
         (node.version && node.version.toLowerCase().includes(query)) ||
         (node.internal_ip && node.internal_ip.toLowerCase().includes(query)) ||
@@ -423,20 +428,20 @@ export default function Dashboard() {
   ]
 
   // Pod 상태 차트 데이터
-  const podStatusData = overview?.pod_status 
+  const podStatusData = overview?.pod_status
     ? Object.entries(overview.pod_status).map(([name, value]) => ({
-        name,
-        value,
-      }))
+      name,
+      value,
+    }))
     : []
 
   // 노드 상태 차트 데이터
   const nodeStatusData = nodes && Array.isArray(nodes)
     ? nodes.reduce((acc: Record<string, number>, node) => {
-        const status = node.status || 'Unknown'
-        acc[status] = (acc[status] || 0) + 1
-        return acc
-      }, {})
+      const status = node.status || 'Unknown'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
     : {}
 
   const nodeStatusChartData = Object.entries(nodeStatusData).map(([name, value]) => ({
@@ -482,7 +487,7 @@ export default function Dashboard() {
             'Nodes': 'nodes',
           }
           const resourceType = resourceTypeMap[stat.name]
-          
+
           return (
             <button
               key={stat.name}
@@ -511,7 +516,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-white mb-4">Pod 상태</h2>
             <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 Pod 목록 보기</p>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
+              <BarChart
                 data={podStatusData}
                 onClick={(data) => {
                   if (data && data.activeLabel) {
@@ -520,23 +525,23 @@ export default function Dashboard() {
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis 
-                  dataKey="name" 
+                <XAxis
+                  dataKey="name"
                   stroke="#94a3b8"
                   style={{ cursor: 'pointer' }}
                 />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1e293b', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1e293b',
                     border: '1px solid #334155',
                     borderRadius: '8px'
                   }}
                   cursor={{ fill: 'rgba(14, 165, 233, 0.1)' }}
                 />
-                <Bar 
-                  dataKey="value" 
-                  fill="#0ea5e9" 
+                <Bar
+                  dataKey="value"
+                  fill="#0ea5e9"
                   cursor="pointer"
                 />
               </BarChart>
@@ -550,7 +555,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-white mb-4">노드 상태</h2>
             <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 노드 목록 보기</p>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
+              <BarChart
                 data={nodeStatusChartData}
                 onClick={(data) => {
                   if (data && data.activeLabel) {
@@ -559,22 +564,22 @@ export default function Dashboard() {
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis 
-                  dataKey="name" 
+                <XAxis
+                  dataKey="name"
                   stroke="#94a3b8"
                   style={{ cursor: 'pointer' }}
                 />
                 <YAxis stroke="#94a3b8" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1e293b', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1e293b',
                     border: '1px solid #334155',
                     borderRadius: '8px'
                   }}
                   cursor={{ fill: 'rgba(6, 182, 212, 0.1)' }}
                 />
-                <Bar 
-                  dataKey="value" 
+                <Bar
+                  dataKey="value"
                   fill="#06b6d4"
                   fillOpacity={0.8}
                   cursor="pointer"
@@ -593,16 +598,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-white">리소스 사용 Top 5 파드</h2>
             <p className="text-xs text-slate-400">5초마다 자동 갱신</p>
           </div>
-          {isLoadingTopResources && !topResources ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="p-4 bg-slate-700 rounded-lg animate-pulse">
-                  <div className="h-4 bg-slate-600 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-slate-600 rounded w-1/2"></div>
-                </div>
-              ))}
-            </div>
-          ) : topResources?.top_pods && topResources.top_pods.length > 0 ? (
+          {(topResources?.top_pods && topResources.top_pods.length > 0) ? (
             <div className="space-y-3">
               {topResources.top_pods.map((pod, index) => (
                 <div key={`${pod.namespace}-${pod.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
@@ -630,9 +626,25 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          ) : (isLoadingTopResources || isFetchingTopResources) ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="p-4 bg-slate-700 rounded-lg animate-pulse">
+                  <div className="h-4 bg-slate-600 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-slate-600 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              {isTopResourcesError ? (
+                <div className="flex flex-col items-center gap-2">
+                  <AlertCircle className="w-8 h-8 text-red-400" />
+                  <p className="text-slate-400">데이터를 가져오는데 실패했습니다</p>
+                </div>
+              ) : (
+                <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              )}
             </div>
           )}
         </div>
@@ -643,22 +655,12 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold text-white">리소스 사용 Top 3 노드</h2>
             <p className="text-xs text-slate-400">5초마다 자동 갱신</p>
           </div>
-          {isLoadingTopResources && !topResources ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-3 animate-pulse">
-                  <div className="h-4 bg-slate-600 rounded w-2/3"></div>
-                  <div className="h-2 bg-slate-600 rounded"></div>
-                  <div className="h-2 bg-slate-600 rounded"></div>
-                </div>
-              ))}
-            </div>
-          ) : topResources?.top_nodes && topResources.top_nodes.length > 0 ? (
+          {(topResources?.top_nodes && topResources.top_nodes.length > 0) ? (
             <div className="space-y-4">
               {topResources.top_nodes.map((node, index) => {
                 const cpuPercent = parseFloat(node.cpu_percent)
                 const memoryPercent = parseFloat(node.memory_percent)
-                
+
                 return (
                   <div key={node.name} className="space-y-3">
                     <div className="flex items-center gap-3">
@@ -673,50 +675,46 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* CPU 사용량 막대 */}
                     <div className="space-y-1 pl-11">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-slate-400">CPU</span>
-                        <span className={`font-medium ${
-                          cpuPercent >= 80 ? 'text-red-400' : 
-                          cpuPercent >= 60 ? 'text-yellow-400' : 
-                          'text-green-400'
-                        }`}>
+                        <span className={`font-medium ${cpuPercent >= 80 ? 'text-red-400' :
+                            cpuPercent >= 60 ? 'text-yellow-400' :
+                              'text-green-400'
+                          }`}>
                           {node.cpu_percent}
                         </span>
                       </div>
                       <div className="w-full h-2 bg-slate-600 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-300 ${
-                            cpuPercent >= 80 ? 'bg-red-500' : 
-                            cpuPercent >= 60 ? 'bg-yellow-500' : 
-                            'bg-green-500'
-                          }`}
+                        <div
+                          className={`h-full transition-all duration-300 ${cpuPercent >= 80 ? 'bg-red-500' :
+                              cpuPercent >= 60 ? 'bg-yellow-500' :
+                                'bg-green-500'
+                            }`}
                           style={{ width: `${Math.min(cpuPercent, 100)}%` }}
                         />
                       </div>
                     </div>
-                    
+
                     {/* Memory 사용량 막대 */}
                     <div className="space-y-1 pl-11">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-slate-400">Memory</span>
-                        <span className={`font-medium ${
-                          memoryPercent >= 80 ? 'text-red-400' : 
-                          memoryPercent >= 60 ? 'text-yellow-400' : 
-                          'text-blue-400'
-                        }`}>
+                        <span className={`font-medium ${memoryPercent >= 80 ? 'text-red-400' :
+                            memoryPercent >= 60 ? 'text-yellow-400' :
+                              'text-blue-400'
+                          }`}>
                           {node.memory_percent}
                         </span>
                       </div>
                       <div className="w-full h-2 bg-slate-600 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-300 ${
-                            memoryPercent >= 80 ? 'bg-red-500' : 
-                            memoryPercent >= 60 ? 'bg-yellow-500' : 
-                            'bg-blue-500'
-                          }`}
+                        <div
+                          className={`h-full transition-all duration-300 ${memoryPercent >= 80 ? 'bg-red-500' :
+                              memoryPercent >= 60 ? 'bg-yellow-500' :
+                                'bg-blue-500'
+                            }`}
                           style={{ width: `${Math.min(memoryPercent, 100)}%` }}
                         />
                       </div>
@@ -725,9 +723,26 @@ export default function Dashboard() {
                 )
               })}
             </div>
+          ) : (isLoadingTopResources || isFetchingTopResources) ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-3 animate-pulse">
+                  <div className="h-4 bg-slate-600 rounded w-2/3"></div>
+                  <div className="h-2 bg-slate-600 rounded"></div>
+                  <div className="h-2 bg-slate-600 rounded"></div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              {isTopResourcesError ? (
+                <div className="flex flex-col items-center gap-2">
+                  <AlertCircle className="w-8 h-8 text-red-400" />
+                  <p className="text-slate-400">데이터를 가져오는데 실패했습니다</p>
+                </div>
+              ) : (
+                <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              )}
             </div>
           )}
         </div>
@@ -773,9 +788,8 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="mt-2">
-                  <span className={`badge text-xs ${
-                    node.status === 'Ready' ? 'badge-success' : 'badge-error'
-                  }`}>
+                  <span className={`badge text-xs ${node.status === 'Ready' ? 'badge-success' : 'badge-error'
+                    }`}>
                     {node.status}
                   </span>
                 </div>
@@ -821,11 +835,11 @@ export default function Dashboard() {
 
       {/* 리소스 상세 모달 */}
       {selectedResourceType && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={handleCloseModal}
         >
-          <div 
+          <div
             className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -894,23 +908,22 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((ns) => (
-                    <div key={ns.name} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">{ns.name}</h3>
-                          <p className="text-sm text-slate-400 mt-1">
-                            Pods: {ns.resource_count?.pods || 0} | 
-                            Services: {ns.resource_count?.services || 0} | 
-                            Deployments: {ns.resource_count?.deployments || 0}
-                          </p>
-                        </div>
-                        <span className={`badge ${
-                          ns.status === 'Active' ? 'badge-success' : 'badge-warning'
-                        }`}>
-                          {ns.status}
-                        </span>
-                      </div>
-                    </div>
+                          <div key={ns.name} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-medium text-white">{ns.name}</h3>
+                                <p className="text-sm text-slate-400 mt-1">
+                                  Pods: {ns.resource_count?.pods || 0} |
+                                  Services: {ns.resource_count?.services || 0} |
+                                  Deployments: {ns.resource_count?.deployments || 0}
+                                </p>
+                              </div>
+                              <span className={`badge ${ns.status === 'Active' ? 'badge-success' : 'badge-warning'
+                                }`}>
+                                {ns.status}
+                              </span>
+                            </div>
+                          </div>
                         ))
                       ) : (
                         <div className="text-center py-12">
@@ -926,31 +939,30 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((pod) => (
-                    <div key={`${pod.namespace}-${pod.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {pod.phase === 'Running' ? (
-                            <CheckCircle className="w-5 h-5 text-green-400" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-400" />
-                          )}
-                          <div>
-                            <h3 className="font-medium text-white">{pod.name}</h3>
-                            <p className="text-sm text-slate-400">{pod.namespace}</p>
+                          <div key={`${pod.namespace}-${pod.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {pod.phase === 'Running' ? (
+                                  <CheckCircle className="w-5 h-5 text-green-400" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-400" />
+                                )}
+                                <div>
+                                  <h3 className="font-medium text-white">{pod.name}</h3>
+                                  <p className="text-sm text-slate-400">{pod.namespace}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`badge ${pod.phase === 'Running' ? 'badge-success' : 'badge-warning'
+                                  }`}>
+                                  {pod.phase}
+                                </span>
+                                {pod.node_name && (
+                                  <span className="text-xs text-slate-400">{pod.node_name}</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`badge ${
-                            pod.phase === 'Running' ? 'badge-success' : 'badge-warning'
-                          }`}>
-                            {pod.phase}
-                          </span>
-                          {pod.node_name && (
-                            <span className="text-xs text-slate-400">{pod.node_name}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                         ))
                       ) : (
                         <div className="text-center py-12">
@@ -966,17 +978,17 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((svc) => (
-                    <div key={`${svc.namespace}-${svc.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">{svc.name}</h3>
-                          <p className="text-sm text-slate-400 mt-1">
-                            {svc.namespace} | Type: {svc.type} | Cluster IP: {svc.cluster_ip || 'None'}
-                          </p>
-                        </div>
-                        <span className="badge badge-info">{svc.type}</span>
-                      </div>
-                    </div>
+                          <div key={`${svc.namespace}-${svc.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-medium text-white">{svc.name}</h3>
+                                <p className="text-sm text-slate-400 mt-1">
+                                  {svc.namespace} | Type: {svc.type} | Cluster IP: {svc.cluster_ip || 'None'}
+                                </p>
+                              </div>
+                              <span className="badge badge-info">{svc.type}</span>
+                            </div>
+                          </div>
                         ))
                       ) : (
                         <div className="text-center py-12">
@@ -992,21 +1004,20 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((deploy) => (
-                    <div key={`${deploy.namespace}-${deploy.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">{deploy.name}</h3>
-                          <p className="text-sm text-slate-400 mt-1">
-                            {deploy.namespace} | Replicas: {deploy.ready_replicas}/{deploy.replicas}
-                          </p>
-                        </div>
-                        <span className={`badge ${
-                          deploy.ready_replicas === deploy.replicas ? 'badge-success' : 'badge-warning'
-                        }`}>
-                          {deploy.status}
-                        </span>
-                      </div>
-                    </div>
+                          <div key={`${deploy.namespace}-${deploy.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-medium text-white">{deploy.name}</h3>
+                                <p className="text-sm text-slate-400 mt-1">
+                                  {deploy.namespace} | Replicas: {deploy.ready_replicas}/{deploy.replicas}
+                                </p>
+                              </div>
+                              <span className={`badge ${deploy.ready_replicas === deploy.replicas ? 'badge-success' : 'badge-warning'
+                                }`}>
+                                {deploy.status}
+                              </span>
+                            </div>
+                          </div>
                         ))
                       ) : (
                         <div className="text-center py-12">
@@ -1022,21 +1033,20 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((pvc) => (
-                    <div key={`${pvc.namespace}-${pvc.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">{pvc.name}</h3>
-                          <p className="text-sm text-slate-400 mt-1">
-                            {pvc.namespace} | {pvc.capacity || 'N/A'} | {pvc.storage_class || 'N/A'}
-                          </p>
-                        </div>
-                        <span className={`badge ${
-                          pvc.status === 'Bound' ? 'badge-success' : 'badge-warning'
-                        }`}>
-                          {pvc.status}
-                        </span>
-                      </div>
-                    </div>
+                          <div key={`${pvc.namespace}-${pvc.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-medium text-white">{pvc.name}</h3>
+                                <p className="text-sm text-slate-400 mt-1">
+                                  {pvc.namespace} | {pvc.capacity || 'N/A'} | {pvc.storage_class || 'N/A'}
+                                </p>
+                              </div>
+                              <span className={`badge ${pvc.status === 'Bound' ? 'badge-success' : 'badge-warning'
+                                }`}>
+                                {pvc.status}
+                              </span>
+                            </div>
+                          </div>
                         ))
                       ) : (
                         <div className="text-center py-12">
@@ -1057,14 +1067,13 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{node.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  Version: {node.version || 'N/A'} | 
+                                  Version: {node.version || 'N/A'} |
                                   Internal IP: {node.internal_ip || 'N/A'}
                                   {node.roles && node.roles.length > 0 && ` | Roles: ${node.roles.join(', ')}`}
                                 </p>
                               </div>
-                              <span className={`badge ${
-                                node.status === 'Ready' ? 'badge-success' : 'badge-error'
-                              }`}>
+                              <span className={`badge ${node.status === 'Ready' ? 'badge-success' : 'badge-error'
+                                }`}>
                                 {node.status}
                               </span>
                             </div>
@@ -1088,11 +1097,11 @@ export default function Dashboard() {
 
       {/* 노드 상세 모달 */}
       {selectedNode && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={handleCloseNodeDetail}
         >
-          <div 
+          <div
             className="bg-slate-800 rounded-lg max-w-6xl w-full h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1145,10 +1154,9 @@ export default function Dashboard() {
                               <tr key={comp.name} className="border-b border-slate-700/50">
                                 <td className="py-3 px-3 text-white font-mono text-sm">{comp.name}</td>
                                 <td className="py-3 px-3">
-                                  <span className={`badge ${
-                                    comp.status === 'Healthy' ? 'badge-success' : 
+                                  <span className={`badge ${comp.status === 'Healthy' ? 'badge-success' :
                                     comp.status === 'Unavailable' ? 'badge-warning' : 'badge-error'
-                                  }`}>
+                                    }`}>
                                     {comp.status}
                                   </span>
                                 </td>
@@ -1265,10 +1273,9 @@ export default function Dashboard() {
                                   <tr key={idx} className="border-b border-slate-700/50">
                                     <td className="py-3 px-3 text-white font-medium">{condition.type}</td>
                                     <td className="py-3 px-3">
-                                      <span className={`badge ${
-                                        condition.status === 'True' ? 'badge-success' : 
+                                      <span className={`badge ${condition.status === 'True' ? 'badge-success' :
                                         condition.status === 'False' ? 'badge-error' : 'badge-warning'
-                                      }`}>
+                                        }`}>
                                         {condition.status}
                                       </span>
                                     </td>

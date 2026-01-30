@@ -1064,6 +1064,44 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to describe node: {e}")
     
+    def _parse_cpu_usage(self, cpu_str: str) -> float:
+        """CPU 사용량을 millicores 단위로 변환"""
+        if not cpu_str or cpu_str == "0":
+            return 0
+        
+        try:
+            if cpu_str.endswith("n"):
+                return int(cpu_str[:-1]) / 1_000_000
+            elif cpu_str.endswith("u"):
+                return int(cpu_str[:-1]) / 1_000
+            elif cpu_str.endswith("m"):
+                return int(cpu_str[:-1])
+            else:
+                # 숫자만 있는 경우 cores 단위로 간주
+                return int(cpu_str) * 1000
+        except (ValueError, TypeError):
+            print(f"[WARN] Failed to parse CPU usage: {cpu_str}")
+            return 0
+
+    def _parse_memory_usage(self, memory_str: str) -> float:
+        """메모리 사용량을 Mi 단위로 변환"""
+        if not memory_str or memory_str == "0":
+            return 0
+            
+        try:
+            if memory_str.endswith("Ki"):
+                return int(memory_str[:-2]) / 1024
+            elif memory_str.endswith("Mi"):
+                return int(memory_str[:-2])
+            elif memory_str.endswith("Gi"):
+                return int(memory_str[:-2]) * 1024
+            else:
+                # 숫자만 있는 경우 bytes 단위로 간주
+                return int(memory_str) / (1024 * 1024)
+        except (ValueError, TypeError):
+            print(f"[WARN] Failed to parse memory usage: {memory_str}")
+            return 0
+
     async def get_pod_metrics(self, namespace: Optional[str] = None) -> List[Dict]:
         """Pod 리소스 사용량 조회 (kubectl top pods)"""
         import time
@@ -1100,32 +1138,11 @@ class K8sService:
                     pod_name = item["metadata"]["name"]
                     pod_namespace = item["metadata"]["namespace"]
                     
-                    # 컨테이너별 리소스 합산
-                    total_cpu = 0
-                    total_memory = 0
-                    
+                    # 컨테이너별 리소스 사용량 파싱
                     for container in item.get("containers", []):
                         usage = container.get("usage", {})
-                        
-                        # CPU (nanocores -> millicores)
-                        cpu_str = usage.get("cpu", "0")
-                        if cpu_str.endswith("n"):
-                            total_cpu += int(cpu_str[:-1]) / 1_000_000
-                        elif cpu_str.endswith("m"):
-                            total_cpu += int(cpu_str[:-1])
-                        else:
-                            total_cpu += int(cpu_str) * 1000
-                        
-                        # Memory (bytes -> Mi)
-                        memory_str = usage.get("memory", "0")
-                        if memory_str.endswith("Ki"):
-                            total_memory += int(memory_str[:-2]) / 1024
-                        elif memory_str.endswith("Mi"):
-                            total_memory += int(memory_str[:-2])
-                        elif memory_str.endswith("Gi"):
-                            total_memory += int(memory_str[:-2]) * 1024
-                        else:
-                            total_memory += int(memory_str) / (1024 * 1024)
+                        total_cpu += self._parse_cpu_usage(usage.get("cpu", "0"))
+                        total_memory += self._parse_memory_usage(usage.get("memory", "0"))
                     
                     result.append({
                         "namespace": pod_namespace,
@@ -1197,39 +1214,20 @@ class K8sService:
                 node_name = item["metadata"]["name"]
                 usage = item.get("usage", {})
                 
-                # CPU (nanocores -> millicores)
-                cpu_str = usage.get("cpu", "0")
-                if cpu_str.endswith("n"):
-                    cpu_value = int(cpu_str[:-1]) / 1_000_000
-                elif cpu_str.endswith("m"):
-                    cpu_value = int(cpu_str[:-1])
-                else:
-                    cpu_value = int(cpu_str) * 1000
-                
-                # Memory (bytes -> Mi)
-                memory_str = usage.get("memory", "0")
-                if memory_str.endswith("Ki"):
-                    memory_value = int(memory_str[:-2]) / 1024
-                elif memory_str.endswith("Mi"):
-                    memory_value = int(memory_str[:-2])
-                elif memory_str.endswith("Gi"):
-                    memory_value = int(memory_str[:-2]) * 1024
-                else:
-                    memory_value = int(memory_str) / (1024 * 1024)
+                # 리소스 사용량 파싱
+                cpu_value = self._parse_cpu_usage(usage.get("cpu", "0"))
+                memory_value = self._parse_memory_usage(usage.get("memory", "0"))
                 
                 # 용량 대비 사용률 계산
                 capacity = node_capacity.get(node_name, {})
                 cpu_capacity_str = capacity.get("cpu", "0")
                 memory_capacity_str = capacity.get("memory", "0")
                 
-                # CPU 용량 (cores -> millicores)
-                cpu_capacity = int(cpu_capacity_str) * 1000 if cpu_capacity_str.isdigit() else 0
+                # CPU 용량 파싱
+                cpu_capacity = self._parse_cpu_usage(cpu_capacity_str)
                 
-                # Memory 용량 (Ki -> Mi)
-                if memory_capacity_str.endswith("Ki"):
-                    memory_capacity = int(memory_capacity_str[:-2]) / 1024
-                else:
-                    memory_capacity = 0
+                # Memory 용량 파싱
+                memory_capacity = self._parse_memory_usage(memory_capacity_str)
                 
                 cpu_percent = (cpu_value / cpu_capacity * 100) if cpu_capacity > 0 else 0
                 memory_percent = (memory_value / memory_capacity * 100) if memory_capacity > 0 else 0
