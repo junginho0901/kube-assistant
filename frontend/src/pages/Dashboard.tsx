@@ -629,8 +629,17 @@ export default function Dashboard() {
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="p-4 bg-slate-700 rounded-lg animate-pulse">
-                  <div className="h-4 bg-slate-600 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-slate-600 rounded w-1/2"></div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-600" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-600 rounded w-3/4" />
+                      <div className="h-3 bg-slate-600 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-6 mt-2">
+                    <div className="h-3 bg-slate-600 rounded w-16" />
+                    <div className="h-3 bg-slate-600 rounded w-20" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -698,10 +707,32 @@ export default function Dashboard() {
             // 초기 로딩: 스켈레톤 표시
             <div className="space-y-4">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-3 animate-pulse">
-                  <div className="h-4 bg-slate-600 rounded w-2/3"></div>
-                  <div className="h-2 bg-slate-600 rounded"></div>
-                  <div className="h-2 bg-slate-600 rounded"></div>
+                <div key={i} className="space-y-3 p-3 bg-slate-700 rounded-lg animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-600" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-600 rounded w-1/2" />
+                      <div className="h-3 bg-slate-600 rounded w-1/3" />
+                    </div>
+                  </div>
+                  <div className="space-y-2 pl-11">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="h-3 bg-slate-600 rounded w-10" />
+                      <div className="h-3 bg-slate-600 rounded w-12" />
+                    </div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-slate-600 w-1/2" />
+                    </div>
+                  </div>
+                  <div className="space-y-2 pl-11">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="h-3 bg-slate-600 rounded w-12" />
+                      <div className="h-3 bg-slate-600 rounded w-10" />
+                    </div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-slate-600 w-1/3" />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
