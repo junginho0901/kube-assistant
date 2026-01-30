@@ -504,10 +504,10 @@ Executing...
   }
 
   const quickQuestions = [
-    '클러스터에 문제가 있는 Pod를 찾아줘',
-    'CPU 사용률이 높은 리소스는?',
-    'PVC가 Pending 상태인 이유는?',
-    '리소스 최적화 방법을 알려줘',
+    '현재 메모리 많이 쓰는 파드들 알려줘',
+    '현재 노드들 상태 알려줘',
+    'kube-system 네임스페이스의 Pod 상태를 확인해줘',
+    'okestro-cmp 네임스페이스의 Service 목록을 조회해줘',
   ]
 
   return (
