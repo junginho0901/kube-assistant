@@ -1028,12 +1028,19 @@ Deployment 상세:
             
             # 대화 히스토리 가져오기
             messages_history = await db.get_messages(session_id)
-            
+
             # GPT 메시지 형식으로 변환
+            # 👉 토큰 과사용을 막기 위해 user/assistant 히스토리를 최근 N개만 사용
+            MAX_HISTORY_MESSAGES = 10  # user/assistant 메시지 기준 (약 5턴)
+            history_for_model = [
+                msg for msg in messages_history
+                if msg.role in ["user", "assistant"]
+            ]
+            recent_history = history_for_model[-MAX_HISTORY_MESSAGES:]
+
             messages = [{"role": "system", "content": self._get_system_message()}]
-            for msg in messages_history:
-                if msg.role in ["user", "assistant"]:
-                    messages.append({"role": msg.role, "content": msg.content})
+            for msg in recent_history:
+                messages.append({"role": msg.role, "content": msg.content})
             
             # Tool Context 가져오기 또는 생성
             if session_id not in self.tool_contexts:
