@@ -31,6 +31,7 @@ class UpdateSessionRequest(BaseModel):
 class MessageRequest(BaseModel):
     role: str
     content: str
+    tool_calls: Optional[list] = None
 
 
 class SaveMessagesRequest(BaseModel):
@@ -156,7 +157,7 @@ async def save_messages(session_id: str, request: SaveMessagesRequest):
         
         # 메시지 저장
         for msg in request.messages:
-            await db.add_message(session_id, msg.role, msg.content)
+            await db.add_message(session_id, msg.role, msg.content, tool_calls=msg.tool_calls)
         
         return {"success": True, "message": "Messages saved successfully"}
     except HTTPException:

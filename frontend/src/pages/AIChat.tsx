@@ -165,7 +165,11 @@ export default function AIChat() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [
-              { role: 'assistant', content: assistantMsg.content }
+              { 
+                role: 'assistant', 
+                content: assistantMsg.content,
+                tool_calls: streamToolCallsRef.current.length > 0 ? streamToolCallsRef.current : undefined,
+              }
             ]
           })
         })
