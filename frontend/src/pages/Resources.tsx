@@ -6,7 +6,8 @@ import {
   Server, 
   Box, 
   Database, 
-  RefreshCw
+  RefreshCw,
+  Search,
 } from 'lucide-react'
 
 type ResourceType = 'services' | 'deployments' | 'pods' | 'pvcs'
@@ -16,6 +17,7 @@ export default function Resources() {
   const { namespace } = useParams<{ namespace: string }>()
   const [activeTab, setActiveTab] = useState<ResourceType>('deployments')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { data: services } = useQuery({
     queryKey: ['services', namespace],
@@ -40,6 +42,20 @@ export default function Resources() {
     queryFn: () => api.getPVCs(namespace),
     enabled: activeTab === 'pvcs',
   })
+
+  const filterBySearch = (items: any[] | undefined | null) => {
+    if (!Array.isArray(items)) return []
+    if (!searchQuery.trim()) return items
+    const q = searchQuery.toLowerCase()
+    return items.filter((item) => 
+      typeof item.name === 'string' && item.name.toLowerCase().includes(q)
+    )
+  }
+  
+  const filteredDeployments = filterBySearch(deployments)
+  const filteredServices = filterBySearch(services)
+  const filteredPods = filterBySearch(pods)
+  const filteredPVCs = filterBySearch(pvcs)
   
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -90,6 +106,13 @@ export default function Resources() {
     return 'badge-info'
   }
 
+  const searchPlaceholder: Record<ResourceType, string> = {
+    deployments: 'Deployment 이름 검색...',
+    services: 'Service 이름 검색...',
+    pods: 'Pod 이름 검색...',
+    pvcs: 'PVC 이름 검색...',
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -133,10 +156,32 @@ export default function Resources() {
         ))}
       </div>
 
+      {/* Search */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder={searchPlaceholder[activeTab]}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-slate-400">
+            {activeTab === 'deployments' && `${filteredDeployments.length}개의 Deployment가 검색되었습니다`}
+            {activeTab === 'services' && `${filteredServices.length}개의 Service가 검색되었습니다`}
+            {activeTab === 'pods' && `${filteredPods.length}개의 Pod가 검색되었습니다`}
+            {activeTab === 'pvcs' && `${filteredPVCs.length}개의 PVC가 검색되었습니다`}
+          </p>
+        )}
+      </div>
+
       {/* Deployments */}
       {activeTab === 'deployments' && (
         <div className="space-y-4">
-          {Array.isArray(deployments) && deployments.map((deploy) => (
+          {filteredDeployments.map((deploy) => (
             <div key={deploy.name} className="card">
               <div className="flex items-start justify-between">
                 <div>
@@ -173,7 +218,7 @@ export default function Resources() {
       {/* Services */}
       {activeTab === 'services' && (
         <div className="space-y-4">
-          {Array.isArray(services) && services.map((svc) => (
+          {filteredServices.map((svc) => (
             <div key={svc.name} className="card">
               <div className="flex items-start justify-between">
                 <div>
@@ -211,7 +256,7 @@ export default function Resources() {
       {/* Pods */}
       {activeTab === 'pods' && (
         <div className="space-y-4">
-          {Array.isArray(pods) && pods.map((pod) => (
+          {filteredPods.map((pod) => (
             <div key={pod.name} className="card">
               <div className="flex items-start justify-between">
                 <div>
@@ -251,7 +296,7 @@ export default function Resources() {
       {/* PVCs */}
       {activeTab === 'pvcs' && (
         <div className="space-y-4">
-          {Array.isArray(pvcs) && pvcs.map((pvc) => (
+          {filteredPVCs.map((pvc) => (
             <div key={`${pvc.namespace}-${pvc.name}`} className="card">
               <div className="flex items-start justify-between">
                 <div>
