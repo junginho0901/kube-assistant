@@ -586,8 +586,8 @@ export default function Dashboard() {
         {/* Node Status Chart */}
         {nodeStatusChartData.length > 0 && (
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">노드 상태</h2>
-            <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 노드 목록 보기</p>
+            <h2 className="text-xl font-bold text-white mb-4">Node 상태</h2>
+            <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 Node 목록 보기</p>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={nodeStatusChartData}
