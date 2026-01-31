@@ -30,6 +30,7 @@ export default function AIChat() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)  // 우클릭 컨텍스트 메뉴
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const streamToolCallsRef = useRef<any[]>([])  // 현재 스트리밍 중인 tool 호출 정보
 
   // 세션 목록 조회
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
@@ -230,6 +231,8 @@ export default function AIChat() {
 
     // AbortController 생성
     abortControllerRef.current = new AbortController()
+    // 스트리밍용 tool 호출 정보 초기화
+    streamToolCallsRef.current = []
 
     try {
       const response = await fetch(`/api/v1/ai/sessions/${sessionId}/chat?message=${encodeURIComponent(userMessage)}`, {
@@ -292,6 +295,32 @@ export default function AIChat() {
                 // Function call 시작 - KAgent 스타일
                 console.log('Function call:', data.function, data.args)
                 
+                // 스트리밍 중 tool 호출 정보 갱신
+                streamToolCallsRef.current = [
+                  ...streamToolCallsRef.current,
+                  {
+                    function: data.function,
+                    args: data.args || {},
+                    result: '',
+                    is_json: false,
+                  },
+                ]
+                // 현재 임시 assistant 메시지에 toolCalls 반영 (스트리밍 중에도 JSON 버튼 표시)
+                setMessages((prev) => {
+                  const tempAssistantIndex = prev.findIndex(
+                    (msg) => msg.role === 'assistant' && msg.isTemporary
+                  )
+                  if (tempAssistantIndex !== -1) {
+                    const updated = [...prev]
+                    updated[tempAssistantIndex] = {
+                      ...updated[tempAssistantIndex],
+                      toolCalls: [...streamToolCallsRef.current],
+                    }
+                    return updated
+                  }
+                  return prev
+                })
+                
                 const args_json = JSON.stringify(data.args, null, 2)
                 const args_section = Object.keys(data.args).length > 0 
                   ? `<details>
@@ -342,6 +371,17 @@ Executing...
                 // Function 실행 결과 - 기존 "Executing..." 을 실제 결과로 교체
                 console.log('Function result:', data.function_result, data.result)
                 
+                // 스트리밍 중 tool 호출 정보에 결과 반영
+                streamToolCallsRef.current = streamToolCallsRef.current.map((tc) =>
+                  tc.function === data.function_result
+                    ? {
+                        ...tc,
+                        result: data.result,
+                        is_json: !!data.is_json,
+                      }
+                    : tc
+                )
+                
                 // 마지막 function call의 "Executing..."을 실제 결과로 교체
                 const lastFunctionIndex = functionCallsContent.lastIndexOf(`<summary>🔧 <strong>${data.function_result}</strong></summary>`)
                 if (lastFunctionIndex !== -1) {
@@ -371,6 +411,7 @@ Executing...
                       updated[tempAssistantIndex] = {
                         ...updated[tempAssistantIndex],
                         content: functionCallsContent + assistantMessageContent,
+                        toolCalls: [...streamToolCallsRef.current],
                       }
                       return updated
                     }
@@ -533,13 +574,28 @@ Executing...
     }
 
     try {
-      const payload = message.toolCalls.map((tc: any, index: number) => ({
-        index,
-        function: tc.function,
-        args: tc.args,
-        is_json: tc.is_json,
-        result: tc.result,
-      }))
+      // toolCalls 중 JSON 결과만 추려서 result만 추출
+      const jsonResults = message.toolCalls
+        .filter((tc: any) => tc && tc.is_json && typeof tc.result === 'string')
+        .map((tc: any) => {
+          try {
+            return JSON.parse(tc.result)
+          } catch {
+            return tc.result
+          }
+        })
+
+      let payload: any
+      if (jsonResults.length === 1) {
+        // 단일 JSON 결과인 경우 그 JSON만 그대로 저장
+        payload = jsonResults[0]
+      } else if (jsonResults.length > 1) {
+        // 여러 개면 배열로 묶어서 저장
+        payload = jsonResults
+      } else {
+        // JSON으로 표시되지 않는 경우에는 원본 toolCalls를 fallback으로 저장
+        payload = message.toolCalls
+      }
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json;charset=utf-8',
