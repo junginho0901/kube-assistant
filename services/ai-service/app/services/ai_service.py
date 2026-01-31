@@ -805,6 +805,15 @@ Deployment 상세:
                 tool_choice="auto",
                 temperature=0.7
             )
+
+            # 토큰 사용량 로그 (첫 번째 호출)
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                print(
+                    f"[TOKENS][chat_stream first] prompt={usage.prompt_tokens}, "
+                    f"completion={usage.completion_tokens}, total={usage.total_tokens}",
+                    flush=True,
+                )
             
             response_message = response.choices[0].message
             
@@ -843,7 +852,7 @@ Deployment 상세:
                     tools=tools,  # tools를 계속 제공
                     temperature=0.8,
                     max_tokens=2000,
-                    stream=True
+                    stream=True,
                 )
                 
                 print(f"[DEBUG] Second GPT call started, streaming...")
@@ -861,7 +870,7 @@ Deployment 상세:
                     messages=messages,
                     temperature=0.8,
                     max_tokens=2000,
-                    stream=True
+                    stream=True,
                 )
                 
                 async for chunk in stream:
@@ -1083,6 +1092,15 @@ Deployment 상세:
                         timeout=30.0  # 30초 타임아웃
                     )
                     print(f"[AI Service] Session Chat API 응답 (Iteration {iteration}) - 실제 사용 모델: {response.model}", flush=True)
+
+                    # 토큰 사용량 로그 (Function Calling 단계)
+                    usage = getattr(response, "usage", None)
+                    if usage is not None:
+                        print(
+                            f"[TOKENS][session_chat iteration {iteration} fc] prompt={usage.prompt_tokens}, "
+                            f"completion={usage.completion_tokens}, total={usage.total_tokens}",
+                            flush=True,
+                        )
                 except Exception as api_error:
                     print(f"[ERROR] OpenAI API call failed: {api_error}", flush=True)
                     yield f"data: {json.dumps({'error': f'OpenAI API 호출 실패: {str(api_error)}'}, ensure_ascii=False)}\n\n"
@@ -1158,10 +1176,11 @@ Deployment 상세:
                         messages=messages,
                         temperature=0.7,
                         max_tokens=800,  # 토큰 제한 (간결한 답변)
-                        stream=True
+                        stream=True,
                     )
                     
                     print(f"[DEBUG] Streaming final response...")
+
                     async for chunk in stream:
                         if chunk.choices[0].delta.content:
                             content = chunk.choices[0].delta.content
