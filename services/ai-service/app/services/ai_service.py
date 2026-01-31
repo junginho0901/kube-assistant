@@ -1118,14 +1118,14 @@ Deployment 상세:
                         formatted_result, is_json = self._format_tool_result(function_response)
                         
                         # 결과 미리보기 (너무 길면 잘라서 전송하되, 표시를 남김)
-                        max_preview_len = 4000
+                        max_preview_len = 2500
                         if len(formatted_result) > max_preview_len:
                             result_preview = formatted_result[:max_preview_len] + "\n... (truncated) ..."
                         else:
                             result_preview = formatted_result
                         
                         # Function 결과를 프론트엔드로 전송 (스트리밍) - 실행 후
-                        # 👉 프론트에는 미리보기만 전달 (약 4000자)
+                        # 👉 프론트에는 미리보기만 전달 (약 2500자)
                         yield f"data: {json.dumps({'function_result': function_name, 'result': result_preview, 'is_json': is_json}, ensure_ascii=False)}\n\n"
                         
                         # Tool call 정보 + 실행 결과 전체 저장 (DB에는 전체 결과 보관)
