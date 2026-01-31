@@ -138,6 +138,9 @@ export default function AIChat() {
 
   const handleStop = async () => {
     console.log('[DEBUG] Stop button clicked')
+    // 중단된 메시지가 있으므로, 일단 DB에서 세션 메시지를 다시 덮어쓰지 않도록 플래그 설정
+    setHasStoppedMessage(true)
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
@@ -166,12 +169,14 @@ export default function AIChat() {
           // DB에 저장했으므로 다시 불러오기
           await queryClient.refetchQueries({ queryKey: ['session', selectedSessionId] })
           await queryClient.invalidateQueries({ queryKey: ['sessions'] })
-          setHasStoppedMessage(false)  // 플래그 리셋
+          // 이 시점 이후에는 hasStoppedMessage는 다음 사용자 액션(새 질문/세션 전환)까지 유지
+          // -> UI에서는 현재까지 생성된 답변을 그대로 보여주고,
+          //    이후 세션 전환 또는 새 질문 시에만 DB 데이터로 동기화
         }
       } catch (error) {
         console.error('[ERROR] Failed to save stopped messages:', error)
-        // 저장 실패 시 화면에만 유지
-        setHasStoppedMessage(true)
+        // 이미 hasStoppedMessage를 true로 설정했으므로, 저장 실패 시에도
+        // DB에서 덮어쓰지 않고 화면에만 유지
       }
     }
     
@@ -412,6 +417,7 @@ Executing...
   const handleNewChat = () => {
     // 세션을 미리 생성하지 않고, 선택만 해제 (첫 질문 시 자동 생성)
     setSelectedSessionId(null)
+    setHasStoppedMessage(false)
     setMessages([])
   }
 
@@ -426,8 +432,9 @@ Executing...
       }
       setSelectedSessionIds(newSelected)
     } else {
-      // 일반 모드에서는 세션 선택
+      // 일반 모드에서는 세션 선택 + 중단 플래그 초기화
       setSelectedSessionId(sessionId)
+      setHasStoppedMessage(false)
     }
   }
 
@@ -513,6 +520,8 @@ Executing...
     'kube-system 네임스페이스의 Pod 상태를 확인해줘',
     'okestro-cmp 네임스페이스의 Service 목록을 조회해줘',
   ]
+
+  const MAX_DISPLAY_CHARS = 4000
 
   return (
     <div className="flex h-screen">
@@ -794,6 +803,13 @@ Executing...
                       const hasMarkdownHeading = message.content.includes('##')
                       const koreanTextLength = (message.content.match(/[가-힣]/g) || []).length
                       const hasActualResponse = hasMarkdownHeading || koreanTextLength > 20
+
+                      const shouldTruncate =
+                        hasToolCalls && message.content.length > MAX_DISPLAY_CHARS && !message.isTemporary
+
+                      const displayContent = shouldTruncate
+                        ? message.content.slice(0, MAX_DISPLAY_CHARS)
+                        : message.content
                       
                       console.log('[DEBUG LOADING]', {
                         hasToolCalls,
@@ -806,7 +822,9 @@ Executing...
                       
                       return (
                         <>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{message.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                            {displayContent}
+                          </ReactMarkdown>
                           {hasToolCalls && !hasActualResponse && message.isTemporary && (
                             <div className="flex gap-2 items-center py-3 mt-4">
                               <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
