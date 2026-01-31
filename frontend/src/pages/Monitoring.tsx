@@ -126,7 +126,7 @@ export default function Monitoring() {
               <Server className="w-6 h-6 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">노드 리소스 사용량</h2>
+              <h2 className="text-xl font-bold text-white">Node 리소스 사용량</h2>
             </div>
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
