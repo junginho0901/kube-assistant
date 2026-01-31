@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect } from 'react'
+import { ModalOverlay } from '@/components/ModalOverlay'
 
 type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' | 'nodes'
 
@@ -918,14 +919,8 @@ export default function Dashboard() {
 
       {/* 리소스 상세 모달 */}
       {selectedResourceType && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ModalOverlay onClose={handleCloseModal}>
+          <div className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col">
             {/* 모달 헤더 */}
             {(() => {
               const selectedStat = getSelectedStat()
@@ -1175,19 +1170,13 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* 노드 상세 모달 */}
       {selectedNode && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={handleCloseNodeDetail}
-        >
-          <div
-            className="bg-slate-800 rounded-lg max-w-6xl w-full h-[85vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ModalOverlay onClose={handleCloseNodeDetail}>
+          <div className="bg-slate-800 rounded-lg max-w-6xl w-full h-[85vh] overflow-hidden flex flex-col">
             {/* 모달 헤더 */}
             <div className="p-6 border-b border-slate-700">
               <div className="flex items-center justify-between">
@@ -1376,7 +1365,7 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   )

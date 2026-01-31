@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import { ModalOverlay } from '@/components/ModalOverlay'
 import { 
   Server, 
   Box, 
@@ -600,14 +601,8 @@ export default function ClusterView() {
 
       {/* Pod 상세 정보 모달 */}
       {selectedPod && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedPod(null)}
-        >
-          <div 
-            className="bg-slate-800 rounded-lg max-w-6xl w-full h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <ModalOverlay onClose={() => setSelectedPod(null)}>
+          <div className="bg-slate-800 rounded-lg max-w-6xl w-full h-[90vh] overflow-hidden flex flex-col">
             {/* 모달 헤더 */}
             <div className="p-6 border-b border-slate-700 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1171,7 +1166,7 @@ export default function ClusterView() {
               )}
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   )
