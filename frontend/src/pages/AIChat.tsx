@@ -54,7 +54,8 @@ export default function AIChat() {
 
   // 세션 생성
   const createSessionMutation = useMutation({
-    mutationFn: () => api.createSession('New Chat'),
+    // 첫 질문 내용을 기반으로 초기 제목 설정 (없으면 New Chat)
+    mutationFn: (title?: string) => api.createSession(title || 'New Chat'),
     onSuccess: (newSession) => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
       setSelectedSessionId(newSession.id)
@@ -204,17 +205,21 @@ export default function AIChat() {
     const message = messageToSend || input.trim()
     if (!message || isStreaming) return
 
+    const userMessage = message
+
     // 중단된 메시지 플래그 리셋
     setHasStoppedMessage(false)
 
     // 세션이 없으면 생성
     let sessionId = selectedSessionId
     if (!sessionId) {
-      const newSession = await createSessionMutation.mutateAsync()
+      // 첫 질문 내용으로 세션 제목 설정 (최대 50자)
+      const initialTitle =
+        userMessage.length > 50 ? `${userMessage.slice(0, 50)}...` : userMessage
+      const newSession = await createSessionMutation.mutateAsync(initialTitle)
       sessionId = newSession.id
     }
 
-    const userMessage = message
     const newMessage: Message = {
       role: 'user',
       content: userMessage,
