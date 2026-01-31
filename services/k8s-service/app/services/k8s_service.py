@@ -975,7 +975,7 @@ class K8sService:
             raise Exception(f"Failed to describe service: {e}")
     
     async def get_node_list(self, force_refresh: bool = False) -> List[Dict]:
-        """노드 목록 조회"""
+        """Node 목록 조회"""
         try:
             nodes = self.v1.list_node()
             node_list = []
@@ -1014,7 +1014,7 @@ class K8sService:
             raise Exception(f"Failed to get node list: {e}")
     
     async def describe_node(self, name: str) -> Dict:
-        """노드 상세 정보 조회"""
+        """Node 상세 정보 조회"""
         try:
             node = self.v1.read_node(name)
             

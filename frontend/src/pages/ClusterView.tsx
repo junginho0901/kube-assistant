@@ -417,7 +417,7 @@ export default function ClusterView() {
         <div>
           <h1 className="text-3xl font-bold text-white">클러스터 뷰</h1>
           <p className="mt-2 text-slate-400">
-            노드별 Pod 배치 현황을 확인하세요
+            Node별 Pod 배치 현황을 확인하세요
           </p>
         </div>
         <div className="flex items-center gap-3">
