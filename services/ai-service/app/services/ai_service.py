@@ -1383,62 +1383,154 @@ Deployment 상세:
                 iteration += 1
                 print(f"[DEBUG] Iteration {iteration}/{max_iterations}")
                 
-                # GPT 호출 (Function Calling)
-                print(f"[AI Service] Session Chat API 호출 (Iteration {iteration}) - 요청 모델: {self.model}", flush=True)
+                # GPT 호출 (Function Calling) - 스트리밍 모드로 변경
+                print(f"[AI Service] Session Chat API 호출 (Iteration {iteration}) - 요청 모델: {self.model} [STREAMING]", flush=True)
                 print(f"[DEBUG] Messages count: {len(messages)}, Tools count: {len(tools)}", flush=True)
                 
                 try:
-                    response = await self.client.chat.completions.create(
+                    stream = await self.client.chat.completions.create(
                         model=self.model,
                         messages=messages,
                         tools=tools,
                         tool_choice="auto",
                         temperature=0.7,
                         max_tokens=1000,  # 토큰 제한
-                        timeout=30.0  # 30초 타임아웃
+                        timeout=30.0,  # 30초 타임아웃
+                        stream=True  # 스트리밍 모드
                     )
-                    print(f"[AI Service] Session Chat API 응답 (Iteration {iteration}) - 실제 사용 모델: {response.model}", flush=True)
-
-                    # OpenAI 응답 전체 로그 출력
+                    
+                    # 스트리밍 응답 처리
                     import json
+                    stream_chunks = []
+                    accumulated_content = ""
+                    accumulated_tool_calls = {}  # {tool_call_id: {id, type, function: {name, arguments}}}
+                    response_id = None
+                    response_model = None
+                    response_created = None
+                    finish_reason = None
+                    usage_info = None
+                    
+                    async for chunk in stream:
+                        # 청크 정보 수집 (로깅용)
+                        chunk_dict = {
+                            "id": chunk.id if hasattr(chunk, 'id') else None,
+                            "model": chunk.model if hasattr(chunk, 'model') else None,
+                            "created": chunk.created if hasattr(chunk, 'created') else None,
+                            "choices": [
+                                {
+                                    "index": choice.index if hasattr(choice, 'index') else None,
+                                    "delta": {
+                                        "role": choice.delta.role if hasattr(choice.delta, 'role') else None,
+                                        "content": choice.delta.content if hasattr(choice.delta, 'content') else None,
+                                        "tool_calls": [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in (choice.delta.tool_calls or [])]
+                                    } if hasattr(choice, 'delta') else None,
+                                    "finish_reason": choice.finish_reason if hasattr(choice, 'finish_reason') else None
+                                } for choice in chunk.choices
+                            ]
+                        }
+                        stream_chunks.append(chunk_dict)
+                        
+                        # 메타데이터 수집
+                        if chunk.id:
+                            response_id = chunk.id
+                        if chunk.model:
+                            response_model = chunk.model
+                        if chunk.created:
+                            response_created = chunk.created
+                        
+                        if chunk.choices:
+                            choice = chunk.choices[0]
+                            
+                            # Content 스트리밍
+                            if hasattr(choice, 'delta') and choice.delta.content:
+                                content = choice.delta.content
+                                accumulated_content += content
+                                assistant_content += content
+                                yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+                            
+                            # Tool calls 수집 (여러 청크에 걸쳐 올 수 있음)
+                            if hasattr(choice, 'delta') and choice.delta.tool_calls:
+                                for tc_delta in choice.delta.tool_calls:
+                                    tc_id = tc_delta.id
+                                    if tc_id not in accumulated_tool_calls:
+                                        accumulated_tool_calls[tc_id] = {
+                                            "id": tc_id,
+                                            "type": tc_delta.type,
+                                            "function": {"name": "", "arguments": ""}
+                                        }
+                                    if tc_delta.function.name:
+                                        accumulated_tool_calls[tc_id]["function"]["name"] = tc_delta.function.name
+                                    if tc_delta.function.arguments:
+                                        accumulated_tool_calls[tc_id]["function"]["arguments"] += tc_delta.function.arguments
+                            
+                            # Finish reason 확인
+                            if hasattr(choice, 'finish_reason') and choice.finish_reason:
+                                finish_reason = choice.finish_reason
+                            
+                            # Usage 정보 (마지막 청크에 있을 수 있음)
+                            if hasattr(chunk, 'usage') and chunk.usage:
+                                usage_info = {
+                                    "prompt_tokens": chunk.usage.prompt_tokens,
+                                    "completion_tokens": chunk.usage.completion_tokens,
+                                    "total_tokens": chunk.usage.total_tokens
+                                }
+                    
+                    # 스트리밍 완료 후 로그 출력
                     response_dict = {
-                        "id": response.id,
-                        "model": response.model,
-                        "created": response.created,
-                        "choices": [
-                            {
-                                "index": choice.index,
-                                "message": {
-                                    "role": choice.message.role,
-                                    "content": choice.message.content,
-                                    "tool_calls": [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in (choice.message.tool_calls or [])]
-                                },
-                                "finish_reason": choice.finish_reason
-                            } for choice in response.choices
-                        ],
-                        "usage": {
-                            "prompt_tokens": response.usage.prompt_tokens if response.usage else None,
-                            "completion_tokens": response.usage.completion_tokens if response.usage else None,
-                            "total_tokens": response.usage.total_tokens if response.usage else None
-                        } if response.usage else None
+                        "id": response_id,
+                        "model": response_model,
+                        "created": response_created,
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": accumulated_content,
+                                "tool_calls": [tc for tc in accumulated_tool_calls.values()] if accumulated_tool_calls else []
+                            },
+                            "finish_reason": finish_reason
+                        }],
+                        "usage": usage_info
                     }
-                    print(f"[OPENAI RESPONSE][session_chat_stream iteration {iteration}] {json.dumps(response_dict, ensure_ascii=False, indent=2)}", flush=True)
-
-                    # 토큰 사용량 로그 (Function Calling 단계)
-                    usage = getattr(response, "usage", None)
-                    if usage is not None:
+                    print(f"[OPENAI RESPONSE][session_chat_stream iteration {iteration} - streaming] {json.dumps(response_dict, ensure_ascii=False, indent=2)}", flush=True)
+                    print(f"[OPENAI RESPONSE][session_chat_stream iteration {iteration} - chunks] total_chunks={len(stream_chunks)}", flush=True)
+                    
+                    if usage_info:
                         print(
-                            f"[TOKENS][session_chat iteration {iteration} fc] prompt={usage.prompt_tokens}, "
-                            f"completion={usage.completion_tokens}, total={usage.total_tokens}",
+                            f"[TOKENS][session_chat iteration {iteration} fc] prompt={usage_info['prompt_tokens']}, "
+                            f"completion={usage_info['completion_tokens']}, total={usage_info['total_tokens']}",
                             flush=True,
                         )
+                    
+                    # 응답 메시지 구성 (tool_calls가 있으면 실행하기 위해)
+                    tool_calls_list = []
+                    if accumulated_tool_calls:
+                        from openai.types.chat import ChatCompletionMessageToolCall
+                        for tc_data in accumulated_tool_calls.values():
+                            # ToolCall 객체 생성 (간단한 래퍼)
+                            class ToolCallWrapper:
+                                def __init__(self, tc_data):
+                                    self.id = tc_data["id"]
+                                    self.type = tc_data["type"]
+                                    self.function = type('obj', (object,), {
+                                        'name': tc_data["function"]["name"],
+                                        'arguments': tc_data["function"]["arguments"]
+                                    })()
+                            tool_calls_list.append(ToolCallWrapper(tc_data))
+                    
+                    # response_message 객체 생성 (기존 코드와 호환)
+                    class ResponseMessage:
+                        def __init__(self, content, tool_calls):
+                            self.content = content
+                            self.tool_calls = tool_calls if tool_calls else None
+                            self.role = "assistant"
+                    
+                    response_message = ResponseMessage(accumulated_content, tool_calls_list)
+                    
                 except Exception as api_error:
                     print(f"[ERROR] OpenAI API call failed: {api_error}", flush=True)
                     yield f"data: {json.dumps({'error': f'OpenAI API 호출 실패: {str(api_error)}'}, ensure_ascii=False)}\n\n"
                     yield "data: [DONE]\n\n"
                     return
-                
-                response_message = response.choices[0].message
                 
                 # Function calling이 있으면 실행
                 if response_message.tool_calls:
