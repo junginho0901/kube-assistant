@@ -28,6 +28,7 @@ export default function AIChat() {
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)  // 다중 선택 모드
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())  // 선택된 세션들
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)  // 우클릭 컨텍스트 메뉴
+  const [lastLoadedSessionId, setLastLoadedSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamToolCallsRef = useRef<any[]>([])  // 현재 스트리밍 중인 tool 호출 정보
@@ -85,7 +86,9 @@ export default function AIChat() {
     },
   })
 
-  // 세션 상세가 로드되면 메시지 설정 (스트리밍 중이 아닐 때만)
+  // 세션 상세가 로드되면 메시지 설정
+  // - 새 세션으로 전환될 때는 DB 내용을 그대로 사용
+  // - 동일 세션에서 스트리밍이 끝난 후에는, 이미 화면에 있는 답변을 덮어쓰지 않도록 함
   useEffect(() => {
     if (sessionDetail && !isStreaming && !hasStoppedMessage) {
       console.log('[DEBUG] Loading messages from DB:', sessionDetail.messages.length, 'messages')
@@ -97,19 +100,29 @@ export default function AIChat() {
         content: msg.content,
         toolCalls: msg.tool_calls || undefined,
       }))
-      
-      // 임시 메시지가 있으면 제거하고 DB 데이터로 교체
+
+      // 1) 세션이 바뀐 경우: DB 데이터로 완전히 교체
+      if (sessionDetail.id !== lastLoadedSessionId) {
+        console.log('[DEBUG] Session changed, replacing messages from DB')
+        setMessages(dbMessages)
+        setLastLoadedSessionId(sessionDetail.id)
+        return
+      }
+
+      // 2) 같은 세션인 경우:
+      //    - 아직 화면에 영구 메시지가 없으면(DB 초기 로드 등) DB로 교체
+      //    - 이미 user/assistant 메시지가 있으면 그대로 유지 (스트리밍 완료 후 덮어쓰지 않음)
       setMessages((prev) => {
-        const hasTemporary = prev.some(msg => msg.isTemporary)
-        if (hasTemporary) {
-          console.log('[DEBUG] Replacing temporary messages with DB data')
+        const hasNonTemporary = prev.some(msg => !msg.isTemporary)
+        if (!hasNonTemporary) {
+          console.log('[DEBUG] No non-temporary messages yet, syncing from DB')
           return dbMessages
         }
-        // 임시 메시지가 없으면 그냥 DB 데이터로 설정
-        return dbMessages
+        console.log('[DEBUG] Keeping existing messages (same session, non-temporary present)')
+        return prev
       })
     }
-  }, [sessionDetail, isStreaming, hasStoppedMessage])
+  }, [sessionDetail, isStreaming, hasStoppedMessage, lastLoadedSessionId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -261,14 +274,24 @@ export default function AIChat() {
 
       console.log('[DEBUG] Starting streaming')
 
+      // SSE 청크 경계에서 잘리지 않도록 버퍼 사용
+      let buffer = ''
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter((line) => line.trim() !== '')
+        const chunk = decoder.decode(value, { stream: true })
+        buffer += chunk
 
-        for (const line of lines) {
+        const lines = buffer.split('\n')
+        // 마지막 라인은 아직 완전하지 않을 수 있으므로 버퍼에 남겨둠
+        buffer = lines.pop() || ''
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim()
+          if (!line) continue
+
           if (line.startsWith('data: ')) {
             const dataStr = line.slice(6)
             if (dataStr === '[DONE]') break
