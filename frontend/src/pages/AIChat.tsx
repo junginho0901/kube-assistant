@@ -1075,7 +1075,7 @@ Executing...
                   )}
                 </div>
                 <div
-                  className={`flex-1 p-4 rounded-lg prose prose-invert max-w-none ${
+                  className={`flex-1 p-4 rounded-lg prose prose-invert max-w-3xl overflow-x-auto ${
                     message.role === 'user'
                       ? 'bg-primary-600 text-white'
                       : 'bg-slate-700 text-slate-100'

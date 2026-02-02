@@ -118,19 +118,19 @@ body {
   transform: rotate(90deg) !important;
 }
 
-/* 코드 블록 스타일 - 가로 스크롤 방지 */
+/* 코드 블록 스타일 - 가로 스크롤 가능하되 말풍선 너비 제한 */
 .prose details pre {
   @apply my-2 mx-4 rounded bg-slate-900/50;
   overflow-x: auto !important;
   max-width: 100% !important;
-  word-wrap: break-word !important;
-  white-space: pre-wrap !important;
+  white-space: pre !important;
+  word-break: normal !important;
 }
 
 .prose details pre code {
-  word-wrap: break-word !important;
-  white-space: pre-wrap !important;
-  overflow-wrap: break-word !important;
+  white-space: pre !important;
+  word-break: normal !important;
+  display: block !important;
 }
 
 .prose details p {
@@ -139,16 +139,23 @@ body {
   overflow-wrap: break-word !important;
 }
 
-/* 일반 코드 블록도 줄바꿈 */
+/* 일반 코드 블록 - 가로 스크롤 가능하되 말풍선 너비 제한 */
 .prose pre {
   overflow-x: auto !important;
   max-width: 100% !important;
-  word-wrap: break-word !important;
-  white-space: pre-wrap !important;
+  white-space: pre !important;
+  word-break: normal !important;
 }
 
-.prose code {
+.prose pre code {
+  white-space: pre !important;
+  word-break: normal !important;
+  display: block !important;
+}
+
+/* 인라인 코드는 줄바꿈 허용 */
+.prose code:not(pre code) {
   word-wrap: break-word !important;
-  white-space: pre-wrap !important;
   overflow-wrap: break-word !important;
+  white-space: normal !important;
 }
