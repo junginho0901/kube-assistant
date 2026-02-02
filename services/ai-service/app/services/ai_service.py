@@ -1587,66 +1587,10 @@ Deployment 상세:
                     # 다음 iteration으로 계속
                     continue
                 
-                # Tool call이 없으면 최종 텍스트 응답 (스트리밍)
+                # Tool call이 없으면 최종 텍스트 응답 (이미 스트리밍으로 받았으므로 완료)
                 else:
-                    print(f"[DEBUG] No tool calls, generating final response (streaming)")
-                    
-                    # response_message에 이미 내용이 있는 경우 먼저 전송 (finish_reason이 "length"인 경우 등)
-                    if response_message.content:
-                        print(f"[DEBUG] Response message already has content (length: {len(response_message.content)}), sending it first", flush=True)
-                        assistant_content += response_message.content
-                        # 내용을 청크 단위로 나눠서 전송 (스트리밍처럼 보이게)
-                        chunk_size = 50  # 한 번에 전송할 문자 수
-                        for i in range(0, len(response_message.content), chunk_size):
-                            chunk = response_message.content[i:i+chunk_size]
-                            yield f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
-                    
-                    # 항상 스트리밍 모드로 최종 응답 생성
-                    messages.append(response_message)
-                    print(f"[AI Service] Session Chat 스트리밍 API 호출 - 요청 모델: {self.model}", flush=True)
-                    stream = await self.client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=800,  # 토큰 제한 (간결한 답변)
-                        stream=True,
-                    )
-                    
-                    print(f"[DEBUG] Streaming final response...")
-
-                    # 스트리밍 청크 전체 수집 및 로그
-                    stream_chunks = []
-                    async for chunk in stream:
-                        chunk_dict = {
-                            "id": chunk.id if hasattr(chunk, 'id') else None,
-                            "model": chunk.model if hasattr(chunk, 'model') else None,
-                            "created": chunk.created if hasattr(chunk, 'created') else None,
-                            "choices": [
-                                {
-                                    "index": choice.index if hasattr(choice, 'index') else None,
-                                    "delta": {
-                                        "role": choice.delta.role if hasattr(choice.delta, 'role') else None,
-                                        "content": choice.delta.content if hasattr(choice.delta, 'content') else None,
-                                        "tool_calls": [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in (choice.delta.tool_calls or [])]
-                                    } if hasattr(choice, 'delta') else None,
-                                    "finish_reason": choice.finish_reason if hasattr(choice, 'finish_reason') else None
-                                } for choice in chunk.choices
-                            ]
-                        }
-                        stream_chunks.append(chunk_dict)
-                        
-                        if chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            assistant_content += content
-                            yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
-                    
-                    # 스트리밍 완료 후 전체 로그 출력
-                    print(f"[DEBUG] Streaming completed, content length: {len(assistant_content)}")
-                    print(f"[OPENAI RESPONSE][session_chat_stream final - streaming] total_chunks={len(stream_chunks)}, full_content_length={len(assistant_content)}", flush=True)
-                    print(f"[OPENAI RESPONSE][session_chat_stream final - full_content] {json.dumps({'content': assistant_content}, ensure_ascii=False)}", flush=True)
-                    print(f"[OPENAI RESPONSE][session_chat_stream final - chunks] {json.dumps(stream_chunks, ensure_ascii=False, indent=2)}", flush=True)
-                    
-                    # 최종 응답 완료, 루프 종료
+                    print(f"[DEBUG] No tool calls, response already streamed. Content length: {len(assistant_content)}")
+                    # 이미 스트리밍으로 받았으므로 추가 작업 없이 루프 종료
                     break
             
             # Max iterations 도달
