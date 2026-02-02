@@ -411,7 +411,7 @@ export default function Dashboard() {
 
   // Pod/Node 상태는 Kubernetes 스펙상 가능한 값이 제한적이므로
   // 차트에서 항상 전체 상태를 보여주기 위해 고정 목록 사용
-  const POD_PHASES = ['Pending', 'Running', 'Succeeded', 'Failed', 'Unknown']
+  const POD_PHASES = ['Running', 'Succeeded', 'Failed', 'Pending', 'Unknown']
   const NODE_STATUSES = ['Ready', 'NotReady']
 
   const stats = [
