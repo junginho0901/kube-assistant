@@ -585,6 +585,103 @@ Executing...
     try {
       const toolCalls = message.toolCalls as any[]
 
+      // === Special case: get_pod_logs →
+      // 기본은 AI가 분석했던 시점의 스냅샷(tc.result)을 그대로 사용하되,
+      // 예전 세션처럼 tc.result 안에 '... (truncated) ...'가 포함된 경우에만
+      // 가능하면 K8s API를 다시 호출해서 전체 로그를 받아온다.
+      if (
+        toolCalls.length === 1 &&
+        toolCalls[0] &&
+        toolCalls[0].function === 'get_pod_logs' &&
+        typeof toolCalls[0].result === 'string'
+      ) {
+        const tc = toolCalls[0]
+        const args = (tc.args || {}) as any
+
+        let rawLogs = String(tc.result)
+
+        // 예전 버전에서 저장된 truncated 결과라면, 한 번만 전체 로그 재조회 시도
+        if (rawLogs.includes('... (truncated) ...')) {
+          try {
+            const ns = typeof args.namespace === 'string' ? args.namespace : 'default'
+            const podName =
+              (args.pod_name as string) ||
+              (args.podName as string) ||
+              ''
+            const tailLines =
+              (args.tail_lines as number) ||
+              (args.tailLines as number) ||
+              100
+
+            if (podName) {
+              // 컨테이너 자동 선택을 위해 먼저 Pod 목록에서 대상 파드를 찾는다
+              const podsInNs = await api.getPods(ns)
+              const targetPod = podsInNs.find((p) => p.name === podName)
+
+              if (targetPod && Array.isArray(targetPod.containers)) {
+                const containerNames = targetPod.containers
+                  .map((c: any) => c?.name)
+                  .filter((n: any) => typeof n === 'string' && n.length > 0)
+
+                let containerName: string | undefined
+
+                if (containerNames.length === 1) {
+                  containerName = containerNames[0]
+                } else if (containerNames.length > 1) {
+                  const sidecarExact = new Set(['istio-proxy', 'istio-init', 'linkerd-proxy'])
+                  const sidecarPrefixes = ['istio-', 'linkerd-', 'vault-', 'kube-rbac-proxy']
+
+                  const candidates = containerNames.filter(
+                    (n) =>
+                      !sidecarExact.has(n) &&
+                      !sidecarPrefixes.some((prefix) => n.startsWith(prefix)),
+                  )
+
+                  if (candidates.length === 1) {
+                    containerName = candidates[0]
+                  } else {
+                    // 여러 개면 첫 번째 컨테이너를 기본값으로 사용
+                    containerName = containerNames[0]
+                  }
+                }
+
+                rawLogs = await api.getPodLogs(ns, podName, containerName, tailLines)
+              } else {
+                // Pod 정보를 못 찾으면 container 없이 시도 (단일 컨테이너일 수도 있으므로)
+                rawLogs = await api.getPodLogs(ns, podName, undefined, tailLines)
+              }
+            }
+          } catch (e) {
+            console.error(
+              '[ERROR] Failed to refetch full logs for truncated result, keep stored snapshot:',
+              e,
+            )
+          }
+        }
+
+        const blob = new Blob([rawLogs], {
+          type: 'text/plain;charset=utf-8',
+        })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+
+        const now = new Date()
+        const pad = (n: number) => n.toString().padStart(2, '0')
+        const timestamp = `${now.getFullYear()}${pad(
+          now.getMonth() + 1,
+        )}${pad(now.getDate())}-${pad(now.getHours())}${pad(
+          now.getMinutes(),
+        )}${pad(now.getSeconds())}`
+
+        a.download = `get_pod_logs_${timestamp}.log`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        return
+      }
+
       // 1) JSON 결과(is_json === true)가 하나뿐인 경우:
       //    -> 기본적으로 그 tool의 result 문자열만 그대로 파일로 저장
       //    -> 단, result 안에 '... (truncated) ...' 가 포함되어 있으면

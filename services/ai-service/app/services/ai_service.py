@@ -883,6 +883,66 @@ Deployment 상세:
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
     
+    async def _pick_log_container(
+        self,
+        namespace: str,
+        pod_name: str,
+        explicit_container: Optional[str] = None,
+    ) -> (Optional[str], Optional[List[str]]):
+        """로그 조회용 컨테이너 자동 선택
+
+        Returns:
+            (chosen_container_name, all_container_names_if_ambiguous)
+        """
+        # 사용자가 명시적으로 container를 지정한 경우 그대로 사용
+        if explicit_container:
+            return explicit_container, None
+
+        try:
+            # get_pods API를 사용해 대상 파드를 찾고 컨테이너 목록을 가져옴
+            pods = await self.k8s_service.get_pods(namespace)
+            target_pod = next(
+                (p for p in pods if p.get("name") == pod_name),
+                None,
+            )
+            if not target_pod:
+                print(
+                    f"[DEBUG] _pick_log_container: pod {namespace}/{pod_name} not found in get_pods() result"
+                )
+                return None, None
+
+            containers = target_pod.get("containers") or []
+            names = [c.get("name") for c in containers if c.get("name")]
+
+            if not names:
+                return None, None
+
+            # 컨테이너가 하나뿐이면 그대로 사용
+            if len(names) == 1:
+                return names[0], None
+
+            # 사이드카로 자주 쓰이는 컨테이너 이름/패턴은 우선 제외
+            sidecar_exact = {"istio-proxy", "istio-init", "linkerd-proxy"}
+            sidecar_prefixes = ("istio-", "linkerd-", "vault-", "kube-rbac-proxy")
+
+            candidates = [
+                n
+                for n in names
+                if n not in sidecar_exact
+                and not any(n.startswith(pfx) for pfx in sidecar_prefixes)
+            ]
+
+            if len(candidates) == 1:
+                return candidates[0], None
+
+            # 여전히 여러 개면 모호하므로 호출자에게 전체 목록을 넘겨줌
+            return None, names
+        except Exception as e:
+            print(
+                f"[DEBUG] Failed to auto-select log container for {namespace}/{pod_name}: {e}"
+            )
+            return None, None
+
     async def _execute_function(self, function_name: str, function_args: dict):
         """Function calling 실행"""
         import json
@@ -911,10 +971,29 @@ Deployment 상세:
                 return json.dumps(services, ensure_ascii=False)
             
             elif function_name == "get_pod_logs":
+                namespace = function_args["namespace"]
+                pod_name = function_args["pod_name"]
+                tail_lines = function_args.get("tail_lines", 50)
+                requested_container = function_args.get("container")
+
+                chosen_container, all_containers = await self._pick_log_container(
+                    namespace,
+                    pod_name,
+                    explicit_container=requested_container,
+                )
+
+                # 여러 컨테이너가 있는데 어떤 것을 쓸지 결정하지 못한 경우
+                if chosen_container is None and all_containers:
+                    raise Exception(
+                        f"Pod '{pod_name}' in namespace '{namespace}' has multiple containers "
+                        f"({', '.join(all_containers)}). 'container' 인자를 사용해 로그를 볼 컨테이너를 명시해주세요."
+                    )
+
                 logs = await self.k8s_service.get_pod_logs(
-                    function_args["namespace"],
-                    function_args["pod_name"],
-                    tail_lines=function_args.get("tail_lines", 50)
+                    namespace,
+                    pod_name,
+                    tail_lines=tail_lines,
+                    container=chosen_container,
                 )
                 return logs
             
@@ -1798,13 +1877,38 @@ Remember: You're not just answering questions - you're **solving production prob
                 tool_context.state["last_described_pod"] = function_args["name"]
             
             elif function_name == "get_pod_logs":
+                namespace = function_args["namespace"]
+                pod_name = function_args["pod_name"]
+                tail_lines = function_args.get("tail_lines", 100)
+                requested_container = function_args.get("container")
+
+                chosen_container, all_containers = await self._pick_log_container(
+                    namespace,
+                    pod_name,
+                    explicit_container=requested_container,
+                )
+
+                # 여러 컨테이너가 있는데 어떤 것을 쓸지 결정하지 못한 경우
+                if chosen_container is None and all_containers:
+                    return json.dumps(
+                        {
+                            "error": (
+                                f"Pod '{pod_name}' in namespace '{namespace}' has multiple containers "
+                                f"({', '.join(all_containers)}). "
+                                "로그를 조회할 컨테이너를 'container' 인자로 명시해주세요."
+                            )
+                        },
+                        ensure_ascii=False,
+                    )
+
                 logs = await self.k8s_service.get_pod_logs(
-                    function_args["namespace"],
-                    function_args["pod_name"],
-                    tail_lines=function_args.get("tail_lines", 100)
+                    namespace,
+                    pod_name,
+                    tail_lines=tail_lines,
+                    container=chosen_container,
                 )
                 result = logs
-                tool_context.state["last_log_pod"] = function_args["pod_name"]
+                tool_context.state["last_log_pod"] = pod_name
             
             elif function_name == "get_deployments":
                 deployments = await self.k8s_service.get_deployments(function_args["namespace"])

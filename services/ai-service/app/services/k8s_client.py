@@ -40,11 +40,21 @@ class K8sServiceClient:
         response.raise_for_status()
         return response.json()
     
-    async def get_pod_logs(self, namespace: str, pod_name: str, tail_lines: int = 100) -> str:
+    async def get_pod_logs(
+        self,
+        namespace: str,
+        pod_name: str,
+        tail_lines: int = 100,
+        container: Optional[str] = None,
+    ) -> str:
         """Pod 로그 조회"""
+        params: Dict[str, object] = {"tail_lines": tail_lines}
+        if container:
+            params["container"] = container
+
         response = await self.client.get(
             f"/namespaces/{namespace}/pods/{pod_name}/logs",
-            params={"tail_lines": tail_lines}
+            params=params,
         )
         response.raise_for_status()
         data = response.json()
