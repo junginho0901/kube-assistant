@@ -1315,7 +1315,7 @@ export default function AIChat() {
                                 }}
                                 className="px-2.5 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 text-slate-100"
                               >
-                                Result JSON 다운로드 
+                                Result 다운로드 
                               </button>
                             </div>
                           )}
