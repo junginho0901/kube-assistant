@@ -7,6 +7,24 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 
+const TOOL_RESULT_DISPLAY_MAX_CHARS = 2000
+const TRUNCATED_MARKER = '... (truncated) ...'
+
+function truncateToolResultsInContent(content: string, maxChars = TOOL_RESULT_DISPLAY_MAX_CHARS) {
+  if (!content) return content
+
+  // Only truncate tool "📊 Results" blocks. Keep other code blocks intact.
+  const resultsBlockRegex =
+    /(<summary><strong>📊 Results<\/strong><\/summary>[\s\S]*?```(?:json)?\r?\n)([\s\S]*?)(\r?\n```)/g
+
+  return content.replace(resultsBlockRegex, (_match, prefix: string, body: string, suffix: string) => {
+    if (body.includes(TRUNCATED_MARKER)) return `${prefix}${body}${suffix}`
+    if (body.length <= maxChars) return `${prefix}${body}${suffix}`
+    const truncatedBody = body.slice(0, maxChars) + `\n${TRUNCATED_MARKER}`
+    return `${prefix}${truncatedBody}${suffix}`
+  })
+}
+
 interface Message {
   id?: number
   role: 'user' | 'assistant'
@@ -1119,7 +1137,9 @@ Executing...
                             remarkPlugins={[remarkGfm]}
                             rehypePlugins={[rehypeRaw]}
                           >
-                            {message.content}
+                            {message.role === 'assistant'
+                              ? truncateToolResultsInContent(message.content)
+                              : message.content}
                           </ReactMarkdown>
                           {hasToolCalls && isWaitingForAnswer && (
                             <div className="flex gap-2 items-center py-3 mt-4">
