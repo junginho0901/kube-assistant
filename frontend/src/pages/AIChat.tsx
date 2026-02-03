@@ -55,6 +55,7 @@ export default function AIChat() {
   const [pinnedSessions, setPinnedSessions] = useState<Record<string, Session>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamStateRef = useRef<ChatStreamState>(streamState)
+  const messagesRef = useRef<Message[]>([])
 
   const isStreaming = streamState.isStreaming
   const isTempSessionId = (id: string | null) => typeof id === 'string' && id.startsWith('temp:')
@@ -183,6 +184,19 @@ export default function AIChat() {
 
       // 1) 세션이 바뀐 경우: DB 데이터로 완전히 교체 (스트리밍 중인 세션이라도 화면 세션은 맞춰야 함)
       if (sessionDetail.id !== lastLoadedSessionId) {
+        const uiHasTemporary = messagesRef.current.some((m) => m.isTemporary)
+        const activeStream = streamStateRef.current
+        const streamForThisSession =
+          activeStream.sessionId === sessionDetail.id && activeStream.status === 'streaming'
+
+        // 새로 만든 세션으로 전환 직후(session 생성 완료 직후)에는 DB가 잠깐 빈 배열을 줄 수 있음.
+        // 이때 UI에 이미 임시 말풍선이 있으면, 빈 DB 데이터로 덮어써서 "초기화면으로 깜빡"하지 않게 한다.
+        if (dbMessages.length === 0 && (streamForThisSession || uiHasTemporary)) {
+          setLastLoadedSessionId(sessionDetail.id)
+          setViewSessionId(sessionDetail.id)
+          return
+        }
+
         console.log('[DEBUG] Session changed, replacing messages from DB')
         setMessages(dbMessages)
         setLastLoadedSessionId(sessionDetail.id)
@@ -233,6 +247,10 @@ export default function AIChat() {
     })
     return unsubscribe
   }, [])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // 현재 선택된 세션이 스트리밍 중인 세션이라면, 스트리밍 내용을 UI에 반영
   useEffect(() => {
