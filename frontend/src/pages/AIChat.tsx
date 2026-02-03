@@ -14,6 +14,8 @@ interface Message {
   isTemporary?: boolean  // 스트리밍 중 임시 메시지 표시
   // Tool 호출 결과 (DB의 tool_calls 컬럼 그대로)
   toolCalls?: any[] 
+  // 스트리밍 단계(툴 실행/답변 생성 구분). 임시 메시지에서만 사용.
+  streamingPhase?: 'waiting' | 'tools' | 'answer'
 }
 
 export default function AIChat() {
@@ -243,7 +245,7 @@ export default function AIChat() {
     setMessages((prev) => [
       ...prev,
       newMessage,
-      { role: 'assistant', content: '', isTemporary: true }  // 로딩용 빈 메시지
+      { role: 'assistant', content: '', isTemporary: true, streamingPhase: 'waiting' }  // 로딩용 빈 메시지
     ])
     setInput('')
     setIsStreaming(true)
@@ -317,6 +319,7 @@ export default function AIChat() {
                     updated[tempAssistantIndex] = {
                       ...updated[tempAssistantIndex],
                       content: functionCallsContent + assistantMessageContent,
+                      streamingPhase: 'answer',
                     }
                     return updated
                   }
@@ -347,6 +350,7 @@ export default function AIChat() {
                     updated[tempAssistantIndex] = {
                       ...updated[tempAssistantIndex],
                       toolCalls: [...streamToolCallsRef.current],
+                      streamingPhase: 'tools',
                     }
                     return updated
                   }
@@ -394,6 +398,7 @@ Executing...
                     updated[tempAssistantIndex] = {
                       ...updated[tempAssistantIndex],
                       content: functionCallsContent + assistantMessageContent,
+                      streamingPhase: 'tools',
                     }
                     return updated
                   }
@@ -444,6 +449,7 @@ Executing...
                         ...updated[tempAssistantIndex],
                         content: functionCallsContent + assistantMessageContent,
                         toolCalls: [...streamToolCallsRef.current],
+                        streamingPhase: 'tools',
                       }
                       return updated
                     }
@@ -1085,12 +1091,12 @@ Executing...
                     const hasContent = message.content && message.content.length > 0
                     
                     if (hasContent) {
-                      // Tool call이 있고 실제 답변이 없으면 로딩 점 추가
+                      // Tool call이 있고 답변 생성이 아직 시작되지 않았으면 로딩 점 추가
                       const hasToolCalls = message.content.includes('🔧') || message.content.includes('<summary>🔧')
-                      // 실제 답변이 있는지 확인 - ## 제목이나 한글 문장이 충분히 있으면
-                      const hasMarkdownHeading = message.content.includes('##')
-                      const koreanTextLength = (message.content.match(/[가-힣]/g) || []).length
-                      const hasActualResponse = hasMarkdownHeading || koreanTextLength > 20
+                      const isWaitingForAnswer =
+                        message.isTemporary &&
+                        message.role === 'assistant' &&
+                        (message.streamingPhase === 'waiting' || message.streamingPhase === 'tools')
                       
                       return (
                         <>
@@ -1115,7 +1121,7 @@ Executing...
                           >
                             {message.content}
                           </ReactMarkdown>
-                          {hasToolCalls && !hasActualResponse && message.isTemporary && (
+                          {hasToolCalls && isWaitingForAnswer && (
                             <div className="flex gap-2 items-center py-3 mt-4">
                               <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
                               <div
