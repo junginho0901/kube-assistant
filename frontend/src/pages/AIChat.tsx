@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, Session } from '@/services/api'
 import { chatStreamManager, ChatStreamState } from '@/services/chatStreamManager'
@@ -52,6 +52,7 @@ export default function AIChat() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)  // 우클릭 컨텍스트 메뉴
   const [lastLoadedSessionId, setLastLoadedSessionId] = useState<string | null>(null)
   const [pendingFinalSyncSessionId, setPendingFinalSyncSessionId] = useState<string | null>(null)
+  const [pinnedSessions, setPinnedSessions] = useState<Record<string, Session>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamStateRef = useRef<ChatStreamState>(streamState)
 
@@ -63,6 +64,12 @@ export default function AIChat() {
     queryKey: ['sessions'],
     queryFn: api.getSessions,
   })
+  const sessionsList = useMemo(() => {
+    const base = Array.isArray(sessions) ? sessions : []
+    const pinned = Object.values(pinnedSessions)
+    const pinnedIds = new Set(pinned.map((s) => s.id))
+    return [...pinned, ...base.filter((s) => !pinnedIds.has(s.id))]
+  }, [pinnedSessions, sessions])
 
   // 세션 상세 조회 (스트리밍 중이 아닐 때만)
   const { data: sessionDetail } = useQuery({
@@ -95,7 +102,7 @@ export default function AIChat() {
 
       queryClient.setQueryData<Session[]>(['sessions'], (old) => {
         const list = Array.isArray(old) ? old : []
-        return [optimisticSession, ...list]
+        return [optimisticSession, ...list.filter((s) => s.id !== optimisticId)]
       })
 
       // 즉시 UI에 반영 후, 백그라운드에서 기존 세션 fetch를 취소
@@ -104,6 +111,16 @@ export default function AIChat() {
       return { previousSessions, optimisticId }
     },
     onSuccess: (newSession, _vars, ctx) => {
+      // optimistic session을 실제 session으로 교체 (세션 목록 깜빡임 방지)
+      if (ctx?.optimisticId) {
+        setPinnedSessions((prev) => {
+          const next = { ...prev }
+          delete next[ctx.optimisticId]
+          next[newSession.id] = newSession
+          return next
+        })
+      }
+
       queryClient.setQueryData<Session[]>(['sessions'], (old) => {
         const list = Array.isArray(old) ? old : []
         const replaced = list.map((s) => (ctx?.optimisticId && s.id === ctx.optimisticId ? newSession : s))
@@ -114,6 +131,13 @@ export default function AIChat() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.previousSessions) {
         queryClient.setQueryData(['sessions'], ctx.previousSessions)
+      }
+      if (ctx?.optimisticId) {
+        setPinnedSessions((prev) => {
+          const next = { ...prev }
+          delete next[ctx.optimisticId]
+          return next
+        })
       }
     },
     onSettled: () => {
@@ -368,6 +392,7 @@ export default function AIChat() {
     if (!message || isStreaming) return
 
     const userMessage = message
+    const initialTitle = userMessage.length > 50 ? `${userMessage.slice(0, 50)}...` : userMessage
 
     // 중단 플래그 리셋
     setStoppedSessionId(null)
@@ -383,6 +408,21 @@ export default function AIChat() {
     if (!existingRealSessionId) {
       setSelectedSessionId(optimisticId)
       setViewSessionId(optimisticId)
+
+      // 세션 목록이 아직 로딩 중이어도, 임시 세션을 즉시 목록에 노출
+      const nowIso = new Date().toISOString()
+      const optimisticSession: Session = {
+        id: optimisticId,
+        title: initialTitle || 'New Chat',
+        created_at: nowIso,
+        updated_at: nowIso,
+        message_count: 0,
+      }
+      setPinnedSessions((prev) => ({ ...prev, [optimisticId]: optimisticSession }))
+      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
+        const list = Array.isArray(old) ? old : []
+        return [optimisticSession, ...list.filter((s) => s.id !== optimisticId)]
+      })
     }
     if (existingRealSessionId) {
       setViewSessionId(existingRealSessionId)
@@ -405,13 +445,13 @@ export default function AIChat() {
     const startStream = (sessionIdToUse: string) => {
       // 스트리밍 시작 (라우트 이동 후에도 유지)
       void chatStreamManager.startSessionChat(sessionIdToUse, userMessage).catch((error) => {
-      console.error('[ERROR] Failed to start streaming:', error)
-      setMessages((prev) => prev.filter((msg) => !msg.isTemporary))
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `죄송합니다. 답변을 생성하는 중 오류가 발생했습니다: ${String(error)}` },
-      ])
-    })
+        console.error('[ERROR] Failed to start streaming:', error)
+        setMessages((prev) => prev.filter((msg) => !msg.isTemporary))
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `죄송합니다. 답변을 생성하는 중 오류가 발생했습니다: ${String(error)}` },
+        ])
+      })
     }
 
     if (existingRealSessionId) {
@@ -419,27 +459,36 @@ export default function AIChat() {
       return
     }
 
-    try {
-      // 첫 질문 내용으로 세션 제목 설정 (최대 50자)
-      const initialTitle = userMessage.length > 50 ? `${userMessage.slice(0, 50)}...` : userMessage
-      const newSession = await createSessionMutation.mutateAsync({ title: initialTitle, optimisticId })
+    // 중요: 여기서 await 하면 React 18 batching 때문에 "대화방/말풍선 표시"가 네트워크 응답까지 지연될 수 있어
+    // mutate + callback으로 비동기 작업을 분리한다.
+    createSessionMutation.mutate(
+      { title: initialTitle, optimisticId },
+      {
+        onSuccess: (newSession) => {
+          // DB 동기화가 중간 상태로 덮어쓰지 않도록 먼저 스트리밍 상태를 올린다.
+          startStream(newSession.id)
 
-      // DB 동기화가 중간 상태로 덮어쓰지 않도록 먼저 스트리밍 상태를 올린다.
-      startStream(newSession.id)
-
-      // 사용자가 아직 이 임시 세션을 보고 있다면 실제 세션으로 전환
-      setSelectedSessionId((current) => (current === optimisticId ? newSession.id : current))
-      setViewSessionId((current) => (current === optimisticId ? newSession.id : current))
-    } catch (error) {
-      console.error('[ERROR] Failed to create session:', error)
-      setSelectedSessionId((current) => (current === optimisticId ? null : current))
-      setViewSessionId((current) => (current === optimisticId ? null : current))
-      setMessages((prev) => prev.filter((msg) => !msg.isTemporary))
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `세션 생성에 실패했습니다: ${String(error)}` },
-      ])
-    }
+          // 사용자가 아직 이 임시 세션을 보고 있다면 실제 세션으로 전환
+          setSelectedSessionId((current) => (current === optimisticId ? newSession.id : current))
+          setViewSessionId((current) => (current === optimisticId ? newSession.id : current))
+        },
+        onError: (error) => {
+          console.error('[ERROR] Failed to create session:', error)
+          setSelectedSessionId((current) => (current === optimisticId ? null : current))
+          setViewSessionId((current) => (current === optimisticId ? null : current))
+          setPinnedSessions((prev) => {
+            const next = { ...prev }
+            delete next[optimisticId]
+            return next
+          })
+          setMessages((prev) => prev.filter((msg) => !msg.isTemporary))
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `세션 생성에 실패했습니다: ${String(error)}` },
+          ])
+        },
+      },
+    )
   }
 
   const handleNewChat = () => {
@@ -448,6 +497,7 @@ export default function AIChat() {
     setViewSessionId(null)
     setStoppedSessionId(null)
     setPendingFinalSyncSessionId(null)
+    setPinnedSessions({})
     setMessages([])
   }
 
@@ -487,6 +537,11 @@ export default function AIChat() {
 
     setStoppedSessionId(null)
     setPendingFinalSyncSessionId(null)
+    setPinnedSessions((prev) => {
+      const next = { ...prev }
+      delete next[sessionId]
+      return next
+    })
     if (selectedSessionId === sessionId) {
       setSelectedSessionId(null)
       setViewSessionId(null)
@@ -519,6 +574,7 @@ export default function AIChat() {
 
       // 선택된 세션들을 순차적으로 삭제
       for (const sessionId of selectedSessionIds) {
+        if (isTempSessionId(sessionId)) continue
         await deleteSessionMutation.mutateAsync(sessionId)
       }
       
@@ -532,14 +588,15 @@ export default function AIChat() {
         setViewSessionId(null)
         setStoppedSessionId(null)
         setPendingFinalSyncSessionId(null)
+        setPinnedSessions({})
         setMessages([])
       }
     }
   }
 
   const handleSelectAll = () => {
-    if (sessions) {
-      setSelectedSessionIds(new Set(sessions.map(s => s.id)))
+    if (sessionsList.length > 0) {
+      setSelectedSessionIds(new Set(sessionsList.map(s => s.id).filter((id) => !isTempSessionId(id))))
     }
   }
 
@@ -865,16 +922,16 @@ export default function AIChat() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {sessionsLoading ? (
+          {sessionsLoading && sessionsList.length === 0 ? (
             <div className="text-slate-400 text-sm text-center py-4">로딩 중...</div>
-          ) : sessions && Array.isArray(sessions) && sessions.length > 0 ? (
+          ) : sessionsList.length > 0 ? (
             <div className="space-y-1">
-              {sessions.map((session) => (
+              {sessionsList.map((session) => (
                 <div
                   key={session.id}
                   onClick={() => handleSelectSession(session.id)}
                   onContextMenu={(e) => {
-                    const sessionData = sessions.find(s => s.id === session.id)
+                    const sessionData = sessionsList.find(s => s.id === session.id)
                     if (sessionData) handleContextMenu(sessionData, e)
                   }}
                   className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${
@@ -969,8 +1026,8 @@ export default function AIChat() {
               top: `${contextMenu.y}px`,
             }}
           >
-            {sessions && (() => {
-              const session = sessions.find(s => s.id === contextMenu.sessionId)
+            {sessionsList.length > 0 && (() => {
+              const session = sessionsList.find(s => s.id === contextMenu.sessionId)
               if (!session) return null
               return (
                 <>
