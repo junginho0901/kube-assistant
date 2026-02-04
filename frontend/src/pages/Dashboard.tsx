@@ -558,6 +558,12 @@ export default function Dashboard() {
                   }
                 }}
               >
+                <defs>
+                  <linearGradient id="podStatusBarFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#0284c7" stopOpacity={1} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
                   dataKey="name"
@@ -575,7 +581,13 @@ export default function Dashboard() {
                 />
                 <Bar
                   dataKey="value"
-                  fill="#0ea5e9"
+                  fill="url(#podStatusBarFill)"
+                  stroke="#7dd3fc"
+                  strokeOpacity={0.25}
+                  radius={[8, 8, 2, 2]}
+                  isAnimationActive
+                  animationDuration={800}
+                  animationEasing="ease-out"
                   cursor="pointer"
                 />
               </BarChart>
@@ -597,6 +609,12 @@ export default function Dashboard() {
                   }
                 }}
               >
+                <defs>
+                  <linearGradient id="nodeStatusBarFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#67e8f9" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#0891b2" stopOpacity={1} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
                   dataKey="name"
@@ -614,8 +632,13 @@ export default function Dashboard() {
                 />
                 <Bar
                   dataKey="value"
-                  fill="#06b6d4"
-                  fillOpacity={0.8}
+                  fill="url(#nodeStatusBarFill)"
+                  stroke="#a5f3fc"
+                  strokeOpacity={0.2}
+                  radius={[8, 8, 2, 2]}
+                  isAnimationActive
+                  animationDuration={800}
+                  animationEasing="ease-out"
                   cursor="pointer"
                 />
               </BarChart>
@@ -785,11 +808,13 @@ export default function Dashboard() {
                           {node.cpu_percent}
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-slate-600 rounded-full overflow-hidden">
+                      <div className="w-full h-2.5 bg-slate-700/70 rounded-full overflow-hidden ring-1 ring-white/5 shadow-inner">
                         <div
-                          className={`h-full transition-all duration-300 ${cpuPercent >= 80 ? 'bg-red-500' :
-                              cpuPercent >= 60 ? 'bg-yellow-500' :
-                                'bg-green-500'
+                          className={`h-full rounded-full transition-[width] duration-700 ease-out ${cpuPercent >= 80
+                              ? 'bg-gradient-to-r from-red-600 via-red-500 to-rose-400 shadow-[0_0_10px_rgba(239,68,68,0.35)]'
+                              : cpuPercent >= 60
+                                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-400 shadow-[0_0_10px_rgba(234,179,8,0.30)]'
+                                : 'bg-gradient-to-r from-emerald-600 via-green-500 to-lime-400 shadow-[0_0_10px_rgba(34,197,94,0.25)]'
                             }`}
                           style={{ width: `${Math.min(cpuPercent, 100)}%` }}
                         />
@@ -807,11 +832,13 @@ export default function Dashboard() {
                           {node.memory_percent}
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-slate-600 rounded-full overflow-hidden">
+                      <div className="w-full h-2.5 bg-slate-700/70 rounded-full overflow-hidden ring-1 ring-white/5 shadow-inner">
                         <div
-                          className={`h-full transition-all duration-300 ${memoryPercent >= 80 ? 'bg-red-500' :
-                              memoryPercent >= 60 ? 'bg-yellow-500' :
-                                'bg-blue-500'
+                          className={`h-full rounded-full transition-[width] duration-700 ease-out ${memoryPercent >= 80
+                              ? 'bg-gradient-to-r from-red-600 via-red-500 to-rose-400 shadow-[0_0_10px_rgba(239,68,68,0.35)]'
+                              : memoryPercent >= 60
+                                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-400 shadow-[0_0_10px_rgba(234,179,8,0.30)]'
+                                : 'bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(59,130,246,0.30)]'
                             }`}
                           style={{ width: `${Math.min(memoryPercent, 100)}%` }}
                         />
