@@ -256,6 +256,16 @@ export default function Dashboard() {
     setIsIssuesModalOpen(true)
   }
 
+  useEffect(() => {
+    if (!isIssuesModalOpen) return
+    // 모달을 열 때마다 최신 상태(특히 CrashLoopBackOff reason 등)를 다시 가져오도록 강제한다.
+    void queryClient.invalidateQueries({ queryKey: ['all-pods'], refetchType: 'active' })
+    void queryClient.invalidateQueries({ queryKey: ['all-pvcs'], refetchType: 'active' })
+    void queryClient.invalidateQueries({ queryKey: ['all-namespaces'], refetchType: 'active' })
+    void queryClient.invalidateQueries({ queryKey: ['all-deployments'], refetchType: 'active' })
+    void queryClient.invalidateQueries({ queryKey: ['nodes'], refetchType: 'active' })
+  }, [isIssuesModalOpen, queryClient])
+
   const handleCloseIssuesModal = () => {
     setIsIssuesModalOpen(false)
     setIssuesSearchQuery('')
