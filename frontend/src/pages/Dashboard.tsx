@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [modalSearchQuery, setModalSearchQuery] = useState<string>('')
   const [isIssuesModalOpen, setIsIssuesModalOpen] = useState(false)
   const [issuesSearchQuery, setIssuesSearchQuery] = useState<string>('')
+  const [includeRestartHistory, setIncludeRestartHistory] = useState(false)
   const [selectedPodStatus, setSelectedPodStatus] = useState<string | null>(null)
   const [selectedNodeStatus, setSelectedNodeStatus] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<any | null>(null)
@@ -269,6 +270,7 @@ export default function Dashboard() {
   const handleCloseIssuesModal = () => {
     setIsIssuesModalOpen(false)
     setIssuesSearchQuery('')
+    setIncludeRestartHistory(false)
   }
 
   const handleNodeClick = (node: any) => {
@@ -532,6 +534,17 @@ export default function Dashboard() {
     return { ready: readyCount, total: totalCount }
   }
 
+  const formatAge = (ms: number) => {
+    const seconds = Math.max(0, Math.floor(ms / 1000))
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+    if (days > 0) return `${days}d ago`
+    if (hours > 0) return `${hours}h ago`
+    if (minutes > 0) return `${minutes}m ago`
+    return `${seconds}s ago`
+  }
+
   const allPodsArray = Array.isArray(allPods) ? allPods : []
   const allNodesArray = Array.isArray(nodes) ? nodes : []
   const allPVCsArray = Array.isArray(allPVCs) ? allPVCs : []
@@ -546,8 +559,6 @@ export default function Dashboard() {
     const reasons: string[] = []
     let severity: IssueSeverity | null = null
 
-    const containerReasons: string[] = []
-    let hasCriticalContainerReason = false
     const containers = Array.isArray(pod?.containers) ? pod.containers : []
     const criticalWaitingReasons = new Set([
       'CrashLoopBackOff',
@@ -557,38 +568,55 @@ export default function Dashboard() {
       'CreateContainerError',
       'RunContainerError',
     ])
-    const warningWaitingReasons = new Set([
-      'BackOff',
-      'ErrImageNeverPull',
-      'InvalidImageName',
-    ])
-    const criticalTerminatedReasons = new Set(['OOMKilled', 'Error'])
+
+    const waitingReasons: string[] = []
+    const terminatedReasons: string[] = []
+    let hasCriticalWaitingReason = false
+    let hasCriticalTerminatedState = false
+
+    let latestTerminationMs: number | null = null
+    let latestTerminationReason: string | null = null
+
     for (const container of containers) {
       const waitingReason = container?.state?.waiting?.reason
+      if (waitingReason) {
+        const wr = String(waitingReason)
+        waitingReasons.push(wr)
+        if (criticalWaitingReasons.has(wr)) hasCriticalWaitingReason = true
+      }
+
       const terminatedReason = container?.state?.terminated?.reason
-      const lastTerminatedReason = container?.last_state?.terminated?.reason
-
-      if (waitingReason && criticalWaitingReasons.has(String(waitingReason))) {
-        hasCriticalContainerReason = true
-        containerReasons.push(String(waitingReason))
-      } else if (waitingReason && warningWaitingReasons.has(String(waitingReason))) {
-        containerReasons.push(String(waitingReason))
+      if (terminatedReason) {
+        terminatedReasons.push(String(terminatedReason))
+        hasCriticalTerminatedState = true
       }
 
-      if ((terminatedReason && criticalTerminatedReasons.has(String(terminatedReason))) ||
-          (lastTerminatedReason && criticalTerminatedReasons.has(String(lastTerminatedReason)))) {
-        hasCriticalContainerReason = true
-        if (terminatedReason) containerReasons.push(String(terminatedReason))
-        if (lastTerminatedReason) containerReasons.push(String(lastTerminatedReason))
+      const lastTerminated = container?.last_state?.terminated
+      const finishedAt = lastTerminated?.finished_at
+      const ms = typeof finishedAt === 'string' ? Date.parse(finishedAt) : NaN
+      if (Number.isFinite(ms)) {
+        if (latestTerminationMs == null || ms > latestTerminationMs) {
+          latestTerminationMs = ms
+          latestTerminationReason = lastTerminated?.reason ? String(lastTerminated.reason) : null
+        }
       }
     }
 
-    const uniqueContainerReasons = Array.from(new Set(containerReasons))
-    if (uniqueContainerReasons.length > 0) {
-      reasons.push(`Reason: ${uniqueContainerReasons.slice(0, 3).join(', ')}${uniqueContainerReasons.length > 3 ? '…' : ''}`)
-      severity = hasCriticalContainerReason ? 'critical' : 'warning'
+    const uniqueReasons = (items: string[]) => Array.from(new Set(items)).slice(0, 3)
+    const waitingReasonsUnique = uniqueReasons(waitingReasons)
+    const terminatedReasonsUnique = uniqueReasons(terminatedReasons)
+
+    // 1) 현재 진행 중인 상태(reason/state)는 "지금 문제"이므로 우선순위를 높게 둔다.
+    if (waitingReasonsUnique.length > 0) {
+      reasons.push(`Reason: ${waitingReasonsUnique.join(', ')}${waitingReasons.length > 3 ? '…' : ''}`)
+      severity = hasCriticalWaitingReason ? 'critical' : 'warning'
+    }
+    if (terminatedReasonsUnique.length > 0) {
+      reasons.push(`Reason: ${terminatedReasonsUnique.join(', ')}${terminatedReasons.length > 3 ? '…' : ''}`)
+      severity = 'critical'
     }
 
+    // 2) Pod phase 기반 판정
     if (['Pending', 'Failed', 'Unknown'].includes(phase)) {
       severity = 'critical'
       reasons.push(`Phase: ${phase}`)
@@ -597,12 +625,44 @@ export default function Dashboard() {
       reasons.push(`Ready: ${pod.ready}`)
     }
 
-    if (Number.isFinite(restartCount) && restartCount > 0) {
-      if (severity == null) severity = restartCount >= 5 ? 'warning' : 'info'
+    // 3) "과거" 재시작은 기본적으로 숨기되, 옵션/최근 재시작은 표시한다.
+    const nowMs = Date.now()
+    const restartAgeMs = latestTerminationMs == null ? null : nowMs - latestTerminationMs
+    const hasAnyCurrentIssue = hasCriticalWaitingReason || hasCriticalTerminatedState || ['Pending', 'Failed', 'Unknown'].includes(phase) || isRunningNotReady
+
+    const hasRestartEvidence = Number.isFinite(restartCount) && restartCount > 0
+    const hasRestartTimestamp =
+      restartAgeMs != null &&
+      Number.isFinite(restartAgeMs) &&
+      restartAgeMs >= 0
+
+    const isRecentRestart =
+      hasRestartTimestamp && (restartAgeMs as number) <= 24 * 60 * 60 * 1000
+
+    const shouldSurfaceRestartHistory =
+      hasRestartEvidence &&
+      phase === 'Running' &&
+      !hasAnyCurrentIssue &&
+      (includeRestartHistory || isRecentRestart)
+
+    if (shouldSurfaceRestartHistory) {
+      if (isRecentRestart) {
+        // 최근 재시작은 warning/info로 표시
+        if (restartAgeMs != null && restartAgeMs <= 60 * 60 * 1000) severity = 'warning'
+        else severity = 'info'
+      } else {
+        severity = 'info'
+      }
+      if (latestTerminationReason) reasons.push(`Reason: ${latestTerminationReason}`)
+      if (hasRestartTimestamp && restartAgeMs != null) reasons.push(`Last restart: ${formatAge(restartAgeMs)}`)
+      reasons.push(`Restarts: ${restartCount}`)
+    } else if (hasRestartEvidence && (hasAnyCurrentIssue || hasCriticalWaitingReason || hasCriticalTerminatedState)) {
+      // 현재 문제가 있는 경우엔 재시작 횟수는 항상 함께 보여준다.
       reasons.push(`Restarts: ${restartCount}`)
     }
 
-    if (reasons.length === 0 || severity == null) return []
+    // 4) 최종 필터: 아무 이유가 없으면 제외
+    if (severity == null || reasons.length === 0) return []
 
     const namespace = String(pod?.namespace ?? '')
     const name = String(pod?.name ?? '')
@@ -1261,6 +1321,21 @@ export default function Dashboard() {
                 <span className="badge badge-warning">Warning {issuesSummary.warning}</span>
                 <span className="badge badge-info">Info {issuesSummary.info}</span>
               </div>
+
+              <label className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg border border-slate-700 bg-slate-900/20">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-200">재시작 이력 포함</p>
+                  <p className="text-xs text-slate-400 truncate">
+                    현재는 정상(Running/Ready)인 Pod의 과거 재시작도 Info로 표시
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={includeRestartHistory}
+                  onChange={(e) => setIncludeRestartHistory(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
+                />
+              </label>
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
