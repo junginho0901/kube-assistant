@@ -223,10 +223,15 @@ JSON 형식으로 응답해주세요:
         
         # 시스템 메시지
         system_message = """
-당신은 Kubernetes 클러스터를 관리하는 AI Agent입니다.
-사용자의 질문에 답하기 위해 필요한 경우 Kubernetes API를 직접 호출할 수 있습니다.
-실시간 클러스터 정보를 조회하여 정확한 답변을 제공하세요.
-"""
+	당신은 Kubernetes 클러스터를 관리하는 AI Agent입니다.
+	사용자의 질문에 답하기 위해 필요한 경우 Kubernetes API를 직접 호출할 수 있습니다.
+	실시간 클러스터 정보를 조회하여 정확한 답변을 제공하세요.
+
+	중요: 사용자가 네임스페이스를 명시하지 않은 요청에서 `default`를 임의로 가정하지 마세요.
+	사용자가 리소스 이름을 "대충" 던지는 경우(정확한 전체 이름이 아닌 식별자/부분 문자열)에는,
+	먼저 find 도구(`find_pods`, `find_services`, `find_deployments`)로 모든 네임스페이스에서 후보를 찾고
+	그 결과의 `namespace`/`name`을 사용해 후속 도구(로그/describe 등)를 호출하세요.
+	"""
         
         # 메시지 변환
         messages = [{"role": "system", "content": system_message}]
@@ -246,6 +251,54 @@ JSON 형식으로 응답해주세요:
                     "name": "get_namespaces",
                     "description": "클러스터의 모든 네임스페이스 목록을 조회합니다",
                     "parameters": {"type": "object", "properties": {}}
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_pods",
+                    "description": "Pod를 이름/라벨로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (pod name/label에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_services",
+                    "description": "Service를 이름/셀렉터로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (service name/selector에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_deployments",
+                    "description": "Deployment를 이름/라벨/셀렉터로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (deployment name/labels/selector에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
                 }
             },
             {
@@ -309,9 +362,10 @@ JSON 형식으로 응답해주세요:
                         "properties": {
                             "namespace": {"type": "string", "description": "네임스페이스 이름"},
                             "pod_name": {"type": "string", "description": "Pod 이름"},
+                            "container": {"type": "string", "description": "컨테이너 이름 (선택)"},
                             "tail_lines": {"type": "integer", "description": "마지막 N줄 (기본값: 50)"}
                         },
-                        "required": ["namespace", "pod_name"]
+                        "required": ["pod_name"]
                     }
                 }
             },
@@ -678,6 +732,14 @@ Deployment 상세:
 
 **매우 중요**: 사용자가 질문을 하면, **반드시 먼저 도구를 사용하여 실제 클러스터 상태를 확인**하세요. 절대 추측하지 마세요.
 
+## 네임스페이스/리소스 식별 규칙 (중요)
+
+- 사용자가 네임스페이스를 명시하지 않은 요청에서 `default`를 임의로 가정하지 마세요.
+- 사용자가 리소스 이름을 "대충" 던지는 경우(정확한 전체 이름이 아닌 식별자/부분 문자열)에는,
+  먼저 find 도구(`find_pods`, `find_services`, `find_deployments`)로 **모든 네임스페이스에서 후보를 찾은 뒤**
+  해당 후보의 `namespace`와 `name`을 사용해 후속 도구(로그/describe 등)를 호출하세요.
+- 후보가 여러 개면 (다른 네임스페이스/여러 replica 등) 후보를 나열하고 사용자에게 선택을 요청하거나, 일반적으로 Healthy/Running+Ready인 리소스를 우선하세요.
+
 1. **항상 도구를 적극적으로 사용**: 
    - 사용자가 클러스터에 대해 질문하면, 관련 도구를 즉시 호출하세요
    - 일반적인 설명보다 실제 데이터를 우선시하세요
@@ -777,6 +839,54 @@ Deployment 상세:
             {
                 "type": "function",
                 "function": {
+                    "name": "find_pods",
+                    "description": "Pod를 이름/라벨로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (pod name/label에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_services",
+                    "description": "Service를 이름/셀렉터로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (service name/selector에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_deployments",
+                    "description": "Deployment를 이름/라벨/셀렉터로 검색합니다 (네임스페이스 미지정 시 전체 네임스페이스에서 검색)",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색 키워드 (deployment name/labels/selector에서 매칭)"},
+                            "namespace": {"type": "string", "description": "검색 범위를 제한할 네임스페이스 (선택)"},
+                            "limit": {"type": "integer", "description": "최대 반환 개수 (기본값: 20)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "get_pods",
                     "description": "특정 네임스페이스의 Pod 목록과 상태를 조회합니다",
                     "parameters": {
@@ -821,7 +931,7 @@ Deployment 상세:
                             "namespace": {"type": "string", "description": "네임스페이스 이름"},
                             "name": {"type": "string", "description": "Pod 이름"}
                         },
-                        "required": ["namespace", "name"]
+                        "required": ["name"]
                     }
                 }
             },
@@ -836,7 +946,7 @@ Deployment 상세:
                             "namespace": {"type": "string", "description": "네임스페이스 이름"},
                             "name": {"type": "string", "description": "Deployment 이름"}
                         },
-                        "required": ["namespace", "name"]
+                        "required": ["name"]
                     }
                 }
             },
@@ -851,7 +961,7 @@ Deployment 상세:
                             "namespace": {"type": "string", "description": "네임스페이스 이름"},
                             "name": {"type": "string", "description": "Service 이름"}
                         },
-                        "required": ["namespace", "name"]
+                        "required": ["name"]
                     }
                 }
             },
@@ -867,7 +977,7 @@ Deployment 상세:
                             "pod_name": {"type": "string", "description": "Pod 이름"},
                             "tail_lines": {"type": "integer", "description": "마지막 N줄만 조회 (기본값: 100)"}
                         },
-                        "required": ["namespace", "pod_name"]
+                        "required": ["pod_name"]
                     }
                 }
             },
@@ -1170,6 +1280,188 @@ Deployment 상세:
             )
             return None, None
 
+    def _coerce_limit(self, value: object, default: int = 20, max_value: int = 200) -> int:
+        try:
+            v = int(value)  # type: ignore[arg-type]
+        except Exception:
+            v = default
+        if v <= 0:
+            v = default
+        if v > max_value:
+            v = max_value
+        return v
+
+    def _query_in_mapping(self, query: str, mapping: object) -> bool:
+        if not isinstance(mapping, dict):
+            return False
+        for k, v in mapping.items():
+            if query in str(k).lower() or query in str(v).lower():
+                return True
+        return False
+
+    async def _find_pods(self, query_raw: str, namespace: Optional[str] = None, limit: int = 20) -> List[Dict]:
+        query = query_raw.strip().lower()
+        if not query:
+            return []
+
+        if namespace and namespace.strip():
+            pods = await self.k8s_service.get_pods(namespace.strip())
+        else:
+            pods = await self.k8s_service.get_all_pods()
+
+        def _matches(p: Dict) -> bool:
+            name = str(p.get("name", "")).lower()
+            if query in name:
+                return True
+            return self._query_in_mapping(query, p.get("labels") or {})
+
+        matches = [p for p in pods if isinstance(p, dict) and _matches(p)]
+
+        def _ready_score(p: Dict) -> int:
+            status = str(p.get("status", "")).lower()
+            ready = str(p.get("ready", "")).strip()
+            is_running = 1 if status == "running" else 0
+            is_ready = 1 if "/" in ready and ready.split("/", 1)[0] == ready.split("/", 1)[1] else 0
+            return is_running * 10 + is_ready
+
+        def _restart_count(p: Dict) -> int:
+            try:
+                return int(p.get("restart_count", 0))
+            except Exception:
+                return 0
+
+        matches.sort(
+            key=lambda p: (
+                -_ready_score(p),
+                _restart_count(p),
+                str(p.get("namespace", "")),
+                str(p.get("name", "")),
+            )
+        )
+
+        return matches[:limit]
+
+    async def _find_services(self, query_raw: str, namespace: Optional[str] = None, limit: int = 20) -> List[Dict]:
+        query = query_raw.strip().lower()
+        if not query:
+            return []
+
+        if namespace and namespace.strip():
+            services = await self.k8s_service.get_services(namespace.strip())
+            svc_dicts = [s if isinstance(s, dict) else getattr(s, "model_dump", lambda: s)() for s in services]  # type: ignore[misc]
+        else:
+            namespaces = await self.k8s_service.get_namespaces()
+            svc_dicts = []
+            for ns in namespaces:
+                ns_name = ns.get("name") if isinstance(ns, dict) else getattr(ns, "name", None)
+                if not ns_name:
+                    continue
+                svcs = await self.k8s_service.get_services(str(ns_name))
+                for s in svcs:
+                    if isinstance(s, dict):
+                        svc_dicts.append(s)
+                    else:
+                        try:
+                            svc_dicts.append(s.model_dump())  # type: ignore[attr-defined]
+                        except Exception:
+                            svc_dicts.append(dict(s))  # type: ignore[arg-type]
+                if len(svc_dicts) >= limit * 5:
+                    # safety guard to avoid very large collections in huge clusters
+                    break
+
+        def _matches(s: Dict) -> bool:
+            if query in str(s.get("name", "")).lower():
+                return True
+            return self._query_in_mapping(query, s.get("selector") or {})
+
+        matches = [s for s in svc_dicts if isinstance(s, dict) and _matches(s)]
+        matches.sort(key=lambda s: (str(s.get("namespace", "")), str(s.get("name", ""))))
+        return matches[:limit]
+
+    async def _find_deployments(self, query_raw: str, namespace: Optional[str] = None, limit: int = 20) -> List[Dict]:
+        query = query_raw.strip().lower()
+        if not query:
+            return []
+
+        if namespace and namespace.strip():
+            deployments = await self.k8s_service.get_deployments(namespace.strip())
+            dep_dicts = [d if isinstance(d, dict) else getattr(d, "model_dump", lambda: d)() for d in deployments]  # type: ignore[misc]
+        else:
+            namespaces = await self.k8s_service.get_namespaces()
+            dep_dicts = []
+            for ns in namespaces:
+                ns_name = ns.get("name") if isinstance(ns, dict) else getattr(ns, "name", None)
+                if not ns_name:
+                    continue
+                deps = await self.k8s_service.get_deployments(str(ns_name))
+                for d in deps:
+                    if isinstance(d, dict):
+                        dep_dicts.append(d)
+                    else:
+                        try:
+                            dep_dicts.append(d.model_dump())  # type: ignore[attr-defined]
+                        except Exception:
+                            dep_dicts.append(dict(d))  # type: ignore[arg-type]
+                if len(dep_dicts) >= limit * 5:
+                    break
+
+        def _matches(d: Dict) -> bool:
+            if query in str(d.get("name", "")).lower():
+                return True
+            if self._query_in_mapping(query, d.get("labels") or {}):
+                return True
+            if self._query_in_mapping(query, d.get("selector") or {}):
+                return True
+            return False
+
+        matches = [d for d in dep_dicts if isinstance(d, dict) and _matches(d)]
+
+        def _status_score(d: Dict) -> int:
+            status = str(d.get("status", "")).lower()
+            return 2 if status == "healthy" else (1 if status == "degraded" else 0)
+
+        def _ready_ratio(d: Dict) -> float:
+            try:
+                replicas = int(d.get("replicas", 0))
+                ready = int(d.get("ready_replicas", 0))
+            except Exception:
+                return 0.0
+            if replicas <= 0:
+                return 0.0
+            return ready / replicas
+
+        matches.sort(
+            key=lambda d: (
+                -_status_score(d),
+                -_ready_ratio(d),
+                str(d.get("namespace", "")),
+                str(d.get("name", "")),
+            )
+        )
+        return matches[:limit]
+
+    async def _resolve_single(self, kind: str, query: str, matches: List[Dict]) -> Dict:
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            raise Exception(f"No {kind} matched query '{query}'. Try a more specific name.")
+
+        preview = []
+        for m in matches[:10]:
+            ns = m.get("namespace", "")
+            name = m.get("name", "")
+            status = m.get("status", m.get("type", ""))
+            ready = m.get("ready", "")
+            extra = f" status={status}" if status else ""
+            if ready:
+                extra += f" ready={ready}"
+            preview.append(f"{ns}/{name}{extra}".strip())
+
+        raise Exception(
+            f"Multiple {kind} matched query '{query}'. Please specify namespace or choose one: "
+            + "; ".join(preview)
+        )
+
     async def _execute_function(self, function_name: str, function_args: dict):
         """Function calling 실행"""
         import json
@@ -1182,6 +1474,33 @@ Deployment 상세:
                 result = json.dumps(namespaces, ensure_ascii=False)
                 print(f"[DEBUG] get_namespaces result: {result[:200]}")
                 return result
+
+            elif function_name == "find_pods":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_pods requires non-empty 'query'")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                namespace = function_args.get("namespace")
+                matches = await self._find_pods(query_raw, namespace=namespace if isinstance(namespace, str) else None, limit=limit_int)
+                return json.dumps(matches, ensure_ascii=False)
+
+            elif function_name == "find_services":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_services requires non-empty 'query'")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                namespace = function_args.get("namespace")
+                matches = await self._find_services(query_raw, namespace=namespace if isinstance(namespace, str) else None, limit=limit_int)
+                return json.dumps(matches, ensure_ascii=False)
+
+            elif function_name == "find_deployments":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_deployments requires non-empty 'query'")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                namespace = function_args.get("namespace")
+                matches = await self._find_deployments(query_raw, namespace=namespace if isinstance(namespace, str) else None, limit=limit_int)
+                return json.dumps(matches, ensure_ascii=False)
             
             elif function_name == "get_pods":
                 pods = await self.k8s_service.get_pods(function_args["namespace"])
@@ -1198,10 +1517,16 @@ Deployment 상세:
                 return json.dumps(services, ensure_ascii=False)
             
             elif function_name == "get_pod_logs":
-                namespace = function_args["namespace"]
+                namespace = function_args.get("namespace")
                 pod_name = function_args["pod_name"]
                 tail_lines = function_args.get("tail_lines", 50)
                 requested_container = function_args.get("container")
+
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_pods(str(pod_name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("pods", str(pod_name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    pod_name = str(chosen.get("name", pod_name))
 
                 chosen_container, all_containers = await self._pick_log_container(
                     namespace,
@@ -1229,24 +1554,36 @@ Deployment 상세:
                 return json.dumps(overview, ensure_ascii=False)
             
             elif function_name == "describe_pod":
-                result = await self.k8s_service.describe_pod(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_pods(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("pods", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+                result = await self.k8s_service.describe_pod(namespace, name)
                 return json.dumps(result, ensure_ascii=False)
             
             elif function_name == "describe_deployment":
-                result = await self.k8s_service.describe_deployment(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_deployments(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("deployments", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+                result = await self.k8s_service.describe_deployment(namespace, name)
                 return json.dumps(result, ensure_ascii=False)
             
             elif function_name == "describe_service":
-                result = await self.k8s_service.describe_service(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_services(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("services", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+                result = await self.k8s_service.describe_service(namespace, name)
                 return json.dumps(result, ensure_ascii=False)
             
             elif function_name == "get_events":
@@ -1703,6 +2040,14 @@ Deployment 상세:
 
 **매우 중요**: 사용자가 질문을 하면, **반드시 먼저 도구를 사용하여 실제 클러스터 상태를 확인**하세요. 절대 추측하지 마세요.
 
+### 네임스페이스/리소스 식별 규칙 (중요)
+
+- 사용자가 네임스페이스를 명시하지 않은 요청에서 `default`를 임의로 가정하지 마세요.
+- 사용자가 리소스 이름을 "대충" 던지는 경우(정확한 전체 이름이 아닌 식별자/부분 문자열)에는,
+  먼저 find 도구(`find_pods`, `find_services`, `find_deployments`)로 **모든 네임스페이스에서 후보를 찾은 뒤**
+  해당 후보의 `namespace`와 `name`을 사용해 후속 도구(로그/describe 등)를 호출하세요.
+- 후보가 여러 개면 (다른 네임스페이스/여러 replica 등) 후보를 나열하고 사용자에게 선택을 요청하거나, 일반적으로 Healthy/Running+Ready인 리소스를 우선하세요.
+
 1. **항상 도구를 적극적으로 사용**: 
    - 사용자가 클러스터에 대해 질문하면, 관련 도구를 즉시 호출하세요
    - 일반적인 설명보다 실제 데이터를 우선시하세요
@@ -1827,7 +2172,7 @@ Tool 결과를 분석한 후 다음 형식으로 응답하세요:
 User: "My pod is not starting"
 
 Your thought process:
-1. Which namespace? If not specified, ask or check default
+1. Which namespace? If not specified, ask or search across namespaces (do NOT assume 'default')
 2. Get pods → Find the problematic one
 3. Describe pod → Check conditions, events
 4. Get logs → Look for startup errors
@@ -1848,6 +2193,72 @@ Remember: You're not just answering questions - you're **solving production prob
     def _get_tools_definition(self) -> List[Dict]:
         """Tools 정의 반환 (상세한 설명 포함)"""
         return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_pods",
+                    "description": """Search pods by name/label across namespaces.
+
+Use this FIRST when the user asks for logs but does not specify an exact namespace/pod name,
+or when they provide only an identifier/partial name.
+
+Returns: Array of {name, namespace, status, phase, restart_count, ready, containers, labels}""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search keyword. Matched against pod name and common label values."
+                            },
+                            "namespace": {
+                                "type": "string",
+                                "description": "Optional namespace to restrict the search. Omit to search all namespaces."
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Max number of matches to return (default: 20)."
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_services",
+                    "description": """Search services by name/selector across namespaces.
+
+Use this when the user mentions a Service name/identifier without specifying namespace.""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Search keyword"},
+                            "namespace": {"type": "string", "description": "Optional namespace to restrict the search. Omit to search all namespaces."},
+                            "limit": {"type": "integer", "description": "Max number of matches to return (default: 20)."}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "find_deployments",
+                    "description": """Search deployments by name/labels/selector across namespaces.
+
+Use this when the user mentions a Deployment name/identifier without specifying namespace.""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Search keyword"},
+                            "namespace": {"type": "string", "description": "Optional namespace to restrict the search. Omit to search all namespaces."},
+                            "limit": {"type": "integer", "description": "Max number of matches to return (default: 20)."}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
             {
                 "type": "function",
                 "function": {
@@ -1943,7 +2354,7 @@ Remember: You're not just answering questions - you're **solving production prob
                             "namespace": {"type": "string", "description": "Namespace containing the pod"},
                             "name": {"type": "string", "description": "Exact pod name"}
                         },
-                        "required": ["namespace", "name"]
+                        "required": ["name"]
                     }
                 }
             },
@@ -1966,12 +2377,13 @@ Remember: You're not just answering questions - you're **solving production prob
                         "properties": {
                             "namespace": {"type": "string", "description": "Namespace"},
                             "pod_name": {"type": "string", "description": "Pod name"},
+                            "container": {"type": "string", "description": "Container name (optional)"},
                             "tail_lines": {
                                 "type": "integer",
                                 "description": "Number of recent lines to retrieve (default: 100)"
                             }
                         },
-                        "required": ["namespace", "pod_name"]
+                        "required": ["pod_name"]
                     }
                 }
             },
@@ -2006,7 +2418,7 @@ Remember: You're not just answering questions - you're **solving production prob
                             "namespace": {"type": "string"},
                             "name": {"type": "string"}
                         },
-                        "required": ["namespace", "name"]
+                        "required": ["name"]
                     }
                 }
             },
@@ -2023,6 +2435,23 @@ Remember: You're not just answering questions - you're **solving production prob
                             "namespace": {"type": "string"}
                         },
                         "required": ["namespace"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "describe_service",
+                    "description": """Describe a Service (kubectl describe service).
+
+If namespace is not provided, search across namespaces first.""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "namespace": {"type": "string"},
+                            "name": {"type": "string"}
+                        },
+                        "required": ["name"]
                     }
                 }
             },
@@ -2167,6 +2596,47 @@ Remember: You're not just answering questions - you're **solving production prob
                 pods = await self.k8s_service.get_all_pods()
                 result = json.dumps(pods, ensure_ascii=False)
                 tool_context.state["last_all_pods_count"] = len(pods)
+
+            elif function_name == "find_pods":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_pods requires non-empty 'query'")
+                namespace = function_args.get("namespace")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                matches = await self._find_pods(
+                    query_raw,
+                    namespace=namespace if isinstance(namespace, str) else None,
+                    limit=limit_int,
+                )
+                result = json.dumps(matches, ensure_ascii=False)
+                tool_context.state["last_pod_search_query"] = query_raw
+                tool_context.state["last_pod_search_count"] = len(matches)
+
+            elif function_name == "find_services":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_services requires non-empty 'query'")
+                namespace = function_args.get("namespace")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                matches = await self._find_services(
+                    query_raw,
+                    namespace=namespace if isinstance(namespace, str) else None,
+                    limit=limit_int,
+                )
+                result = json.dumps(matches, ensure_ascii=False)
+
+            elif function_name == "find_deployments":
+                query_raw = str(function_args.get("query", "")).strip()
+                if not query_raw:
+                    raise Exception("find_deployments requires non-empty 'query'")
+                namespace = function_args.get("namespace")
+                limit_int = self._coerce_limit(function_args.get("limit", 20))
+                matches = await self._find_deployments(
+                    query_raw,
+                    namespace=namespace if isinstance(namespace, str) else None,
+                    limit=limit_int,
+                )
+                result = json.dumps(matches, ensure_ascii=False)
             
             elif function_name == "get_pods":
                 pods = await self.k8s_service.get_pods(function_args["namespace"])
@@ -2175,18 +2645,29 @@ Remember: You're not just answering questions - you're **solving production prob
                 tool_context.state["last_pods"] = [{"name": pod["name"], "status": pod["status"]} for pod in pods]
             
             elif function_name == "describe_pod":
-                result_data = await self.k8s_service.describe_pod(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_pods(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("pods", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+
+                result_data = await self.k8s_service.describe_pod(namespace, name)
                 result = json.dumps(result_data, ensure_ascii=False)
                 tool_context.state["last_described_pod"] = function_args["name"]
             
             elif function_name == "get_pod_logs":
-                namespace = function_args["namespace"]
+                namespace = function_args.get("namespace")
                 pod_name = function_args["pod_name"]
                 tail_lines = function_args.get("tail_lines", 100)
                 requested_container = function_args.get("container")
+
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_pods(str(pod_name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("pods", str(pod_name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    pod_name = str(chosen.get("name", pod_name))
 
                 chosen_container, all_containers = await self._pick_log_container(
                     namespace,
@@ -2221,10 +2702,15 @@ Remember: You're not just answering questions - you're **solving production prob
                 result = json.dumps(deployments, ensure_ascii=False)
             
             elif function_name == "describe_deployment":
-                result_data = await self.k8s_service.describe_deployment(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_deployments(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("deployments", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+
+                result_data = await self.k8s_service.describe_deployment(namespace, name)
                 result = json.dumps(result_data, ensure_ascii=False)
             
             elif function_name == "get_services":
@@ -2232,10 +2718,15 @@ Remember: You're not just answering questions - you're **solving production prob
                 result = json.dumps(services, ensure_ascii=False)
             
             elif function_name == "describe_service":
-                result_data = await self.k8s_service.describe_service(
-                    function_args["namespace"],
-                    function_args["name"]
-                )
+                namespace = function_args.get("namespace")
+                name = function_args["name"]
+                if not isinstance(namespace, str) or not namespace.strip():
+                    matches = await self._find_services(str(name), namespace=None, limit=20)
+                    chosen = await self._resolve_single("services", str(name), matches)
+                    namespace = str(chosen.get("namespace", ""))
+                    name = str(chosen.get("name", name))
+
+                result_data = await self.k8s_service.describe_service(namespace, name)
                 result = json.dumps(result_data, ensure_ascii=False)
             
             elif function_name == "get_events":

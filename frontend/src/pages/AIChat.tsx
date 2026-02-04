@@ -792,7 +792,7 @@ export default function AIChat() {
         // 예전 버전에서 저장된 truncated 결과라면, 한 번만 전체 로그 재조회 시도
         if (rawLogs.includes('... (truncated) ...')) {
           try {
-            const ns = typeof args.namespace === 'string' ? args.namespace : 'default'
+            let ns = typeof args.namespace === 'string' ? args.namespace : ''
             const podName =
               (args.pod_name as string) ||
               (args.podName as string) ||
@@ -803,6 +803,24 @@ export default function AIChat() {
               100
 
             if (podName) {
+              // namespace가 없으면 전체 Pod에서 namespace를 역으로 찾는다 (default로 가정하지 않음)
+              if (!ns) {
+                try {
+                  const allPods = await api.getAllPods()
+                  const candidates = allPods.filter((p) => p.name === podName)
+                  if (candidates.length >= 1) {
+                    ns = candidates[0].namespace
+                  }
+                } catch (e) {
+                  console.warn('[WARN] Failed to resolve namespace for log refetch:', e)
+                }
+              }
+
+              if (!ns) {
+                // namespace를 못 찾으면 잘린 스냅샷을 유지
+                throw new Error('namespace not resolved for log refetch')
+              }
+
               // 컨테이너 자동 선택을 위해 먼저 Pod 목록에서 대상 파드를 찾는다
               const podsInNs = await api.getPods(ns)
               const targetPod = podsInNs.find((p) => p.name === podName)
