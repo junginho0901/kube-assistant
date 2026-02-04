@@ -187,6 +187,17 @@ async def get_pod_logs(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/namespaces/{namespace}/pvcs", response_model=List[PVCInfo])
+async def get_namespace_pvcs(
+    namespace: str,
+    force_refresh: bool = Query(False)
+):
+    """특정 네임스페이스의 PVC 목록 조회"""
+    try:
+        return await k8s_service.get_pvcs(namespace, force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/pvcs", response_model=List[PVCInfo])
 async def get_pvcs(
