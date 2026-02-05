@@ -19,6 +19,9 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect, useRef } from 'react'
 import { ModalOverlay } from '@/components/ModalOverlay'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 
 type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' | 'nodes'
 
@@ -375,10 +378,7 @@ export default function Dashboard() {
 
   const handleCopyOptimizationSuggestions = async () => {
     if (!optimizationSuggestions || optimizationSuggestions.length === 0) return
-    const text = optimizationSuggestions
-      .map((line: string) => String(line ?? '').replace(/^[-•]\s*/, '').trim())
-      .filter(Boolean)
-      .join('\n')
+    const text = optimizationSuggestions.map((line: string) => String(line ?? '')).join('\n').trim()
 
     try {
       await navigator.clipboard.writeText(text)
@@ -1696,22 +1696,11 @@ export default function Dashboard() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
-                    {optimizationSuggestions.map((raw, idx) => {
-                      const text = String(raw ?? '').replace(/^[-•]\s*/, '').trim()
-                      if (!text) return null
-                      return (
-                        <div key={`${optimizationNamespace}-${idx}`} className="p-3 bg-slate-900/20">
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5 w-6 h-6 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-                              <span className="text-emerald-300 text-xs font-bold">{idx + 1}</span>
-                            </div>
-                            <p className="text-sm text-slate-100 leading-relaxed">{text}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
+                <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4 overflow-x-auto">
+                  <div className="prose prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                      {optimizationSuggestions.map((line: string) => String(line ?? '')).join('\n')}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}
