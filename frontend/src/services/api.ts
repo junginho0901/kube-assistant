@@ -335,6 +335,7 @@ export const api = {
     const reader = response.body.getReader()
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
+    let aborted = false
 
     const processEventBlock = (block: string) => {
       const lines = block.split('\n')
@@ -382,6 +383,7 @@ export const api = {
         onError?.(error instanceof Error ? error.message : String(error))
         throw error
       }
+      aborted = true
     } finally {
       try {
         reader.releaseLock()
@@ -389,6 +391,8 @@ export const api = {
         // ignore
       }
     }
+
+    if (!aborted) onDone?.()
   },
 
   // Sessions
