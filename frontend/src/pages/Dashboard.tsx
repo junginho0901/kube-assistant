@@ -1311,13 +1311,13 @@ export default function Dashboard() {
                           {node.cpu_percent}
                         </span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-700/70 rounded-full overflow-hidden ring-1 ring-white/5 shadow-inner">
+                      <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-[width] duration-700 ease-out ${cpuPercent >= 80
-                              ? 'bg-gradient-to-r from-red-600 via-red-500 to-rose-400 shadow-[0_0_10px_rgba(239,68,68,0.35)]'
+                              ? 'bg-red-500'
                               : cpuPercent >= 60
-                                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-400 shadow-[0_0_10px_rgba(234,179,8,0.30)]'
-                                : 'bg-gradient-to-r from-emerald-600 via-green-500 to-lime-400 shadow-[0_0_10px_rgba(34,197,94,0.25)]'
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
                             }`}
                           style={{ width: `${Math.min(cpuPercent, 100)}%` }}
                         />
@@ -1335,13 +1335,13 @@ export default function Dashboard() {
                           {node.memory_percent}
                         </span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-700/70 rounded-full overflow-hidden ring-1 ring-white/5 shadow-inner">
+                      <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-[width] duration-700 ease-out ${memoryPercent >= 80
-                              ? 'bg-gradient-to-r from-red-600 via-red-500 to-rose-400 shadow-[0_0_10px_rgba(239,68,68,0.35)]'
+                              ? 'bg-red-500'
                               : memoryPercent >= 60
-                                ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-orange-400 shadow-[0_0_10px_rgba(234,179,8,0.30)]'
-                                : 'bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(59,130,246,0.30)]'
+                                ? 'bg-amber-500'
+                                : 'bg-blue-500'
                             }`}
                           style={{ width: `${Math.min(memoryPercent, 100)}%` }}
                         />
