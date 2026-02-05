@@ -364,12 +364,12 @@ export const api = {
     }
 
     try {
-      while (true) {
+      for (;;) {
         const { value, done } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
 
-        while (true) {
+        for (;;) {
           const sepIndex = buffer.indexOf('\n\n')
           if (sepIndex === -1) break
           const eventBlock = buffer.slice(0, sepIndex)
