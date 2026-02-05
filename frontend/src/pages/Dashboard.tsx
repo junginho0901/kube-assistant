@@ -12,10 +12,11 @@ import {
   CheckCircle,
   XCircle,
   Search,
-  Info
+  Info,
+  ChevronDown
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ModalOverlay } from '@/components/ModalOverlay'
 
 type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' | 'nodes'
@@ -32,6 +33,8 @@ export default function Dashboard() {
   const [storageActiveTab, setStorageActiveTab] = useState<'pvcs' | 'pvs' | 'topology'>('pvcs')
   const [storageSearchQuery, setStorageSearchQuery] = useState<string>('')
   const [storageNamespaceFilter, setStorageNamespaceFilter] = useState<string>('all')
+  const [isStorageNamespaceDropdownOpen, setIsStorageNamespaceDropdownOpen] = useState(false)
+  const storageNamespaceDropdownRef = useRef<HTMLDivElement>(null)
   const [selectedPodStatus, setSelectedPodStatus] = useState<string | null>(null)
   const [selectedNodeStatus, setSelectedNodeStatus] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<any | null>(null)
@@ -292,6 +295,7 @@ export default function Dashboard() {
     setStorageActiveTab('pvcs')
     setStorageSearchQuery('')
     setStorageNamespaceFilter('all')
+    setIsStorageNamespaceDropdownOpen(false)
     setIsStorageModalOpen(true)
   }
 
@@ -315,7 +319,25 @@ export default function Dashboard() {
     setIsStorageModalOpen(false)
     setStorageSearchQuery('')
     setStorageNamespaceFilter('all')
+    setIsStorageNamespaceDropdownOpen(false)
   }
+
+  // 스토리지 네임스페이스 드롭다운 외부 클릭 감지
+  useEffect(() => {
+    if (!isStorageNamespaceDropdownOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        storageNamespaceDropdownRef.current &&
+        !storageNamespaceDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsStorageNamespaceDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isStorageNamespaceDropdownOpen])
 
   useEffect(() => {
     if (!isStorageModalOpen) return
@@ -1632,20 +1654,51 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <select
-                    value={storageNamespaceFilter}
-                    onChange={(e) => setStorageNamespaceFilter(e.target.value)}
-                    className="h-10 px-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
+                <div className="relative" ref={storageNamespaceDropdownRef}>
+                  <button
+                    onClick={() => setIsStorageNamespaceDropdownOpen(!isStorageNamespaceDropdownOpen)}
+                    className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[200px] justify-between"
                     title="네임스페이스 필터"
                   >
-                    <option value="all">All namespaces</option>
-                    {storageNamespaces.map((ns) => (
-                      <option key={ns} value={ns}>
-                        {ns}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="text-sm font-medium">
+                      {storageNamespaceFilter === 'all' ? 'All namespaces' : storageNamespaceFilter}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform ${isStorageNamespaceDropdownOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {isStorageNamespaceDropdownOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 max-h-[340px] overflow-y-auto">
+                      <button
+                        onClick={() => {
+                          setStorageNamespaceFilter('all')
+                          setIsStorageNamespaceDropdownOpen(false)
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                      >
+                        {storageNamespaceFilter === 'all' && (
+                          <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                        )}
+                        <span className={storageNamespaceFilter === 'all' ? 'font-medium' : ''}>All namespaces</span>
+                      </button>
+                      {storageNamespaces.map((ns) => (
+                        <button
+                          key={ns}
+                          onClick={() => {
+                            setStorageNamespaceFilter(ns)
+                            setIsStorageNamespaceDropdownOpen(false)
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                        >
+                          {storageNamespaceFilter === ns && (
+                            <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          )}
+                          <span className={storageNamespaceFilter === ns ? 'font-medium' : ''}>{ns}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
