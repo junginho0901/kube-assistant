@@ -60,6 +60,8 @@ export default function Dashboard() {
   const optimizationStreamPendingRef = useRef('')
   const optimizationStreamRafRef = useRef<number | null>(null)
   const optimizationStreamDoneRef = useRef(false)
+  const [optimizationRenderMode, setOptimizationRenderMode] = useState<'safe' | 'live'>('live')
+  const optimizationRenderModeRef = useRef<'safe' | 'live'>('live')
   const optimizationMetaReceivedRef = useRef(false)
   const optimizationUsageReceivedRef = useRef(false)
   const [optimizationUsage, setOptimizationUsage] = useState<{
@@ -414,6 +416,28 @@ export default function Dashboard() {
     setOptimizationStreamError('')
   }
 
+  useEffect(() => {
+    optimizationRenderModeRef.current = optimizationRenderMode
+  }, [optimizationRenderMode])
+
+  const setOptimizationRenderModeWithFlush = (mode: 'safe' | 'live') => {
+    setOptimizationRenderMode(mode)
+    optimizationRenderModeRef.current = mode
+
+    if (mode !== 'live') return
+
+    if (optimizationStreamRafRef.current) {
+      window.cancelAnimationFrame(optimizationStreamRafRef.current)
+      optimizationStreamRafRef.current = null
+    }
+
+    const pending = optimizationStreamPendingRef.current
+    if (pending) {
+      optimizationStreamPendingRef.current = ''
+      setOptimizationAnswerContent((prev) => prev + pending)
+    }
+  }
+
   const unwrapOuterMarkdownFence = (text: string) => {
     const trimmed = text.trim()
     const match = trimmed.match(/^```(?:markdown|md)?\n([\s\S]*)\n```$/i)
@@ -520,6 +544,10 @@ export default function Dashboard() {
           setOptimizationObservedContent((prev) => prev + content)
         },
         onContent: (chunk) => {
+          if (optimizationRenderModeRef.current === 'live') {
+            setOptimizationAnswerContent((prev) => prev + chunk)
+            return
+          }
           optimizationStreamPendingRef.current += chunk
           if (!optimizationStreamRafRef.current) {
             optimizationStreamRafRef.current = window.requestAnimationFrame(flushOptimizationStreamPending)
@@ -1825,6 +1853,33 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 mr-1">
+                    <span className="text-xs text-slate-400">렌더</span>
+                    <button
+                      type="button"
+                      onClick={() => setOptimizationRenderModeWithFlush('live')}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        optimizationRenderMode === 'live'
+                          ? 'bg-primary-600 border-primary-500 text-white'
+                          : 'bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600'
+                      }`}
+                      title="스트리밍 중에도 바로 마크다운 렌더 (표/코드블록은 흔들릴 수 있음)"
+                    >
+                      실시간
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOptimizationRenderModeWithFlush('safe')}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        optimizationRenderMode === 'safe'
+                          ? 'bg-primary-600 border-primary-500 text-white'
+                          : 'bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600'
+                      }`}
+                      title="깨진 마크다운 방지(줄/코드블록 단위로 적용)"
+                    >
+                      안정형
+                    </button>
+                  </div>
                   <button
                     onClick={handleRunOptimizationSuggestions}
                     disabled={!optimizationNamespace || isOptimizationStreaming}
@@ -1924,20 +1979,29 @@ export default function Dashboard() {
               ) : (
                 <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4 overflow-x-auto">
                   {isOptimizationStreaming ? (
-                    <div className="space-y-4">
-                      {!!optimizationObservedContent && (
-                        <MarkdownBlock markdown={optimizationObservedContent} />
-                      )}
-                      {!!optimizationAnswerSplit.stable && <MarkdownBlock markdown={optimizationAnswerSplit.stable} />}
-                      {!!optimizationAnswerSplit.tail && (
-                        <pre className="text-sm text-slate-100 whitespace-pre-wrap font-mono leading-relaxed">
-                          {optimizationAnswerSplit.tail}
-                        </pre>
-                      )}
-                      {!optimizationAnswerContent && (
-                        <p className="text-xs text-slate-500">AI가 제안을 작성 중입니다…</p>
-                      )}
-                    </div>
+                    optimizationRenderMode === 'live' ? (
+                      <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationMarkdown}</ReactMarkdown>
+                        {!optimizationAnswerContent && (
+                          <p className="text-xs text-slate-500">AI가 제안을 작성 중입니다…</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {!!optimizationObservedContent && (
+                          <MarkdownBlock markdown={optimizationObservedContent} />
+                        )}
+                        {!!optimizationAnswerSplit.stable && <MarkdownBlock markdown={optimizationAnswerSplit.stable} />}
+                        {!!optimizationAnswerSplit.tail && (
+                          <pre className="text-sm text-slate-100 whitespace-pre-wrap font-mono leading-relaxed">
+                            {optimizationAnswerSplit.tail}
+                          </pre>
+                        )}
+                        {!optimizationAnswerContent && (
+                          <p className="text-xs text-slate-500">AI가 제안을 작성 중입니다…</p>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationMarkdown}</ReactMarkdown>
