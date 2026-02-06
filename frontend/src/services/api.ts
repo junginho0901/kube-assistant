@@ -174,6 +174,7 @@ export interface OptimizationSuggestionsResponse {
 }
 
 type OptimizationStreamHandlers = {
+  onObserved?: (content: string) => void
   onContent?: (chunk: string) => void
   onError?: (message: string) => void
   onDone?: () => void
@@ -312,7 +313,7 @@ export const api = {
   },
 
   suggestOptimizationStream: async (namespace: string, handlers: OptimizationStreamHandlers = {}): Promise<void> => {
-    const { onContent, onError, onDone, signal } = handlers
+    const { onObserved, onContent, onError, onDone, signal } = handlers
 
     const response = await fetch(`/api/v1/ai/suggest-optimization/stream?namespace=${encodeURIComponent(namespace)}`, {
       method: 'GET',
@@ -339,6 +340,7 @@ export const api = {
 
     const processEventBlock = (block: string) => {
       const lines = block.split('\n')
+      let didEmit = false
       for (const rawLine of lines) {
         const line = rawLine.trimEnd()
         if (!line.startsWith('data:')) continue
@@ -346,21 +348,27 @@ export const api = {
         if (!payload) continue
         if (payload === '[DONE]') {
           onDone?.()
-          return 'done' as const
+          return { status: 'done' as const, didEmit }
         }
         try {
           const parsed = JSON.parse(payload) as any
-          if (parsed?.error) {
+          if (parsed?.error != null) {
             onError?.(String(parsed.error))
           }
           if (typeof parsed?.content === 'string') {
-            onContent?.(parsed.content)
+            const kind = typeof parsed?.kind === 'string' ? parsed.kind : 'answer'
+            if (kind === 'observed') {
+              onObserved?.(parsed.content)
+            } else {
+              onContent?.(parsed.content)
+            }
+            didEmit = true
           }
         } catch {
           // ignore non-json payload
         }
       }
-      return 'continue' as const
+      return { status: 'continue' as const, didEmit }
     }
 
     try {
@@ -374,8 +382,9 @@ export const api = {
           if (sepIndex === -1) break
           const eventBlock = buffer.slice(0, sepIndex)
           buffer = buffer.slice(sepIndex + 2)
-          const status = processEventBlock(eventBlock)
-          if (status === 'done') return
+          const result = processEventBlock(eventBlock)
+          if (result.status === 'done') return
+          if (result.didEmit) await new Promise((resolve) => setTimeout(resolve, 0))
         }
       }
     } catch (error) {
