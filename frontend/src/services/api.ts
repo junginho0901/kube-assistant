@@ -339,6 +339,7 @@ export const api = {
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
     let aborted = false
+    let sawDone = false
 
     const processEventBlock = (block: string) => {
       const lines = block.split('\n')
@@ -349,6 +350,7 @@ export const api = {
         const payload = line.slice('data:'.length).trim()
         if (!payload) continue
         if (payload === '[DONE]') {
+          sawDone = true
           onDone?.()
           return { status: 'done' as const, didEmit }
         }
@@ -414,7 +416,12 @@ export const api = {
       }
     }
 
-    if (!aborted) onDone?.()
+    if (aborted) return
+    if (!sawDone) {
+      const message = 'Stream ended unexpectedly (missing [DONE])'
+      onError?.(message)
+      throw new Error(message)
+    }
   },
 
   // Sessions

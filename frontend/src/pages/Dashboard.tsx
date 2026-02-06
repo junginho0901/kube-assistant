@@ -1854,15 +1854,26 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="badge badge-info">Namespace {optimizationNamespace || 'N/A'}</span>
                 <span className="badge badge-info">Lines {optimizationLineCount}</span>
+                {!!optimizationMeta && (
+                  <span className="badge badge-info">
+                    Finish {optimizationMeta.finish_reason ?? 'unknown'}
+                    {optimizationMeta.max_tokens ? ` (max ${optimizationMeta.max_tokens})` : ''}
+                  </span>
+                )}
                 {!!optimizationUsage && (
                   <span className="badge badge-info">
                     Tokens {optimizationUsage.completion_tokens}
                     {optimizationMeta?.max_tokens ? `/${optimizationMeta.max_tokens}` : ''}
                   </span>
                 )}
-                {optimizationMeta?.finish_reason === 'length' && (
-                  <span className="text-xs text-yellow-300">
-                    출력 토큰 제한에 도달해 답변이 일부 잘렸을 수 있어요
+                {!!optimizationMeta?.finish_reason && optimizationMeta.finish_reason !== 'stop' && (
+                  <span className={`text-xs ${optimizationMeta.finish_reason === 'length' ? 'text-yellow-300' : 'text-yellow-200'}`}>
+                    응답이 정상 종료(stop)가 아니어서 일부가 잘렸을 수 있어요 ({optimizationMeta.finish_reason})
+                  </span>
+                )}
+                {!!optimizationStreamError && (
+                  <span className="text-xs text-red-300 break-words">
+                    스트림 오류: {optimizationStreamError}
                   </span>
                 )}
                 <span className="text-xs text-slate-500">모델 호출에 최대 1분 정도 걸릴 수 있어요</span>
