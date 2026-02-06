@@ -1269,10 +1269,6 @@ export default function Dashboard() {
   const optimizationAnswerMarkdown = unwrapOuterMarkdownFence(optimizationAnswerContent).trim()
   const optimizationAnswerMarkdownForStreaming = makeStreamingMarkdownRenderFriendly(optimizationAnswerMarkdown)
   const optimizationMarkdown = `${optimizationObservedContent}${unwrapOuterMarkdownFence(optimizationAnswerContent)}`.trim()
-  const optimizationLineCount = optimizationMarkdown
-    ? optimizationMarkdown.split('\n').filter((line) => line.trim().length > 0).length
-    : 0
-
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -1843,13 +1839,6 @@ export default function Dashboard() {
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="badge badge-info">Namespace {optimizationNamespace || 'N/A'}</span>
-                <span className="badge badge-info">Lines {optimizationLineCount}</span>
-                {!!optimizationMeta && (
-                  <span className="badge badge-info">
-                    Finish {optimizationMeta.finish_reason ?? 'unknown'}
-                    {optimizationMeta.max_tokens ? ` (max ${optimizationMeta.max_tokens})` : ''}
-                  </span>
-                )}
                 {!!optimizationUsage && (
                   <span className="badge badge-info">
                     Tokens {optimizationUsage.completion_tokens}
