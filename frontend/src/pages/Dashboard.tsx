@@ -27,7 +27,7 @@ type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' 
 
 const MarkdownBlock = memo(function MarkdownBlock({ markdown }: { markdown: string }) {
   return (
-    <div className="prose prose-invert max-w-none">
+    <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
     </div>
   )
@@ -1738,7 +1738,7 @@ export default function Dashboard() {
       {isOptimizationModalOpen && (
         <ModalOverlay onClose={handleCloseOptimizationModal}>
           <div
-            className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col"
+            className="bg-slate-800 rounded-lg max-w-[95vw] w-full h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-slate-700">
@@ -1891,7 +1891,7 @@ export default function Dashboard() {
                       )}
                     </div>
                   ) : (
-                    <div className="prose prose-invert max-w-none">
+                    <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationMarkdown}</ReactMarkdown>
                     </div>
                   )}
