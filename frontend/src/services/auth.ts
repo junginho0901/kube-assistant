@@ -23,6 +23,5 @@ export function isLoggedIn(): boolean {
 
 export function getAuthHeaders() {
   const token = getAccessToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>)
 }
-
