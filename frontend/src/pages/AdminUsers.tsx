@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, Member } from '@/services/api'
-import { useState } from 'react'
+import { CheckCircle, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function AdminUsers() {
   const queryClient = useQueryClient()
   const [limit] = useState(100)
   const [offset] = useState(0)
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, 'admin' | 'user'>>({})
+  const [openRoleDropdownUserId, setOpenRoleDropdownUserId] = useState<string | null>(null)
+  const roleDropdownRef = useRef<HTMLDivElement | null>(null)
 
   const { data: users, isLoading, isError } = useQuery({
     queryKey: ['admin-users', limit, offset],
@@ -20,7 +24,34 @@ export default function AdminUsers() {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
+    onError: (_err, vars) => {
+      // 실패 시 서버 값으로 되돌리기(다음 refetch에 맞춤)
+      setRoleDrafts((prev) => {
+        const next = { ...prev }
+        delete next[vars.userId]
+        return next
+      })
+    },
   })
+
+  useEffect(() => {
+    roleDropdownRef.current = null
+  }, [openRoleDropdownUserId])
+
+  useEffect(() => {
+    if (!openRoleDropdownUserId) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+        setOpenRoleDropdownUserId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openRoleDropdownUserId])
 
   if (isLoading) {
     return <div className="text-slate-300">로딩 중...</div>
@@ -46,39 +77,65 @@ export default function AdminUsers() {
               <th className="px-4 py-3">이름</th>
               <th className="px-4 py-3">이메일</th>
               <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((u) => {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
+              const currentRole = (roleDrafts[u.id] ?? (u.role === 'admin' ? 'admin' : 'user')) as 'admin' | 'user'
+              const isOpen = openRoleDropdownUserId === u.id
               return (
                 <tr key={u.id} className="border-t border-slate-700 text-slate-200">
                   <td className="px-4 py-3">{u.name}</td>
                   <td className="px-4 py-3">{u.email ?? '-'}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-md border border-slate-600 bg-slate-900/40 px-2 py-1 text-xs">
-                      {String(u.role).toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div
+                      className="relative inline-block"
+                      ref={(el) => {
+                        if (isOpen) roleDropdownRef.current = el
+                      }}
+                    >
                       <button
                         type="button"
                         disabled={isUpdating}
-                        onClick={() => updateRoleMutation.mutate({ userId: u.id, role: 'user' })}
-                        className="rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700/40 disabled:opacity-50"
+                        onClick={() => setOpenRoleDropdownUserId((prev) => (prev === u.id ? null : u.id))}
+                        className="w-32 inline-flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                        aria-haspopup="menu"
+                        aria-expanded={isOpen}
                       >
-                        USER
+                        <span className="truncate">{currentRole === 'admin' ? 'ADMIN' : 'USER'}</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
-                      <button
-                        type="button"
-                        disabled={isUpdating}
-                        onClick={() => updateRoleMutation.mutate({ userId: u.id, role: 'admin' })}
-                        className="rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700/40 disabled:opacity-50"
-                      >
-                        ADMIN
-                      </button>
+
+                      {isOpen && (
+                        <div
+                          role="menu"
+                          className="absolute right-0 mt-2 w-32 rounded-xl border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden"
+                        >
+                          {(['user', 'admin'] as const).map((role) => {
+                            const isSelected = currentRole === role
+                            return (
+                              <button
+                                key={role}
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenRoleDropdownUserId(null)
+                                  if (role === currentRole) return
+                                  setRoleDrafts((prev) => ({ ...prev, [u.id]: role }))
+                                  updateRoleMutation.mutate({ userId: u.id, role })
+                                }}
+                                className={`w-full px-3 py-2 text-xs flex items-center gap-2 hover:bg-slate-800 transition-colors ${
+                                  isSelected ? 'bg-slate-800 text-white' : 'text-slate-200'
+                                }`}
+                              >
+                                <span className="flex-1 text-left">{role === 'admin' ? 'ADMIN' : 'USER'}</span>
+                                {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -86,7 +143,7 @@ export default function AdminUsers() {
             })}
             {rows.length === 0 && (
               <tr>
-                <td className="px-4 py-4 text-slate-300" colSpan={4}>
+                <td className="px-4 py-4 text-slate-300" colSpan={3}>
                   유저가 없습니다.
                 </td>
               </tr>
@@ -97,4 +154,3 @@ export default function AdminUsers() {
     </div>
   )
 }
-
