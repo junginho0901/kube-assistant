@@ -1891,35 +1891,35 @@ export default function Dashboard() {
                     (현재 API는 Deployment/Pod 목록을 요약해 AI에게 최적화 아이디어를 요청합니다)
                   </p>
                 </div>
-              ) : (
-                <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4">
-                  {isOptimizationStreaming ? (
-                    <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdownForStreaming}</ReactMarkdown>
-                      {!optimizationAnswerContent && (
-                        <p className="text-xs text-slate-500">AI가 제안을 작성 중입니다…</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdown}</ReactMarkdown>
-                    </div>
-                  )}
-
-                  {!!optimizationObservedMarkdown && (
-                    <details className="mt-4 rounded-lg border border-slate-700 bg-slate-900/30">
-                      <summary className="cursor-pointer select-none px-3 py-2 text-sm text-slate-200">
-                        관측 데이터(표) 보기
-                      </summary>
-                      <div className="px-3 pb-3">
-                        <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
+                ) : (
+                  <div className="space-y-4">
+                    {!!optimizationObservedMarkdown && (
+                      <details className="rounded-lg border border-slate-700 bg-slate-900/20 p-4">
+                        <summary className="cursor-pointer select-none text-sm text-slate-200">
+                          관측 데이터(표)
+                        </summary>
+                        <div className="mt-3 prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationObservedMarkdown}</ReactMarkdown>
                         </div>
-                      </div>
-                    </details>
-                  )}
-                </div>
-              )}
+                      </details>
+                    )}
+
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4">
+                      {isOptimizationStreaming ? (
+                        <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdownForStreaming}</ReactMarkdown>
+                          {!optimizationAnswerContent && (
+                            <p className="text-xs text-slate-500">AI가 제안을 작성 중입니다…</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="prose prose-invert max-w-none overflow-x-auto [&_table]:min-w-full [&_table]:w-max">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdown}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         </ModalOverlay>
