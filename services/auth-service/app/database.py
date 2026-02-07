@@ -2,9 +2,9 @@
 Database models and user management
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Tuple
 
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Integer, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
@@ -21,6 +21,28 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "auth_audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action = Column(String, nullable=False)  # e.g. "user.role.update"
+
+    actor_user_id = Column(String, nullable=True)
+    actor_email = Column(String, nullable=True)
+
+    target_user_id = Column(String, nullable=True)
+    target_email = Column(String, nullable=True)
+
+    before = Column(JSON, nullable=True, default=dict)
+    after = Column(JSON, nullable=True, default=dict)
+
+    request_ip = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    request_id = Column(String, nullable=True)
+    path = Column(String, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class DatabaseService:
@@ -85,6 +107,82 @@ class DatabaseService:
 
             result = await db.execute(select(User).where(User.id == user_id))
             return result.scalar_one_or_none()
+
+    async def add_audit_log(
+        self,
+        *,
+        action: str,
+        actor_user_id: Optional[str],
+        actor_email: Optional[str],
+        target_user_id: Optional[str],
+        target_email: Optional[str],
+        before: Optional[Dict[str, Any]] = None,
+        after: Optional[Dict[str, Any]] = None,
+        request_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+        path: Optional[str] = None,
+    ) -> AuditLog:
+        async with self.async_session() as db:
+            row = AuditLog(
+                action=action,
+                actor_user_id=actor_user_id,
+                actor_email=actor_email,
+                target_user_id=target_user_id,
+                target_email=target_email,
+                before=before or {},
+                after=after or {},
+                request_ip=request_ip,
+                user_agent=user_agent,
+                request_id=request_id,
+                path=path,
+            )
+            db.add(row)
+            await db.commit()
+            await db.refresh(row)
+            return row
+
+    async def update_user_role_with_audit(
+        self,
+        *,
+        actor_user_id: str,
+        target_user_id: str,
+        role: str,
+        request_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+        path: Optional[str] = None,
+    ) -> Tuple[Optional[User], Optional[AuditLog]]:
+        async with self.async_session() as db:
+            from sqlalchemy import select
+
+            actor = (await db.execute(select(User).where(User.id == actor_user_id))).scalar_one_or_none()
+            target = (await db.execute(select(User).where(User.id == target_user_id))).scalar_one_or_none()
+            if not target:
+                return None, None
+
+            before = {"role": target.role}
+            target.role = role
+            target.updated_at = datetime.utcnow()
+
+            audit = AuditLog(
+                action="user.role.update",
+                actor_user_id=actor_user_id,
+                actor_email=getattr(actor, "email", None),
+                target_user_id=target_user_id,
+                target_email=getattr(target, "email", None),
+                before=before,
+                after={"role": role},
+                request_ip=request_ip,
+                user_agent=user_agent,
+                request_id=request_id,
+                path=path,
+            )
+            db.add(audit)
+            await db.commit()
+            await db.refresh(target)
+            await db.refresh(audit)
+            return target, audit
 
     async def ensure_bootstrap_admin(self):
         from app.config import settings

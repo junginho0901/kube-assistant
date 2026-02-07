@@ -1,13 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Header
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import uuid
+import json
+import logging
 
 from app.database import get_db_service
 from app.security import create_access_token, hash_password, jwks, require_auth, TokenPayload, verify_password
 
 router = APIRouter()
+audit_logger = logging.getLogger("auth.audit")
 
 ALLOWED_ROLES = {"admin", "user"}
 
@@ -162,14 +165,56 @@ async def admin_list_users(
 async def admin_update_user_role(
     user_id: str,
     request: UpdateUserRoleRequest,
+    http_request: Request,
+    x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
     payload: TokenPayload = Depends(require_auth),
 ):
     _require_admin(payload)
     role = _normalize_role(request.role)
     db = await get_db_service()
-    updated = await db.update_user_role(user_id=user_id, role=role)
+
+    forwarded_for = http_request.headers.get("X-Forwarded-For")
+    request_ip = (forwarded_for.split(",")[0].strip() if forwarded_for else None) or (
+        http_request.client.host if http_request.client else None
+    )
+    user_agent = http_request.headers.get("User-Agent")
+    path = str(http_request.url.path)
+
+    updated, audit_row = await db.update_user_role_with_audit(
+        actor_user_id=payload.user_id,
+        target_user_id=user_id,
+        role=role,
+        request_ip=request_ip,
+        user_agent=user_agent,
+        request_id=x_request_id,
+        path=path,
+    )
+
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # App log (structured)
+    try:
+        audit_logger.info(
+            json.dumps(
+                {
+                    "action": "user.role.update",
+                    "actor_user_id": payload.user_id,
+                    "target_user_id": user_id,
+                    "role": role,
+                    "request_ip": request_ip,
+                    "user_agent": user_agent,
+                    "request_id": x_request_id,
+                    "path": path,
+                    "audit_id": getattr(audit_row, "id", None),
+                },
+                ensure_ascii=False,
+            )
+        )
+    except Exception:
+        # never block the request on logging failures
+        pass
+
     return UserResponse(
         id=updated.id,
         name=updated.name,
