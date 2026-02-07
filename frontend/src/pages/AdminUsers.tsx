@@ -6,6 +6,7 @@ export default function AdminUsers() {
   const queryClient = useQueryClient()
   const [limit] = useState(100)
   const [offset] = useState(0)
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, 'admin' | 'user'>>({})
 
   const { data: users, isLoading, isError } = useQuery({
     queryKey: ['admin-users', limit, offset],
@@ -19,6 +20,14 @@ export default function AdminUsers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+    onError: (_err, vars) => {
+      // 실패 시 서버 값으로 되돌리기(다음 refetch에 맞춤)
+      setRoleDrafts((prev) => {
+        const next = { ...prev }
+        delete next[vars.userId]
+        return next
+      })
     },
   })
 
@@ -46,12 +55,13 @@ export default function AdminUsers() {
               <th className="px-4 py-3">이름</th>
               <th className="px-4 py-3">이메일</th>
               <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Action</th>
+              <th className="px-4 py-3">Change</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((u) => {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
+              const currentRole = (roleDrafts[u.id] ?? (u.role === 'admin' ? 'admin' : 'user')) as 'admin' | 'user'
               return (
                 <tr key={u.id} className="border-t border-slate-700 text-slate-200">
                   <td className="px-4 py-3">{u.name}</td>
@@ -62,24 +72,19 @@ export default function AdminUsers() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isUpdating}
-                        onClick={() => updateRoleMutation.mutate({ userId: u.id, role: 'user' })}
-                        className="rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700/40 disabled:opacity-50"
-                      >
-                        USER
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isUpdating}
-                        onClick={() => updateRoleMutation.mutate({ userId: u.id, role: 'admin' })}
-                        className="rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700/40 disabled:opacity-50"
-                      >
-                        ADMIN
-                      </button>
-                    </div>
+                    <select
+                      value={currentRole}
+                      disabled={isUpdating}
+                      onChange={(e) => {
+                        const nextRole = e.target.value as 'admin' | 'user'
+                        setRoleDrafts((prev) => ({ ...prev, [u.id]: nextRole }))
+                        updateRoleMutation.mutate({ userId: u.id, role: nextRole })
+                      }}
+                      className="w-32 rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                    >
+                      <option value="user">USER</option>
+                      <option value="admin">ADMIN</option>
+                    </select>
                   </td>
                 </tr>
               )
@@ -97,4 +102,3 @@ export default function AdminUsers() {
     </div>
   )
 }
-
