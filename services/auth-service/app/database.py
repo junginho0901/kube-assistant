@@ -4,7 +4,7 @@ Database models and user management
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, String, DateTime, create_engine
+from sqlalchemy import Column, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
@@ -16,7 +16,7 @@ class User(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True)
     role = Column(String, nullable=False, default="user")  # admin | user
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -60,6 +60,26 @@ class DatabaseService:
             await db.refresh(user)
             return user
 
+    async def ensure_bootstrap_admin(self):
+        from app.config import settings
+        from app.security import hash_password
+
+        email = settings.DEFAULT_ADMIN_EMAIL.strip().lower()
+        if not email:
+            return
+
+        existing = await self.get_user_by_email(email)
+        if existing:
+            return
+
+        await self.create_user(
+            user_id="default",
+            name="admin",
+            email=email,
+            password_hash=hash_password(settings.DEFAULT_ADMIN_PASSWORD),
+            role="admin",
+        )
+
 
 db_service: Optional[DatabaseService] = None
 
@@ -69,4 +89,5 @@ async def get_db_service() -> DatabaseService:
     if db_service is None:
         db_service = DatabaseService()
         await db_service.init_db()
+        await db_service.ensure_bootstrap_admin()
     return db_service

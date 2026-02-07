@@ -6,24 +6,34 @@ import jwt
 from fastapi import Header, HTTPException
 
 
-def _jwt_secret() -> str:
-    return os.getenv("JWT_SECRET", "dev-secret-change-me")
+AUTH_JWKS_URL = os.getenv("AUTH_JWKS_URL", "http://auth-service:8004/api/v1/auth/jwks.json")
+JWT_ISSUER = os.getenv("JWT_ISSUER", "kube-assistant-auth")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "kube-assistant")
+
+_jwk_client = jwt.PyJWKClient(AUTH_JWKS_URL)
 
 
 @dataclass(frozen=True)
 class TokenPayload:
-    member_id: str
+    user_id: str
     role: str
 
 
 def decode_access_token(token: str) -> TokenPayload:
     try:
-        payload = jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
-        member_id = str(payload.get("sub") or "").strip()
+        signing_key = _jwk_client.get_signing_key_from_jwt(token).key
+        payload = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256"],
+            issuer=JWT_ISSUER,
+            audience=JWT_AUDIENCE,
+        )
+        user_id = str(payload.get("sub") or "").strip()
         role = str(payload.get("role") or "").strip()
-        if not member_id:
+        if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return TokenPayload(member_id=member_id, role=role or "user")
+        return TokenPayload(user_id=user_id, role=role or "user")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except HTTPException:
@@ -45,4 +55,3 @@ async def require_auth(authorization: Optional[str] = Header(None, alias="Author
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
 
     return decode_access_token(token)
-

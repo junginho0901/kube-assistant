@@ -1,12 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import uuid
 
 from app.database import get_db_service
-from app.security import create_access_token, hash_password, jwks, verify_password
-from app.config import settings
+from app.security import create_access_token, hash_password, jwks, require_auth, TokenPayload, verify_password
 
 router = APIRouter()
 
@@ -104,23 +103,17 @@ async def login(request: LoginRequest):
     )
 
 
-@router.post("/bootstrap")
-async def bootstrap_admin():
-    """
-    개발 편의용: 기본 admin 계정 보장.
-    K8s에서는 init job/관리자 UI로 대체 권장.
-    """
+@router.get("/me", response_model=UserResponse)
+async def me(payload: TokenPayload = Depends(require_auth)):
     db = await get_db_service()
-    email = settings.DEFAULT_ADMIN_EMAIL.strip().lower()
-    existing = await db.get_user_by_email(email)
-    if existing:
-        return {"ok": True, "user_id": existing.id}
-    user = await db.create_user(
-        user_id="default",
-        name="admin",
-        email=email,
-        password_hash=hash_password(settings.DEFAULT_ADMIN_PASSWORD),
-        role="admin",
+    user = await db.get_user_by_id(payload.user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return UserResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=user.role,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
     )
-    return {"ok": True, "user_id": user.id}
-

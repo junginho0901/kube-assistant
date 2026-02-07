@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi import Header, HTTPException
 
 from app.config import settings
 
@@ -145,3 +146,40 @@ def create_access_token(user_id: str, role: str) -> str:
     headers = {"kid": "auth-rs256-1"}
     return jwt.encode(payload, _load_private_key_pem(), algorithm="RS256", headers=headers)
 
+
+def decode_access_token(token: str) -> TokenPayload:
+    try:
+        public_key = serialization.load_pem_public_key(_load_public_key_pem())
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
+        )
+        user_id = str(payload.get("sub") or "").strip()
+        role = str(payload.get("role") or "").strip()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return TokenPayload(user_id=user_id, role=role or "user")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def require_auth(authorization: Optional[str] = Header(None, alias="Authorization")) -> TokenPayload:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    parts = authorization.split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+    token = parts[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+    return decode_access_token(token)
