@@ -1327,18 +1327,16 @@ export default function AIChat() {
                 아래 질문을 클릭하거나 직접 입력하세요
               </p>
 
-              <div className="w-full max-w-3xl">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {quickQuestions.map((question, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSend(question)}
-                      className="p-5 text-left bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl transition-colors text-sm sm:text-base min-h-[76px] sm:min-h-[92px]"
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-2 gap-3 w-full px-8">
+                {quickQuestions.map((question, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(question)}
+                    className="p-4 text-left bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors"
+                  >
+                    {question}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
