@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAccessToken } from './auth'
 
 const client = axios.create({
   baseURL: '/api/v1',
@@ -6,6 +7,15 @@ const client = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000, // 10초 타임아웃 (백엔드 재시도 시간 고려)
+})
+
+client.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {}
+  const token = getAccessToken()
+  if (token) {
+    ;(config.headers as any).Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // Types
@@ -169,6 +179,21 @@ export interface ChatResponse {
   actions: Array<any>
 }
 
+export interface Member {
+  id: string
+  name: string
+  email?: string
+  role: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: string
+  member: Member
+}
+
 export interface OptimizationSuggestionsResponse {
   suggestions: string[]
 }
@@ -207,6 +232,45 @@ export interface SessionDetail {
 
 // API Functions
 export const api = {
+  // Auth
+  register: async (request: { name: string; email: string; password: string }): Promise<Member> => {
+    const { data } = await client.post('/auth/register', request)
+    return data
+  },
+
+  login: async (request: { email: string; password: string }): Promise<AuthResponse> => {
+    const { data } = await client.post('/auth/login', request)
+    return data
+  },
+
+  me: async (): Promise<Member> => {
+    const { data } = await client.get('/auth/me')
+    return data
+  },
+
+  // Members
+  getMembers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
+    const { data } = await client.get('/members', { params })
+    if (!Array.isArray(data)) {
+      throw new Error('Invalid members response')
+    }
+    return data as Member[]
+  },
+
+  createMember: async (request: { name: string; email: string; password: string; role?: 'admin' | 'user' }): Promise<Member> => {
+    const { data } = await client.post('/members', request)
+    return data
+  },
+
+  updateMember: async (memberId: string, patch: { name?: string; email?: string; password?: string; role?: 'admin' | 'user' }): Promise<Member> => {
+    const { data } = await client.patch(`/members/${memberId}`, patch)
+    return data
+  },
+
+  deleteMember: async (memberId: string): Promise<void> => {
+    await client.delete(`/members/${memberId}`)
+  },
+
   // Cluster
   getClusterOverview: async (forceRefresh = false): Promise<ClusterOverview> => {
     const { data } = await client.get('/cluster/overview', {
@@ -317,9 +381,13 @@ export const api = {
   suggestOptimizationStream: async (namespace: string, handlers: OptimizationStreamHandlers = {}): Promise<void> => {
     const { onObserved, onContent, onUsage, onMeta, onError, onDone, signal } = handlers
 
+    const headers: Record<string, string> = { Accept: 'text/event-stream' }
+    const token = getAccessToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+
     const response = await fetch(`/api/v1/ai/suggest-optimization/stream?namespace=${encodeURIComponent(namespace)}`, {
       method: 'GET',
-      headers: { Accept: 'text/event-stream' },
+      headers,
       signal,
     })
 
