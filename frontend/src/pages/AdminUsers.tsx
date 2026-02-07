@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, Member } from '@/services/api'
-import { useState } from 'react'
+import { CheckCircle, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function AdminUsers() {
   const queryClient = useQueryClient()
   const [limit] = useState(100)
   const [offset] = useState(0)
   const [roleDrafts, setRoleDrafts] = useState<Record<string, 'admin' | 'user'>>({})
+  const [openRoleDropdownUserId, setOpenRoleDropdownUserId] = useState<string | null>(null)
+  const roleDropdownRef = useRef<HTMLDivElement | null>(null)
 
   const { data: users, isLoading, isError } = useQuery({
     queryKey: ['admin-users', limit, offset],
@@ -30,6 +33,25 @@ export default function AdminUsers() {
       })
     },
   })
+
+  useEffect(() => {
+    roleDropdownRef.current = null
+  }, [openRoleDropdownUserId])
+
+  useEffect(() => {
+    if (!openRoleDropdownUserId) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+        setOpenRoleDropdownUserId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openRoleDropdownUserId])
 
   if (isLoading) {
     return <div className="text-slate-300">로딩 중...</div>
@@ -61,24 +83,60 @@ export default function AdminUsers() {
             {rows.map((u) => {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
               const currentRole = (roleDrafts[u.id] ?? (u.role === 'admin' ? 'admin' : 'user')) as 'admin' | 'user'
+              const isOpen = openRoleDropdownUserId === u.id
               return (
                 <tr key={u.id} className="border-t border-slate-700 text-slate-200">
                   <td className="px-4 py-3">{u.name}</td>
                   <td className="px-4 py-3">{u.email ?? '-'}</td>
                   <td className="px-4 py-3">
-                    <select
-                      value={currentRole}
-                      disabled={isUpdating}
-                      onChange={(e) => {
-                        const nextRole = e.target.value as 'admin' | 'user'
-                        setRoleDrafts((prev) => ({ ...prev, [u.id]: nextRole }))
-                        updateRoleMutation.mutate({ userId: u.id, role: nextRole })
+                    <div
+                      className="relative inline-block"
+                      ref={(el) => {
+                        if (isOpen) roleDropdownRef.current = el
                       }}
-                      className="w-32 rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
                     >
-                      <option value="user">USER</option>
-                      <option value="admin">ADMIN</option>
-                    </select>
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={() => setOpenRoleDropdownUserId((prev) => (prev === u.id ? null : u.id))}
+                        className="w-32 inline-flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-900/40 px-3 py-2 text-xs text-slate-200 hover:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                        aria-haspopup="menu"
+                        aria-expanded={isOpen}
+                      >
+                        <span className="truncate">{currentRole === 'admin' ? 'ADMIN' : 'USER'}</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isOpen && (
+                        <div
+                          role="menu"
+                          className="absolute right-0 mt-2 w-32 rounded-xl border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden"
+                        >
+                          {(['user', 'admin'] as const).map((role) => {
+                            const isSelected = currentRole === role
+                            return (
+                              <button
+                                key={role}
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenRoleDropdownUserId(null)
+                                  if (role === currentRole) return
+                                  setRoleDrafts((prev) => ({ ...prev, [u.id]: role }))
+                                  updateRoleMutation.mutate({ userId: u.id, role })
+                                }}
+                                className={`w-full px-3 py-2 text-xs flex items-center gap-2 hover:bg-slate-800 transition-colors ${
+                                  isSelected ? 'bg-slate-800 text-white' : 'text-slate-200'
+                                }`}
+                              >
+                                <span className="flex-1 text-left">{role === 'admin' ? 'ADMIN' : 'USER'}</span>
+                                {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
