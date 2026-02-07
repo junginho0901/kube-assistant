@@ -191,7 +191,8 @@ export interface Member {
 export interface AuthResponse {
   access_token: string
   token_type: string
-  member: Member
+  member?: Member
+  user?: Member
 }
 
 export interface OptimizationSuggestionsResponse {
@@ -240,11 +241,26 @@ export const api = {
 
   login: async (request: { email: string; password: string }): Promise<AuthResponse> => {
     const { data } = await client.post('/auth/login', request)
+    // auth-service 는 user 필드로 내려줌. 기존 session-service(member) 호환 유지.
+    if (data?.user && !data?.member) {
+      data.member = data.user
+    }
     return data
   },
 
   me: async (): Promise<Member> => {
     const { data } = await client.get('/auth/me')
+    return data
+  },
+
+  adminListUsers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
+    const { data } = await client.get('/auth/admin/users', { params })
+    if (!Array.isArray(data)) throw new Error('Invalid users response')
+    return data as Member[]
+  },
+
+  adminUpdateUserRole: async (userId: string, role: 'admin' | 'user'): Promise<Member> => {
+    const { data } = await client.patch(`/auth/admin/users/${userId}`, { role })
     return data
   },
 

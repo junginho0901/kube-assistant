@@ -56,7 +56,7 @@ async def auth_middleware(request, call_next):
         from app.security import decode_access_token
 
         payload = decode_access_token(token)
-        request.state.member_id = payload.member_id
+        request.state.user_id = payload.user_id
         request.state.role = payload.role
     except Exception as e:
         from starlette.responses import JSONResponse
