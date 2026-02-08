@@ -253,6 +253,11 @@ export const api = {
     return data
   },
 
+  changePassword: async (request: { current_password: string; new_password: string }): Promise<Member> => {
+    const { data } = await client.post('/auth/change-password', request)
+    return data
+  },
+
   adminListUsers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
     const { data } = await client.get('/auth/admin/users', { params })
     if (!Array.isArray(data)) throw new Error('Invalid users response')
