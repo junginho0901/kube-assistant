@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Request, Header
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Header, Response
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -365,3 +365,56 @@ async def admin_reset_user_password(
         created_at=updated.created_at,
         updated_at=updated.updated_at,
     )
+
+
+@router.delete("/admin/users/{user_id}", status_code=204)
+async def admin_delete_user(
+    user_id: str,
+    http_request: Request,
+    x_request_id: Optional[str] = Header(None, alias="X-Request-ID"),
+    payload: TokenPayload = Depends(require_auth),
+):
+    _require_admin(payload)
+    if user_id == payload.user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    db = await get_db_service()
+
+    forwarded_for = http_request.headers.get("X-Forwarded-For")
+    request_ip = (forwarded_for.split(",")[0].strip() if forwarded_for else None) or (
+        http_request.client.host if http_request.client else None
+    )
+    user_agent = http_request.headers.get("User-Agent")
+    path = str(http_request.url.path)
+
+    deleted, audit_row = await db.delete_user_with_audit(
+        actor_user_id=payload.user_id,
+        target_user_id=user_id,
+        request_ip=request_ip,
+        user_agent=user_agent,
+        request_id=x_request_id,
+        path=path,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        audit_logger.info(
+            json.dumps(
+                {
+                    "action": "user.delete",
+                    "actor_user_id": payload.user_id,
+                    "target_user_id": user_id,
+                    "request_ip": request_ip,
+                    "user_agent": user_agent,
+                    "request_id": x_request_id,
+                    "path": path,
+                    "audit_id": getattr(audit_row, "id", None),
+                },
+                ensure_ascii=False,
+            )
+        )
+    except Exception:
+        pass
+
+    return Response(status_code=204)

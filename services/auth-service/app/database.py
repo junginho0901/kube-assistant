@@ -266,6 +266,43 @@ class DatabaseService:
             await db.refresh(audit)
             return target, audit
 
+    async def delete_user_with_audit(
+        self,
+        *,
+        actor_user_id: str,
+        target_user_id: str,
+        request_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+        path: Optional[str] = None,
+    ) -> Tuple[bool, Optional[AuditLog]]:
+        async with self.async_session() as db:
+            from sqlalchemy import select
+
+            actor = (await db.execute(select(User).where(User.id == actor_user_id))).scalar_one_or_none()
+            target = (await db.execute(select(User).where(User.id == target_user_id))).scalar_one_or_none()
+            if not target:
+                return False, None
+
+            audit = AuditLog(
+                action="user.delete",
+                actor_user_id=actor_user_id,
+                actor_email=getattr(actor, "email", None),
+                target_user_id=target_user_id,
+                target_email=getattr(target, "email", None),
+                before={"role": target.role, "email": target.email, "name": target.name},
+                after={"deleted": True},
+                request_ip=request_ip,
+                user_agent=user_agent,
+                request_id=request_id,
+                path=path,
+            )
+            db.add(audit)
+            await db.delete(target)
+            await db.commit()
+            await db.refresh(audit)
+            return True, audit
+
     async def ensure_bootstrap_admin(self):
         from app.config import settings
         from app.security import hash_password

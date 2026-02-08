@@ -274,6 +274,10 @@ export const api = {
     return data
   },
 
+  adminDeleteUser: async (userId: string): Promise<void> => {
+    await client.delete(`/auth/admin/users/${userId}`)
+  },
+
   // Members
   getMembers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
     const { data } = await client.get('/members', { params })
