@@ -253,6 +253,11 @@ export const api = {
     return data
   },
 
+  changePassword: async (request: { current_password: string; new_password: string }): Promise<Member> => {
+    const { data } = await client.post('/auth/change-password', request)
+    return data
+  },
+
   adminListUsers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
     const { data } = await client.get('/auth/admin/users', { params })
     if (!Array.isArray(data)) throw new Error('Invalid users response')
@@ -262,6 +267,15 @@ export const api = {
   adminUpdateUserRole: async (userId: string, role: 'admin' | 'user'): Promise<Member> => {
     const { data } = await client.patch(`/auth/admin/users/${userId}`, { role })
     return data
+  },
+
+  adminResetUserPassword: async (userId: string): Promise<Member> => {
+    const { data } = await client.post(`/auth/admin/users/${userId}/reset-password`)
+    return data
+  },
+
+  adminDeleteUser: async (userId: string): Promise<void> => {
+    await client.delete(`/auth/admin/users/${userId}`)
   },
 
   // Members

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, Member } from '@/services/api'
-import { CheckCircle, ChevronDown } from 'lucide-react'
+import { CheckCircle, ChevronDown, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 export default function AdminUsers() {
@@ -10,6 +10,13 @@ export default function AdminUsers() {
   const [roleDrafts, setRoleDrafts] = useState<Record<string, 'admin' | 'user'>>({})
   const [openRoleDropdownUserId, setOpenRoleDropdownUserId] = useState<string | null>(null)
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+    staleTime: 30000,
+    retry: false,
+  })
 
   const { data: users, isLoading, isError } = useQuery({
     queryKey: ['admin-users', limit, offset],
@@ -31,6 +38,20 @@ export default function AdminUsers() {
         delete next[vars.userId]
         return next
       })
+    },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) => api.adminResetUserPassword(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+  })
+
+  const deleteUserMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) => api.adminDeleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
     },
   })
 
@@ -77,13 +98,18 @@ export default function AdminUsers() {
               <th className="px-4 py-3">이름</th>
               <th className="px-4 py-3">이메일</th>
               <th className="px-4 py-3">Role</th>
+              <th className="px-4 py-3">비밀번호</th>
+              <th className="px-4 py-3">삭제</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((u) => {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
+              const isResetting = resetPasswordMutation.isPending && resetPasswordMutation.variables?.userId === u.id
+              const isDeleting = deleteUserMutation.isPending && deleteUserMutation.variables?.userId === u.id
               const currentRole = (roleDrafts[u.id] ?? (u.role === 'admin' ? 'admin' : 'user')) as 'admin' | 'user'
               const isOpen = openRoleDropdownUserId === u.id
+              const isSelf = !!me?.id && me.id === u.id
               return (
                 <tr key={u.id} className="border-t border-slate-700 text-slate-200">
                   <td className="px-4 py-3">{u.name}</td>
@@ -138,12 +164,44 @@ export default function AdminUsers() {
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      disabled={isResetting}
+                      onClick={() => {
+                        const ok = window.confirm(`비밀번호를 1111로 초기화할까요?\n\n대상: ${u.email ?? u.name}`)
+                        if (!ok) return
+                        resetPasswordMutation.mutate({ userId: u.id })
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900/40 px-2.5 py-2 text-xs text-slate-200 hover:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                      title="비밀번호를 1111로 초기화"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{isResetting ? '초기화중' : 'PW 초기화'}</span>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      disabled={isDeleting || isSelf}
+                      onClick={() => {
+                        const ok = window.confirm(`유저를 삭제할까요?\n\n대상: ${u.email ?? u.name}\n\n* 삭제하면 복구가 어렵습니다.`)
+                        if (!ok) return
+                        deleteUserMutation.mutate({ userId: u.id })
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/20 px-2.5 py-2 text-xs text-red-200 hover:bg-red-950/35 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50"
+                      title={isSelf ? '자기 자신은 삭제할 수 없습니다.' : '유저 삭제'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                      <span>{isDeleting ? '삭제중' : '삭제'}</span>
+                    </button>
+                  </td>
                 </tr>
               )
             })}
             {rows.length === 0 && (
               <tr>
-                <td className="px-4 py-4 text-slate-300" colSpan={3}>
+                <td className="px-4 py-4 text-slate-300" colSpan={5}>
                   유저가 없습니다.
                 </td>
               </tr>

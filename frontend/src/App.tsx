@@ -11,6 +11,7 @@ import ClusterView from './pages/ClusterView'
 import Monitoring from './pages/Monitoring'
 import Login from './pages/Login'
 import AdminUsers from './pages/AdminUsers'
+import Account from './pages/Account'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="namespaces" element={<Namespaces />} />
           <Route path="monitoring" element={<Monitoring />} />
           <Route path="cluster-view" element={<ClusterView />} />
+          <Route path="account" element={<Account />} />
           <Route path="resources/:namespace" element={<Resources />} />
           <Route path="topology/:namespace" element={<Topology />} />
           <Route path="ai-chat" element={<AIChat />} />
