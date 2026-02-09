@@ -31,11 +31,11 @@ class ToolContext:
 class AIService:
     """AI 트러블슈팅 서비스"""
     
-    def __init__(self):
+    def __init__(self, authorization: Optional[str] = None):
         """OpenAI 클라이언트 초기화"""
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = settings.OPENAI_MODEL
-        self.k8s_service = K8sServiceClient()
+        self.k8s_service = K8sServiceClient(authorization=authorization)
         self.tool_contexts: Dict[str, ToolContext] = {}  # {session_id: ToolContext}
         print(f"[AI Service] 초기화 완료 - 사용 모델: {self.model}", flush=True)
     
