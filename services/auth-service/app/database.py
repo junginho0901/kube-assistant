@@ -62,6 +62,7 @@ class DatabaseService:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             await self._migrate_user_org_fields(conn)
+            await self._backfill_default_org_fields(conn)
 
     async def _migrate_user_org_fields(self, conn):
         """
@@ -83,6 +84,20 @@ class DatabaseService:
             except Exception:
                 # Ignore if column already exists
                 pass
+
+    async def _backfill_default_org_fields(self, conn):
+        """
+        Backfill existing users with default org fields (only when missing).
+        This is intentionally idempotent and won't override non-empty values.
+        """
+        default_hq = "오케스트로"
+        default_team = "AI팀"
+        try:
+            await conn.execute(text("UPDATE auth_users SET hq = :hq WHERE hq IS NULL OR hq = ''"), {"hq": default_hq})
+            await conn.execute(text("UPDATE auth_users SET team = :team WHERE team IS NULL OR team = ''"), {"team": default_team})
+        except Exception:
+            # best-effort only; never block service startup
+            pass
 
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         async with self.async_session() as db:
