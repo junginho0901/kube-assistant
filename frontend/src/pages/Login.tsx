@@ -54,8 +54,8 @@ export default function Login() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(34,211,238,0.12),rgba(2,6,23,0))]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl items-center px-6 py-12">
-        <div className="grid w-full grid-cols-1 items-center gap-10 lg:grid-cols-2">
+      <div className="relative mx-auto flex min-h-screen w-[min(92vw,1440px)] items-center px-6 py-12 lg:py-16">
+        <div className="grid w-full grid-cols-1 items-center gap-10 lg:gap-14 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-xs text-slate-300">
               <div className="h-2 w-2 rounded-full bg-primary-500" />
@@ -63,46 +63,46 @@ export default function Login() {
             </div>
 
             <div className="space-y-3">
-              <h1 className="text-4xl font-bold tracking-tight text-white">
+              <h1 className="text-[clamp(2.25rem,4vw,3.75rem)] font-bold tracking-tight text-white">
                 K8s DevOps Assistant
               </h1>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
+                <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <LayoutDashboard className="h-4 w-4 text-primary-400" />
                   대시보드
                 </div>
-                <p className="mt-1 text-xs text-slate-400">클러스터 개요/핵심 지표를 빠르게 확인</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">클러스터 개요/핵심 지표를 빠르게 확인</p>
               </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
+                <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <Activity className="h-4 w-4 text-cyan-400" />
                   모니터링
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Node/Pod 리소스 사용량 실시간 조회</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">Node/Pod 리소스 사용량 실시간 조회</p>
               </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
+                <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <Layers className="h-4 w-4 text-slate-200" />
                   클러스터 뷰
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Pod/컨테이너 로그/매니페스트 확인</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">Pod/컨테이너 로그/매니페스트 확인</p>
               </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
+                <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <MessageSquare className="h-4 w-4 text-primary-400" />
                   AI 챗
                 </div>
-                <p className="mt-1 text-xs text-slate-400">운영 질문/원인 분석/가이드 추천</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">운영 질문/원인 분석/가이드 추천</p>
               </div>
             </div>
 
           </div>
 
           <div className="w-full">
-            <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/40 p-6 shadow-xl backdrop-blur">
+            <div className="mx-auto w-full max-w-[clamp(420px,34vw,560px)] rounded-3xl border border-slate-800 bg-slate-900/40 p-6 lg:p-8 shadow-xl backdrop-blur">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {mode === 'login' ? (
@@ -110,19 +110,19 @@ export default function Login() {
                   ) : (
                     <UserPlus className="h-5 w-5 text-primary-400" />
                   )}
-                  <h2 className="text-lg font-semibold text-white">{mode === 'login' ? '로그인' : '회원가입'}</h2>
+                  <h2 className="text-lg lg:text-xl font-semibold text-white">{mode === 'login' ? '로그인' : '회원가입'}</h2>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setMode((m) => (m === 'login' ? 'register' : 'login'))}
-                  className="text-sm text-slate-300 hover:text-white"
+                  className="text-sm lg:text-base text-slate-300 hover:text-white"
                 >
                   {mode === 'login' ? '회원가입' : '로그인'}
                 </button>
               </div>
 
-              <p className="mt-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm lg:text-base text-slate-400">
                 {mode === 'login'
                   ? '계정으로 로그인하여 서비스를 이용하세요.'
                   : '새 계정을 만들고 바로 로그인합니다.'}
@@ -135,7 +135,7 @@ export default function Login() {
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
                       placeholder="홍길동"
                       autoComplete="name"
                     />
@@ -147,7 +147,7 @@ export default function Login() {
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
                     placeholder="you@example.com"
                     autoComplete="email"
                     inputMode="email"
@@ -160,7 +160,7 @@ export default function Login() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
                     placeholder="••••••••"
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   />
@@ -175,7 +175,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isBusy || !email.trim() || !password}
-                  className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg bg-primary-600 px-4 py-2.5 lg:py-3 text-sm lg:text-base font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isBusy ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
                 </button>
