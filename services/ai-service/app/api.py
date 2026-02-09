@@ -1,7 +1,7 @@
 """
 AI Service API 라우터
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List
 import httpx
@@ -19,13 +19,13 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, authorization: str = Header(..., alias="Authorization")):
     """
     AI 챗봇 스트리밍
     """
     from app.services.ai_service import AIService
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         return StreamingResponse(
@@ -37,14 +37,14 @@ async def chat_stream(request: ChatRequest):
 
 
 @router.post("/sessions/{session_id}/chat")
-async def session_chat(session_id: str, message: str):
+async def session_chat(session_id: str, message: str, authorization: str = Header(..., alias="Authorization")):
     """
     세션 기반 AI 챗봇 (스트리밍)
     """
     from app.services.ai_service import AIService
     from app.database import get_db_service
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         return StreamingResponse(
@@ -56,11 +56,11 @@ async def session_chat(session_id: str, message: str):
 
 
 @router.post("/analyze-logs")
-async def analyze_logs(request: dict):
+async def analyze_logs(request: dict, authorization: str = Header(..., alias="Authorization")):
     """로그 분석"""
     from app.services.ai_service import AIService
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         from app.ai import LogAnalysisRequest
@@ -72,11 +72,11 @@ async def analyze_logs(request: dict):
 
 
 @router.post("/troubleshoot")
-async def troubleshoot(request: dict):
+async def troubleshoot(request: dict, authorization: str = Header(..., alias="Authorization")):
     """트러블슈팅"""
     from app.services.ai_service import AIService
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         from app.ai import TroubleshootRequest
@@ -88,11 +88,11 @@ async def troubleshoot(request: dict):
 
 
 @router.post("/explain-resource")
-async def explain_resource(resource_type: str, resource_yaml: str):
+async def explain_resource(resource_type: str, resource_yaml: str, authorization: str = Header(..., alias="Authorization")):
     """리소스 YAML 설명"""
     from app.services.ai_service import AIService
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         explanation = await ai_service.explain_resource(resource_type, resource_yaml)
@@ -102,11 +102,11 @@ async def explain_resource(resource_type: str, resource_yaml: str):
 
 
 @router.post("/suggest-optimization")
-async def suggest_optimization(namespace: str):
+async def suggest_optimization(namespace: str, authorization: str = Header(..., alias="Authorization")):
     """리소스 최적화 제안"""
     from app.services.ai_service import AIService
     
-    ai_service = AIService()
+    ai_service = AIService(authorization=authorization)
     
     try:
         suggestions = await ai_service.suggest_optimization(namespace)
@@ -115,11 +115,11 @@ async def suggest_optimization(namespace: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/suggest-optimization/stream")
-async def suggest_optimization_stream(namespace: str):
+async def suggest_optimization_stream(namespace: str, authorization: str = Header(..., alias="Authorization")):
     """리소스 최적화 제안 (SSE 스트리밍)"""
     from app.services.ai_service import AIService
-
-    ai_service = AIService()
+    
+    ai_service = AIService(authorization=authorization)
 
     try:
         return StreamingResponse(

@@ -12,9 +12,12 @@ K8S_SERVICE_URL = "http://k8s-service:8002/api/v1"
 class K8sServiceClient:
     """K8s Service HTTP 클라이언트"""
     
-    def __init__(self):
+    def __init__(self, authorization: Optional[str] = None):
         self.base_url = K8S_SERVICE_URL
-        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0)
+        headers: Dict[str, str] = {}
+        if authorization and authorization.strip():
+            headers["Authorization"] = authorization.strip()
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0, headers=headers)
     
     async def get_namespaces(self) -> List[Dict]:
         """네임스페이스 목록 조회"""
