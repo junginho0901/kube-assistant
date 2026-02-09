@@ -101,7 +101,6 @@ export default function Layout() {
               <div className="text-[11px] text-slate-400">계정</div>
               <div className="mt-0.5 truncate text-sm text-white">{me?.name ?? '...'}</div>
               <div className="truncate text-xs text-slate-400">{me?.email ?? ''}</div>
-              <div className="mt-1 text-[11px] text-slate-500">내 정보 · 비밀번호 변경</div>
             </Link>
 
             <button
