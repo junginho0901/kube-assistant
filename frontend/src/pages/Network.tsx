@@ -247,6 +247,8 @@ export default function NetworkPage() {
       if (freshPodsForService && selectedService && labelSelector) {
         queryClient.setQueryData(['network', 'pods', namespace, selectedService.name, labelSelector], freshPodsForService)
       }
+    } catch (error) {
+      console.error('네트워크 새로고침 실패:', error)
     } finally {
       setTimeout(() => setIsRefreshing(false), 500)
     }
