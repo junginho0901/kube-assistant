@@ -53,22 +53,34 @@ function podMatchesNetworkPolicy(pod: PodInfo, policy: NetworkPolicyInfo): boole
   return true
 }
 
-function renderEndpointTargets(endpoint: EndpointInfo | null): string {
+function renderEndpointTargets(endpoint: EndpointInfo | null): React.ReactNode {
   if (!endpoint) return '(없음)'
   const targets = endpoint.ready_targets
   if (!Array.isArray(targets) || targets.length === 0) {
-    return endpoint.ready_addresses?.join('\n') || '(없음)'
+    const ips = endpoint.ready_addresses || []
+    return ips.length > 0 ? ips.join('\n') : '(없음)'
   }
-  return targets
-    .map((t) => {
-      const ip = t.ip ?? ''
-      const ref = t.target_ref
-      const name = ref?.name ? `${ref.kind || 'Target'}:${ref.name}` : ''
-      const node = t.node_name ? `node=${t.node_name}` : ''
-      const parts = [ip, name, node].filter(Boolean)
-      return parts.join('  ')
-    })
-    .join('\n')
+
+  return (
+    <div className="space-y-2">
+      {targets.map((t, idx) => {
+        const ip = t.ip ?? ''
+        const ref = t.target_ref
+        const refName = ref?.name ? `${ref.kind || 'Target'}:${ref.name}` : null
+        const nodeName = t.node_name ?? null
+
+        return (
+          <div key={`${ip}-${idx}`} className="rounded-md border border-slate-700 bg-slate-900/30 px-2 py-1.5">
+            <div className="font-mono text-xs text-slate-200">{ip || '(ip 없음)'}</div>
+            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+              {refName ? <span>{refName}</span> : <span>(targetRef 없음)</span>}
+              {nodeName ? <span>{`node=${nodeName}`}</span> : null}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export default function NetworkPage() {
@@ -327,7 +339,7 @@ export default function NetworkPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div className="bg-slate-800/60 rounded-lg border border-slate-700 p-4">
                   <div className="text-sm font-semibold text-white mb-2">Ports</div>
                   <div className="space-y-2 text-sm text-slate-200">
@@ -365,9 +377,7 @@ export default function NetworkPage() {
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-slate-800/60 rounded-lg border border-slate-700 p-4">
                   <div className="text-sm font-semibold text-white mb-2">Endpoints</div>
                   {related.endpoints ? (
@@ -377,9 +387,9 @@ export default function NetworkPage() {
                         <span className="badge badge-warning">not ready {related.endpoints.not_ready_count}</span>
                       </div>
                       <div className="text-xs text-slate-400">Ready targets (max 50)</div>
-                      <pre className="text-xs text-slate-200 whitespace-pre-wrap break-words bg-slate-900/40 border border-slate-700 rounded-md p-2 max-h-32 overflow-y-auto">
+                      <div className="bg-slate-900/40 border border-slate-700 rounded-md p-2 max-h-44 overflow-y-auto">
                         {renderEndpointTargets(related.endpoints)}
-                      </pre>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-sm text-slate-400">해당 Service 이름의 Endpoints를 찾지 못했습니다</div>
@@ -406,9 +416,7 @@ export default function NetworkPage() {
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-slate-800/60 rounded-lg border border-slate-700 p-4">
                   <div className="text-sm font-semibold text-white mb-2">Ingress</div>
                   {related.ingresses.length === 0 ? (
