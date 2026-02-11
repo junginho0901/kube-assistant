@@ -492,12 +492,21 @@ export default function NetworkPage() {
                           .map((t) => t.secret_name)
                           .filter(Boolean)
                           .join(', ')
+                        const classSourceLabel =
+                          detail?.class_source === 'spec'
+                            ? 'spec'
+                            : detail?.class_source === 'annotation'
+                              ? 'annotation'
+                              : detail?.class_source === 'default'
+                                ? 'default candidate'
+                                : null
                         return (
                           <div key={ing.name} className="rounded-md border border-slate-700 bg-slate-900/30 p-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="font-medium text-slate-100 truncate">{ing.name}</div>
                               <div className="text-xs text-slate-400">
                                 class: {detail?.class || ing.class || '(none)'}
+                                {classSourceLabel ? ` (${classSourceLabel})` : ''}
                                 {detail?.class_is_default || klass?.is_default ? ' (default)' : ''}
                               </div>
                             </div>

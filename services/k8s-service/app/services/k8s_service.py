@@ -994,7 +994,19 @@ class K8sService:
             networking_v1 = client.NetworkingV1Api()
             ing = networking_v1.read_namespaced_ingress(name, namespace)
 
-            ingress_class_name = getattr(ing.spec, "ingress_class_name", None)
+            annotations = ing.metadata.annotations or {}
+            spec_class_name = getattr(ing.spec, "ingress_class_name", None)
+            anno_class_name = annotations.get("kubernetes.io/ingress.class")
+
+            ingress_class_name = None
+            ingress_class_source = None  # spec | annotation | default | None
+
+            if spec_class_name:
+                ingress_class_name = spec_class_name
+                ingress_class_source = "spec"
+            elif anno_class_name:
+                ingress_class_name = anno_class_name
+                ingress_class_source = "annotation"
 
             # IngressClass controller (optional)
             class_controller = None
@@ -1003,8 +1015,29 @@ class K8sService:
                 try:
                     ic = networking_v1.read_ingress_class(ingress_class_name)
                     class_controller = getattr(ic.spec, "controller", None) if getattr(ic, "spec", None) else None
-                    annotations = ic.metadata.annotations or {}
-                    class_is_default = annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                    ic_annotations = ic.metadata.annotations or {}
+                    class_is_default = ic_annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                except Exception:
+                    pass
+            else:
+                # No explicit class: try default ingressclass (candidate only)
+                try:
+                    classes = networking_v1.list_ingress_class().items
+                    defaults = []
+                    for ic in classes:
+                        ic_annotations = ic.metadata.annotations or {}
+                        if ic_annotations.get("ingressclass.kubernetes.io/is-default-class") == "true":
+                            defaults.append(ic)
+                    if len(defaults) == 1:
+                        ic = defaults[0]
+                        ingress_class_name = ic.metadata.name
+                        ingress_class_source = "default"
+                        class_controller = getattr(ic.spec, "controller", None) if getattr(ic, "spec", None) else None
+                        class_is_default = True
+                    elif len(defaults) > 1:
+                        # ambiguous: don't guess; return none and let UI show unknown
+                        ingress_class_name = None
+                        ingress_class_source = None
                 except Exception:
                     pass
 
@@ -1099,6 +1132,7 @@ class K8sService:
                 "name": ing.metadata.name,
                 "namespace": ing.metadata.namespace,
                 "class": ingress_class_name,
+                "class_source": ingress_class_source,
                 "class_controller": class_controller,
                 "class_is_default": class_is_default,
                 "addresses": addresses,

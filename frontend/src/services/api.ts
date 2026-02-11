@@ -83,6 +83,7 @@ export interface IngressDetail {
   name: string
   namespace: string
   class?: string | null
+  class_source?: 'spec' | 'annotation' | 'default' | null
   class_controller?: string | null
   class_is_default?: boolean | null
   addresses: Array<{ ip?: string | null; hostname?: string | null }>
