@@ -987,6 +987,129 @@ class K8sService:
             return yaml.dump(ing_dict, default_flow_style=False, allow_unicode=True)
         except ApiException as e:
             raise Exception(f"Failed to get ingress YAML: {e}")
+
+    async def get_ingress_detail(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Ingress 상세 요약 (주소/규칙/백엔드/TLS/클래스/이벤트)"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            ing = networking_v1.read_namespaced_ingress(name, namespace)
+
+            ingress_class_name = getattr(ing.spec, "ingress_class_name", None)
+
+            # IngressClass controller (optional)
+            class_controller = None
+            class_is_default = None
+            if ingress_class_name:
+                try:
+                    ic = networking_v1.read_ingress_class(ingress_class_name)
+                    class_controller = getattr(ic.spec, "controller", None) if getattr(ic, "spec", None) else None
+                    annotations = ic.metadata.annotations or {}
+                    class_is_default = annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                except Exception:
+                    pass
+
+            # Addresses
+            addresses: List[Dict[str, Optional[str]]] = []
+            lb = getattr(ing.status, "load_balancer", None)
+            for item in (getattr(lb, "ingress", None) or []):
+                addresses.append({
+                    "ip": getattr(item, "ip", None),
+                    "hostname": getattr(item, "hostname", None),
+                })
+
+            # TLS
+            tls: List[Dict[str, Any]] = []
+            for t in (getattr(ing.spec, "tls", None) or []):
+                tls.append({
+                    "secret_name": getattr(t, "secret_name", None),
+                    "hosts": list(getattr(t, "hosts", None) or []),
+                })
+
+            def _backend_to_dict(backend: Any) -> Dict[str, Any]:
+                if backend is None:
+                    return {}
+                svc = getattr(backend, "service", None)
+                if svc is not None:
+                    port_obj = getattr(svc, "port", None)
+                    port = None
+                    if port_obj is not None:
+                        port = getattr(port_obj, "number", None) or getattr(port_obj, "name", None)
+                    return {
+                        "type": "service",
+                        "service": {
+                            "name": getattr(svc, "name", None),
+                            "port": port,
+                        },
+                    }
+                res = getattr(backend, "resource", None)
+                if res is not None:
+                    return {
+                        "type": "resource",
+                        "resource": client.ApiClient().sanitize_for_serialization(res),
+                    }
+                return {}
+
+            # Default backend
+            default_backend = _backend_to_dict(getattr(ing.spec, "default_backend", None))
+
+            # Rules + paths
+            rules: List[Dict[str, Any]] = []
+            for rule in (getattr(ing.spec, "rules", None) or []):
+                http = getattr(rule, "http", None)
+                paths: List[Dict[str, Any]] = []
+                if http and getattr(http, "paths", None):
+                    for p in (http.paths or []):
+                        paths.append({
+                            "path": getattr(p, "path", None),
+                            "path_type": getattr(p, "path_type", None),
+                            "backend": _backend_to_dict(getattr(p, "backend", None)),
+                        })
+                rules.append({
+                    "host": getattr(rule, "host", None),
+                    "paths": paths,
+                })
+
+            # Events (best-effort)
+            events: List[Dict[str, Any]] = []
+            try:
+                raw_events = self.v1.list_namespaced_event(namespace)
+                for ev in raw_events.items:
+                    inv = getattr(ev, "involved_object", None)
+                    if not inv:
+                        continue
+                    if getattr(inv, "kind", None) != "Ingress":
+                        continue
+                    if getattr(inv, "name", None) != name:
+                        continue
+                    events.append({
+                        "type": getattr(ev, "type", None),
+                        "reason": getattr(ev, "reason", None),
+                        "message": getattr(ev, "message", None),
+                        "count": getattr(ev, "count", None),
+                        "first_timestamp": self._to_iso(getattr(ev, "first_timestamp", None)),
+                        "last_timestamp": self._to_iso(getattr(ev, "last_timestamp", None)),
+                    })
+                # sort by last_timestamp desc (string iso; None last)
+                events.sort(key=lambda e: (e.get("last_timestamp") is not None, e.get("last_timestamp") or ""), reverse=True)
+                events = events[:10]
+            except Exception:
+                pass
+
+            return {
+                "name": ing.metadata.name,
+                "namespace": ing.metadata.namespace,
+                "class": ingress_class_name,
+                "class_controller": class_controller,
+                "class_is_default": class_is_default,
+                "addresses": addresses,
+                "tls": tls,
+                "default_backend": default_backend,
+                "rules": rules,
+                "events": events,
+                "created_at": str(ing.metadata.creation_timestamp) if ing.metadata.creation_timestamp else None,
+            }
+        except ApiException as e:
+            raise Exception(f"Failed to get ingress detail: {e}")
     
     async def get_jobs(self, namespace: str) -> List[Dict]:
         """Job 목록 조회"""

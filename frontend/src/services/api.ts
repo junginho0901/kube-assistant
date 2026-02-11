@@ -79,6 +79,34 @@ export interface IngressInfo {
   backends: string[]
 }
 
+export interface IngressDetail {
+  name: string
+  namespace: string
+  class?: string | null
+  class_controller?: string | null
+  class_is_default?: boolean | null
+  addresses: Array<{ ip?: string | null; hostname?: string | null }>
+  tls: Array<{ secret_name?: string | null; hosts: string[] }>
+  default_backend?: any
+  rules: Array<{
+    host?: string | null
+    paths: Array<{
+      path?: string | null
+      path_type?: string | null
+      backend?: any
+    }>
+  }>
+  events: Array<{
+    type?: string | null
+    reason?: string | null
+    message?: string | null
+    count?: number | null
+    first_timestamp?: string | null
+    last_timestamp?: string | null
+  }>
+  created_at?: string | null
+}
+
 export interface IngressClassInfo {
   name: string
   controller?: string | null
@@ -430,6 +458,11 @@ export const api = {
     const { data } = await client.get('/cluster/ingressclasses', {
       params: { force_refresh: forceRefresh },
     })
+    return data
+  },
+
+  getIngressDetail: async (namespace: string, name: string): Promise<IngressDetail> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/ingresses/${name}/detail`)
     return data
   },
 

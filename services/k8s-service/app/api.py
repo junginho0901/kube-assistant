@@ -357,6 +357,14 @@ async def get_ingress_yaml(namespace: str, name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/namespaces/{namespace}/ingresses/{name}/detail")
+async def get_ingress_detail(namespace: str, name: str):
+    """Ingress 상세 요약 (주소/규칙/백엔드/TLS/클래스/이벤트)"""
+    try:
+        return await k8s_service.get_ingress_detail(namespace, name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Network
 @router.get("/ingressclasses")

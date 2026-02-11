@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, type EndpointInfo, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
+import { api, type EndpointInfo, type IngressDetail, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
 import { Network, RefreshCw, Search, Server, Shield, Waypoints } from 'lucide-react'
 
 function buildLabelSelector(selector: Record<string, string> | undefined | null): string | undefined {
@@ -55,30 +55,72 @@ function podMatchesNetworkPolicy(pod: PodInfo, policy: NetworkPolicyInfo): boole
 
 function renderEndpointTargets(endpoint: EndpointInfo | null): React.ReactNode {
   if (!endpoint) return '(없음)'
-  const targets = endpoint.ready_targets
-  if (!Array.isArray(targets) || targets.length === 0) {
-    const ips = endpoint.ready_addresses || []
-    return ips.length > 0 ? ips.join('\n') : '(없음)'
+
+  const renderList = (
+    title: string,
+    targets: EndpointInfo['ready_targets'] | undefined,
+    addresses: string[] | undefined,
+    tone: 'success' | 'warning'
+  ) => {
+    const list = Array.isArray(targets) ? targets : []
+    const ips = addresses || []
+    const border =
+      tone === 'success' ? 'border-emerald-800/60' : 'border-amber-800/60'
+    const bg =
+      tone === 'success' ? 'bg-emerald-950/20' : 'bg-amber-950/20'
+    const label =
+      tone === 'success' ? 'text-emerald-300' : 'text-amber-300'
+
+    if (list.length === 0) {
+      if (ips.length === 0) {
+        return (
+          <div className="text-xs text-slate-400">
+            {title}: (없음)
+          </div>
+        )
+      }
+      return (
+        <div>
+          <div className={`text-xs ${label}`}>{title}</div>
+          <pre className="mt-1 text-xs text-slate-200 whitespace-pre-wrap break-words bg-slate-900/30 border border-slate-700 rounded-md p-2 max-h-44 overflow-y-auto font-mono">
+            {ips.join('\n')}
+          </pre>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <div className={`text-xs ${label}`}>{title}</div>
+        <div className="mt-2 space-y-2">
+          {list.map((t, idx) => {
+            const ip = t.ip ?? ''
+            const ref = t.target_ref
+            const refName = ref?.name ? `${ref.kind || 'Target'}:${ref.name}` : null
+            const nodeName = t.node_name ?? null
+
+            return (
+              <div
+                key={`${title}-${ip}-${idx}`}
+                className={`rounded-md border ${border} ${bg} px-2 py-1.5`}
+              >
+                <div className="font-mono text-xs text-slate-200">{ip || '(ip 없음)'}</div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300">
+                  {refName ? <span>{refName}</span> : <span className="text-slate-400">(targetRef 없음)</span>}
+                  {nodeName ? <span className="text-slate-400">{`node=${nodeName}`}</span> : null}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-2">
-      {targets.map((t, idx) => {
-        const ip = t.ip ?? ''
-        const ref = t.target_ref
-        const refName = ref?.name ? `${ref.kind || 'Target'}:${ref.name}` : null
-        const nodeName = t.node_name ?? null
-
-        return (
-          <div key={`${ip}-${idx}`} className="rounded-md border border-slate-700 bg-slate-900/30 px-2 py-1.5">
-            <div className="font-mono text-xs text-slate-200">{ip || '(ip 없음)'}</div>
-            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
-              {refName ? <span>{refName}</span> : <span>(targetRef 없음)</span>}
-              {nodeName ? <span>{`node=${nodeName}`}</span> : null}
-            </div>
-          </div>
-        )
-      })}
+    <div className="space-y-4">
+      {renderList('Ready targets (max 50)', endpoint.ready_targets, endpoint.ready_addresses, 'success')}
+      {renderList('Not-ready targets (max 50)', endpoint.not_ready_targets, endpoint.not_ready_addresses, 'warning')}
     </div>
   )
 }
@@ -217,6 +259,22 @@ export default function NetworkPage() {
       networkPolicies: policies,
     }
   }, [selectedService, endpoints, endpointSlices, ingresses, networkPolicies, podsForService])
+
+  const ingressDetailNames = useMemo(() => {
+    const list = related.ingresses || []
+    return list.map((i) => i.name).sort()
+  }, [related.ingresses])
+
+  const { data: ingressDetails } = useQuery({
+    queryKey: ['network', 'ingressDetails', namespace, ingressDetailNames.join(',')],
+    queryFn: async () => {
+      if (!namespace) return []
+      if (ingressDetailNames.length === 0) return []
+      const results = await Promise.all(ingressDetailNames.map((n) => api.getIngressDetail(namespace, n)))
+      return results as IngressDetail[]
+    },
+    enabled: !!namespace && ingressDetailNames.length > 0,
+  })
 
   if (!namespace) {
     return (
@@ -386,7 +444,6 @@ export default function NetworkPage() {
                         <span className="badge badge-success">ready {related.endpoints.ready_count}</span>
                         <span className="badge badge-warning">not ready {related.endpoints.not_ready_count}</span>
                       </div>
-                      <div className="text-xs text-slate-400">Ready targets (max 50)</div>
                       <div className="bg-slate-900/40 border border-slate-700 rounded-md p-2 max-h-44 overflow-y-auto">
                         {renderEndpointTargets(related.endpoints)}
                       </div>
@@ -424,21 +481,68 @@ export default function NetworkPage() {
                   ) : (
                     <div className="space-y-3">
                       {related.ingresses.map((ing) => {
-                        const klass = (ingressClasses ?? []).find((c) => c.name === (ing.class ?? '')) ?? null
+                        const detail = (ingressDetails ?? []).find((d) => d.name === ing.name) ?? null
+                        const klass =
+                          (ingressClasses ?? []).find((c) => c.name === (detail?.class ?? ing.class ?? '')) ?? null
+                        const addresses = (detail?.addresses || [])
+                          .map((a) => a.ip || a.hostname)
+                          .filter(Boolean)
+                          .join(', ')
+                        const tlsSecrets = (detail?.tls || [])
+                          .map((t) => t.secret_name)
+                          .filter(Boolean)
+                          .join(', ')
                         return (
                           <div key={ing.name} className="rounded-md border border-slate-700 bg-slate-900/30 p-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="font-medium text-slate-100 truncate">{ing.name}</div>
                               <div className="text-xs text-slate-400">
-                                class: {ing.class || '(none)'}
-                                {klass?.is_default ? ' (default)' : ''}
+                                class: {detail?.class || ing.class || '(none)'}
+                                {detail?.class_is_default || klass?.is_default ? ' (default)' : ''}
                               </div>
                             </div>
-                            <div className="mt-1 text-xs text-slate-300 whitespace-pre-wrap break-words">
-                              {(ing.hosts || []).join('\n') || '(hosts 없음)'}
+                            {addresses ? (
+                              <div className="mt-2 text-[11px] text-slate-400">address: {addresses}</div>
+                            ) : (
+                              <div className="mt-2 text-[11px] text-slate-500">address: (없음)</div>
+                            )}
+                            {tlsSecrets ? (
+                              <div className="mt-1 text-[11px] text-slate-400">tls secret: {tlsSecrets}</div>
+                            ) : (
+                              <div className="mt-1 text-[11px] text-slate-500">tls secret: (없음)</div>
+                            )}
+                            <div className="mt-2 text-xs text-slate-300 whitespace-pre-wrap break-words">
+                              {(detail?.rules || []).length > 0
+                                ? detail!.rules
+                                    .flatMap((r) =>
+                                      (r.paths || []).map((p) => {
+                                        const host = r.host || '*'
+                                        const path = p.path || '/'
+                                        const pathType = p.path_type ? ` (${p.path_type})` : ''
+                                        const backend = (p.backend && p.backend.service && p.backend.service.name)
+                                          ? ` → ${p.backend.service.name}:${p.backend.service.port ?? ''}`
+                                          : ''
+                                        return `${host} ${path}${pathType}${backend}`
+                                      })
+                                    )
+                                    .join('\n') || '(rules 없음)'
+                                : (ing.hosts || []).join('\n') || '(hosts 없음)'}
                             </div>
-                            {klass?.controller ? (
-                              <div className="mt-2 text-[11px] text-slate-400">controller: {klass.controller}</div>
+                            <div className="mt-2 text-[11px] text-slate-400">
+                              controller: {detail?.class_controller || klass?.controller || '(unknown)'}
+                            </div>
+                            {(detail?.events || []).length > 0 ? (
+                              <div className="mt-2 border-t border-slate-700 pt-2">
+                                <div className="text-[11px] text-slate-400 mb-1">events (latest)</div>
+                                <div className="space-y-1">
+                                  {detail!.events.slice(0, 3).map((e, idx) => (
+                                    <div key={idx} className="text-[11px] text-slate-300">
+                                      [{e.type || ''}] {e.reason || ''}: {e.message || ''}{' '}
+                                      {e.count ? `(x${e.count})` : ''}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             ) : null}
                           </div>
                         )
