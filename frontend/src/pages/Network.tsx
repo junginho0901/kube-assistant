@@ -318,15 +318,17 @@ export default function NetworkPage() {
                     ) : (
                       selectedService.ports.map((p, idx) => (
                         <div key={idx} className="flex items-center justify-between gap-3">
-                          <div className="truncate">
-                            <span className="text-slate-300">{p.protocol}</span> {p.port} →{' '}
-                            <span className="text-slate-300">{p.target_port}</span>
+                          <div className="min-w-0 flex items-center gap-2">
+                            <div className="min-w-0 truncate">
+                              <span className="text-slate-300">{p.protocol}</span> {p.port} →{' '}
+                              <span className="text-slate-300">{p.target_port}</span>
+                            </div>
                             {(selectedService.type === 'NodePort' || selectedService.type === 'LoadBalancer') &&
                             typeof p.node_port === 'number' ? (
-                              <span className="text-slate-300">{` · nodePort ${p.node_port}`}</span>
+                              <span className="flex-shrink-0 text-slate-300">{`nodePort ${p.node_port}`}</span>
                             ) : null}
                           </div>
-                          <div className="text-xs text-slate-400">{p.name || ''}</div>
+                          <div className="max-w-40 truncate text-xs text-slate-400">{p.name || ''}</div>
                         </div>
                       ))
                     )}
