@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
+import { api, type EndpointInfo, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
 import { Network, RefreshCw, Search, Server, Shield, Waypoints } from 'lucide-react'
 
 function buildLabelSelector(selector: Record<string, string> | undefined | null): string | undefined {
@@ -51,6 +51,24 @@ function podMatchesNetworkPolicy(pod: PodInfo, policy: NetworkPolicyInfo): boole
   }
 
   return true
+}
+
+function renderEndpointTargets(endpoint: EndpointInfo | null): string {
+  if (!endpoint) return '(없음)'
+  const targets = endpoint.ready_targets
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return endpoint.ready_addresses?.join('\n') || '(없음)'
+  }
+  return targets
+    .map((t) => {
+      const ip = t.ip ?? ''
+      const ref = t.target_ref
+      const name = ref?.name ? `${ref.kind || 'Target'}:${ref.name}` : ''
+      const node = t.node_name ? `node=${t.node_name}` : ''
+      const parts = [ip, name, node].filter(Boolean)
+      return parts.join('  ')
+    })
+    .join('\n')
 }
 
 export default function NetworkPage() {
@@ -358,9 +376,9 @@ export default function NetworkPage() {
                         <span className="badge badge-success">ready {related.endpoints.ready_count}</span>
                         <span className="badge badge-warning">not ready {related.endpoints.not_ready_count}</span>
                       </div>
-                      <div className="text-xs text-slate-400">Ready addresses (max 50)</div>
+                      <div className="text-xs text-slate-400">Ready targets (max 50)</div>
                       <pre className="text-xs text-slate-200 whitespace-pre-wrap break-words bg-slate-900/40 border border-slate-700 rounded-md p-2 max-h-32 overflow-y-auto">
-                        {(related.endpoints.ready_addresses || []).join('\n') || '(없음)'}
+                        {renderEndpointTargets(related.endpoints)}
                       </pre>
                     </div>
                   ) : (

@@ -100,6 +100,26 @@ export interface EndpointInfo {
   not_ready_count: number
   ready_addresses: string[]
   not_ready_addresses: string[]
+  ready_targets?: Array<{
+    ip?: string | null
+    node_name?: string | null
+    target_ref?: {
+      kind?: string | null
+      name?: string | null
+      namespace?: string | null
+      uid?: string | null
+    } | null
+  }>
+  not_ready_targets?: Array<{
+    ip?: string | null
+    node_name?: string | null
+    target_ref?: {
+      kind?: string | null
+      name?: string | null
+      namespace?: string | null
+      uid?: string | null
+    } | null
+  }>
   ports: Array<{
     name?: string | null
     port?: number | null

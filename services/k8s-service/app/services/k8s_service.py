@@ -834,6 +834,8 @@ class K8sService:
             for ep in eps.items:
                 ready_addresses: List[str] = []
                 not_ready_addresses: List[str] = []
+                ready_targets: List[Dict[str, Any]] = []
+                not_ready_targets: List[Dict[str, Any]] = []
                 ports: List[Dict] = []
 
                 for subset in (ep.subsets or []):
@@ -841,10 +843,32 @@ class K8sService:
                         ip = getattr(addr, "ip", None)
                         if ip:
                             ready_addresses.append(ip)
+                        target_ref = getattr(addr, "target_ref", None)
+                        ready_targets.append({
+                            "ip": ip,
+                            "node_name": getattr(addr, "node_name", None),
+                            "target_ref": {
+                                "kind": getattr(target_ref, "kind", None) if target_ref else None,
+                                "name": getattr(target_ref, "name", None) if target_ref else None,
+                                "namespace": getattr(target_ref, "namespace", None) if target_ref else None,
+                                "uid": getattr(target_ref, "uid", None) if target_ref else None,
+                            } if target_ref else None,
+                        })
                     for addr in (subset.not_ready_addresses or []):
                         ip = getattr(addr, "ip", None)
                         if ip:
                             not_ready_addresses.append(ip)
+                        target_ref = getattr(addr, "target_ref", None)
+                        not_ready_targets.append({
+                            "ip": ip,
+                            "node_name": getattr(addr, "node_name", None),
+                            "target_ref": {
+                                "kind": getattr(target_ref, "kind", None) if target_ref else None,
+                                "name": getattr(target_ref, "name", None) if target_ref else None,
+                                "namespace": getattr(target_ref, "namespace", None) if target_ref else None,
+                                "uid": getattr(target_ref, "uid", None) if target_ref else None,
+                            } if target_ref else None,
+                        })
                     for p in (subset.ports or []):
                         ports.append({
                             "name": getattr(p, "name", None),
@@ -869,6 +893,8 @@ class K8sService:
                     "not_ready_count": len(not_ready_addresses),
                     "ready_addresses": ready_addresses[:50],
                     "not_ready_addresses": not_ready_addresses[:50],
+                    "ready_targets": ready_targets[:50],
+                    "not_ready_targets": not_ready_targets[:50],
                     "ports": dedup_ports,
                     "created_at": str(ep.metadata.creation_timestamp) if ep.metadata.creation_timestamp else None,
                 })
