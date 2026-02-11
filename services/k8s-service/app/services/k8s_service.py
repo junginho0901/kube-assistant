@@ -947,28 +947,118 @@ class K8sService:
             networking_v1 = client.NetworkingV1Api()
             policies = networking_v1.list_namespaced_network_policy(namespace)
             result: List[Dict] = []
+
+            def _selector_to_dict(selector: Any) -> Dict[str, Any]:
+                if not selector:
+                    return {"match_labels": {}, "match_expressions": []}
+                return {
+                    "match_labels": getattr(selector, "match_labels", None) or {},
+                    "match_expressions": [
+                        {
+                            "key": getattr(expr, "key", None),
+                            "operator": getattr(expr, "operator", None),
+                            "values": getattr(expr, "values", None),
+                        }
+                        for expr in (getattr(selector, "match_expressions", None) or [])
+                    ],
+                }
+
+            def _selects_all_pods(selector: Any) -> bool:
+                if not selector:
+                    return True
+                ml = getattr(selector, "match_labels", None) or {}
+                me = getattr(selector, "match_expressions", None) or []
+                return len(ml) == 0 and len(me) == 0
+
+            def _policy_types(spec: Any) -> List[str]:
+                if not spec:
+                    return []
+                explicit = list(getattr(spec, "policy_types", None) or [])
+                if explicit:
+                    return explicit
+                inferred: List[str] = []
+                if getattr(spec, "ingress", None) is not None:
+                    inferred.append("Ingress")
+                if getattr(spec, "egress", None) is not None:
+                    inferred.append("Egress")
+                return inferred
+
+            def _port_to_dict(p: Any) -> Dict[str, Any]:
+                if p is None:
+                    return {}
+                port = getattr(p, "port", None)
+                # IntOrString can be int or str
+                port_value = None if port is None else str(port)
+                return {
+                    "protocol": getattr(p, "protocol", None),
+                    "port": port_value,
+                    "end_port": getattr(p, "end_port", None),
+                }
+
+            def _peer_to_dict(peer: Any) -> Dict[str, Any]:
+                if peer is None:
+                    return {}
+                ip_block = getattr(peer, "ip_block", None)
+                ns_sel = getattr(peer, "namespace_selector", None)
+                pod_sel = getattr(peer, "pod_selector", None)
+                return {
+                    "ip_block": {
+                        "cidr": getattr(ip_block, "cidr", None),
+                        "except": list(getattr(ip_block, "_except", None) or []),
+                    } if ip_block is not None else None,
+                    "namespace_selector": _selector_to_dict(ns_sel) if ns_sel is not None else None,
+                    "pod_selector": _selector_to_dict(pod_sel) if pod_sel is not None else None,
+                }
+
+            def _ingress_rules(spec: Any) -> List[Dict[str, Any]]:
+                rules = getattr(spec, "ingress", None)
+                if rules is None:
+                    return []
+                out: List[Dict[str, Any]] = []
+                for r in (rules or []):
+                    peers = list(getattr(r, "_from", None) or getattr(r, "from", None) or [])
+                    ports = list(getattr(r, "ports", None) or [])
+                    out.append({
+                        "from": [_peer_to_dict(p) for p in peers][:20],
+                        "ports": [_port_to_dict(p) for p in ports][:50],
+                    })
+                return out
+
+            def _egress_rules(spec: Any) -> List[Dict[str, Any]]:
+                rules = getattr(spec, "egress", None)
+                if rules is None:
+                    return []
+                out: List[Dict[str, Any]] = []
+                for r in (rules or []):
+                    peers = list(getattr(r, "to", None) or [])
+                    ports = list(getattr(r, "ports", None) or [])
+                    out.append({
+                        "to": [_peer_to_dict(p) for p in peers][:20],
+                        "ports": [_port_to_dict(p) for p in ports][:50],
+                    })
+                return out
+
             for np in policies.items:
-                selector = {}
-                if np.spec and getattr(np.spec, "pod_selector", None):
-                    ps = np.spec.pod_selector
-                    selector = {
-                        "match_labels": ps.match_labels or {},
-                        "match_expressions": [
-                            {
-                                "key": getattr(expr, "key", None),
-                                "operator": getattr(expr, "operator", None),
-                                "values": getattr(expr, "values", None),
-                            }
-                            for expr in (ps.match_expressions or [])
-                        ],
-                    }
+                spec = getattr(np, "spec", None)
+                ps = getattr(spec, "pod_selector", None) if spec else None
+                selector = _selector_to_dict(ps)
+                types = _policy_types(spec)
+                ingress = getattr(spec, "ingress", None) if spec else None
+                egress = getattr(spec, "egress", None) if spec else None
+                default_deny_ingress = ("Ingress" in types) and (ingress is None or len(ingress or []) == 0)
+                default_deny_egress = ("Egress" in types) and (egress is None or len(egress or []) == 0)
                 result.append({
                     "name": np.metadata.name,
                     "namespace": np.metadata.namespace,
                     "pod_selector": selector,
-                    "policy_types": list(np.spec.policy_types or []) if np.spec else [],
-                    "ingress_rules": len(np.spec.ingress or []) if np.spec else 0,
-                    "egress_rules": len(np.spec.egress or []) if np.spec else 0,
+                    "selects_all_pods": _selects_all_pods(ps),
+                    "policy_types": types,
+                    "default_deny_ingress": default_deny_ingress,
+                    "default_deny_egress": default_deny_egress,
+                    "ingress_rules": len(ingress or []) if spec else 0,
+                    "egress_rules": len(egress or []) if spec else 0,
+                    "ingress": _ingress_rules(spec) if spec else [],
+                    "egress": _egress_rules(spec) if spec else [],
                     "created_at": str(np.metadata.creation_timestamp) if np.metadata.creation_timestamp else None,
                 })
             return result

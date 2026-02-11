@@ -183,9 +183,64 @@ export interface NetworkPolicyInfo {
       values?: string[] | null
     }>
   }
+  selects_all_pods?: boolean
   policy_types: string[]
+  default_deny_ingress?: boolean
+  default_deny_egress?: boolean
   ingress_rules: number
   egress_rules: number
+  ingress?: Array<{
+    from: Array<{
+      ip_block?: { cidr?: string | null; except?: string[] } | null
+      namespace_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+      pod_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+    }>
+    ports: Array<{
+      protocol?: string | null
+      port?: string | null
+      end_port?: number | null
+    }>
+  }>
+  egress?: Array<{
+    to: Array<{
+      ip_block?: { cidr?: string | null; except?: string[] } | null
+      namespace_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+      pod_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+    }>
+    ports: Array<{
+      protocol?: string | null
+      port?: string | null
+      end_port?: number | null
+    }>
+  }>
   created_at?: string | null
 }
 

@@ -53,6 +53,39 @@ function podMatchesNetworkPolicy(pod: PodInfo, policy: NetworkPolicyInfo): boole
   return true
 }
 
+function selectorToInline(matchLabels: Record<string, string> | undefined | null): string {
+  const labels = matchLabels || {}
+  const entries = Object.entries(labels)
+  if (entries.length === 0) return '(all pods)'
+  return entries.map(([k, v]) => `${k}=${v}`).join(', ')
+}
+
+function formatPeer(peer: any): string {
+  if (!peer) return '(unknown)'
+  if (peer.ip_block?.cidr) {
+    const except = Array.isArray(peer.ip_block.except) && peer.ip_block.except.length > 0 ? ` except=${peer.ip_block.except.join(',')}` : ''
+    return `ipBlock ${peer.ip_block.cidr}${except}`
+  }
+  const ns = peer.namespace_selector?.match_labels ? selectorToInline(peer.namespace_selector.match_labels) : null
+  const pod = peer.pod_selector?.match_labels ? selectorToInline(peer.pod_selector.match_labels) : null
+  if (ns && pod) return `nsSel(${ns}) podSel(${pod})`
+  if (ns) return `nsSel(${ns})`
+  if (pod) return `podSel(${pod})`
+  return '(all)'
+}
+
+function formatPorts(ports: any[] | undefined): string {
+  if (!Array.isArray(ports) || ports.length === 0) return '(all ports)'
+  return ports
+    .map((p) => {
+      const proto = p.protocol || 'TCP'
+      const port = p.port || '*'
+      const end = p.end_port ? `-${p.end_port}` : ''
+      return `${proto} ${port}${end}`
+    })
+    .join(', ')
+}
+
 function renderEndpointTargets(endpoint: EndpointInfo | null): React.ReactNode {
   if (!endpoint) return '(없음)'
 
@@ -259,6 +292,27 @@ export default function NetworkPage() {
       networkPolicies: policies,
     }
   }, [selectedService, endpoints, endpointSlices, ingresses, networkPolicies, podsForService])
+
+  const policySummary = useMemo(() => {
+    const policies = related.networkPolicies || []
+    const ingressIsolationOn = policies.some((p) => (p.policy_types || []).includes('Ingress'))
+    const egressIsolationOn = policies.some((p) => (p.policy_types || []).includes('Egress'))
+    const totalIngressRules = policies.reduce((sum, p) => sum + (p.ingress_rules || 0), 0)
+    const totalEgressRules = policies.reduce((sum, p) => sum + (p.egress_rules || 0), 0)
+    const ingressEffectiveDenyAll = ingressIsolationOn && totalIngressRules === 0
+    const egressEffectiveDenyAll = egressIsolationOn && totalEgressRules === 0
+    const namespaceDefaultDenyIngress = policies.some((p) => p.selects_all_pods && p.default_deny_ingress)
+    const namespaceDefaultDenyEgress = policies.some((p) => p.selects_all_pods && p.default_deny_egress)
+
+    return {
+      ingressIsolationOn,
+      egressIsolationOn,
+      ingressEffectiveDenyAll,
+      egressEffectiveDenyAll,
+      namespaceDefaultDenyIngress,
+      namespaceDefaultDenyEgress,
+    }
+  }, [related.networkPolicies])
 
   const ingressDetailNames = useMemo(() => {
     const list = related.ingresses || []
@@ -573,11 +627,42 @@ export default function NetworkPage() {
                     <div className="text-sm text-slate-400">(없음)</div>
                   ) : (
                     <div className="space-y-3">
+                      <div className="rounded-md border border-slate-700 bg-slate-900/20 p-3 text-xs text-slate-300">
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`badge ${policySummary.ingressIsolationOn ? 'badge-warning' : 'badge-success'}`}>
+                            Ingress isolation: {policySummary.ingressIsolationOn ? 'ON' : 'OFF'}
+                          </span>
+                          <span className={`badge ${policySummary.egressIsolationOn ? 'badge-warning' : 'badge-success'}`}>
+                            Egress isolation: {policySummary.egressIsolationOn ? 'ON' : 'OFF'}
+                          </span>
+                          {policySummary.ingressEffectiveDenyAll ? (
+                            <span className="badge badge-error">Ingress: deny-all</span>
+                          ) : null}
+                          {policySummary.egressEffectiveDenyAll ? (
+                            <span className="badge badge-error">Egress: deny-all</span>
+                          ) : null}
+                          {policySummary.namespaceDefaultDenyIngress ? (
+                            <span className="badge badge-info">ns default-deny ingress policy present</span>
+                          ) : null}
+                          {policySummary.namespaceDefaultDenyEgress ? (
+                            <span className="badge badge-info">ns default-deny egress policy present</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-400">
+                          ON이면 “허용 규칙의 합(Union)”만 통과합니다. (CNI/클러스터 설정에 따라 실제 동작은 달라질 수 있음)
+                        </div>
+                      </div>
+
                       {related.networkPolicies.map((p) => (
                         <div key={p.name} className="rounded-md border border-slate-700 bg-slate-900/30 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="font-medium text-slate-100 truncate">{p.name}</div>
                             <div className="text-xs text-slate-400">{(p.policy_types || []).join(', ') || ''}</div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                            {p.default_deny_ingress ? <span className="badge badge-error">default-deny ingress</span> : null}
+                            {p.default_deny_egress ? <span className="badge badge-error">default-deny egress</span> : null}
+                            {p.selects_all_pods ? <span className="badge badge-info">selects all pods</span> : null}
                           </div>
                           <div className="mt-1 text-xs text-slate-300">
                             ingress rules: {p.ingress_rules} · egress rules: {p.egress_rules}
@@ -590,6 +675,56 @@ export default function NetworkPage() {
                                   .join(', ')
                               : '(all pods)'}
                           </div>
+
+                          {(p.ingress && p.ingress.length > 0) || p.default_deny_ingress ? (
+                            <div className="mt-3">
+                              <div className="text-[11px] text-slate-400 mb-1">Ingress allow</div>
+                              {p.ingress && p.ingress.length > 0 ? (
+                                <div className="space-y-2">
+                                  {p.ingress.slice(0, 2).map((r, idx) => {
+                                    const peers = Array.isArray(r.from) ? r.from : []
+                                    const from = peers.length === 0 ? '(all sources)' : peers.slice(0, 2).map(formatPeer).join(' | ')
+                                    const ports = formatPorts(r.ports)
+                                    return (
+                                      <div key={idx} className="text-[11px] text-slate-300">
+                                        {from} · {ports}
+                                      </div>
+                                    )
+                                  })}
+                                  {p.ingress.length > 2 ? (
+                                    <div className="text-[11px] text-slate-500">… +{p.ingress.length - 2} more ingress rules</div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-500">(no ingress rules)</div>
+                              )}
+                            </div>
+                          ) : null}
+
+                          {(p.egress && p.egress.length > 0) || p.default_deny_egress ? (
+                            <div className="mt-3">
+                              <div className="text-[11px] text-slate-400 mb-1">Egress allow</div>
+                              {p.egress && p.egress.length > 0 ? (
+                                <div className="space-y-2">
+                                  {p.egress.slice(0, 2).map((r, idx) => {
+                                    const peers = Array.isArray(r.to) ? r.to : []
+                                    const to = peers.length === 0 ? '(all destinations)' : peers.slice(0, 2).map(formatPeer).join(' | ')
+                                    const ports = formatPorts(r.ports)
+                                    return (
+                                      <div key={idx} className="text-[11px] text-slate-300">
+                                        {to} · {ports}
+                                      </div>
+                                    )
+                                  })}
+                                  {p.egress.length > 2 ? (
+                                    <div className="text-[11px] text-slate-500">… +{p.egress.length - 2} more egress rules</div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-500">(no egress rules)</div>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
