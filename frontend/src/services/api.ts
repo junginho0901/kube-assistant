@@ -65,10 +65,183 @@ export interface ServiceInfo {
     name?: string
     port: number
     target_port: string
+    node_port?: number | null
     protocol: string
   }>
   selector: Record<string, string>
   created_at: string
+}
+
+export interface IngressInfo {
+  name: string
+  hosts: string[]
+  class?: string | null
+  backends: string[]
+}
+
+export interface IngressDetail {
+  name: string
+  namespace: string
+  class?: string | null
+  class_source?: 'spec' | 'annotation' | 'default' | null
+  class_controller?: string | null
+  class_is_default?: boolean | null
+  addresses: Array<{ ip?: string | null; hostname?: string | null }>
+  tls: Array<{ secret_name?: string | null; hosts: string[] }>
+  default_backend?: any
+  rules: Array<{
+    host?: string | null
+    paths: Array<{
+      path?: string | null
+      path_type?: string | null
+      backend?: any
+    }>
+  }>
+  events: Array<{
+    type?: string | null
+    reason?: string | null
+    message?: string | null
+    count?: number | null
+    first_timestamp?: string | null
+    last_timestamp?: string | null
+  }>
+  created_at?: string | null
+}
+
+export interface IngressClassInfo {
+  name: string
+  controller?: string | null
+  is_default: boolean
+  parameters?: {
+    api_group?: string | null
+    kind?: string | null
+    name?: string | null
+    scope?: string | null
+    namespace?: string | null
+  } | null
+  created_at?: string | null
+}
+
+export interface EndpointInfo {
+  name: string
+  namespace: string
+  ready_count: number
+  not_ready_count: number
+  ready_addresses: string[]
+  not_ready_addresses: string[]
+  ready_targets?: Array<{
+    ip?: string | null
+    node_name?: string | null
+    target_ref?: {
+      kind?: string | null
+      name?: string | null
+      namespace?: string | null
+      uid?: string | null
+    } | null
+  }>
+  not_ready_targets?: Array<{
+    ip?: string | null
+    node_name?: string | null
+    target_ref?: {
+      kind?: string | null
+      name?: string | null
+      namespace?: string | null
+      uid?: string | null
+    } | null
+  }>
+  ports: Array<{
+    name?: string | null
+    port?: number | null
+    protocol?: string | null
+  }>
+  created_at?: string | null
+}
+
+export interface EndpointSliceInfo {
+  name: string
+  namespace: string
+  service_name?: string | null
+  address_type?: string | null
+  endpoints_total: number
+  endpoints_ready: number
+  ports: Array<{
+    name?: string | null
+    port?: number | null
+    protocol?: string | null
+  }>
+  created_at?: string | null
+}
+
+export interface NetworkPolicyInfo {
+  name: string
+  namespace: string
+  pod_selector: {
+    match_labels: Record<string, string>
+    match_expressions: Array<{
+      key?: string | null
+      operator?: string | null
+      values?: string[] | null
+    }>
+  }
+  selects_all_pods?: boolean
+  policy_types: string[]
+  default_deny_ingress?: boolean
+  default_deny_egress?: boolean
+  ingress_rules: number
+  egress_rules: number
+  ingress?: Array<{
+    from: Array<{
+      ip_block?: { cidr?: string | null; except?: string[] } | null
+      namespace_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+      pod_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+    }>
+    ports: Array<{
+      protocol?: string | null
+      port?: string | null
+      end_port?: number | null
+    }>
+  }>
+  egress?: Array<{
+    to: Array<{
+      ip_block?: { cidr?: string | null; except?: string[] } | null
+      namespace_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+      pod_selector?: {
+        match_labels: Record<string, string>
+        match_expressions: Array<{
+          key?: string | null
+          operator?: string | null
+          values?: string[] | null
+        }>
+      } | null
+    }>
+    ports: Array<{
+      protocol?: string | null
+      port?: string | null
+      end_port?: number | null
+    }>
+  }>
+  created_at?: string | null
 }
 
 export interface DeploymentInfo {
@@ -325,6 +498,46 @@ export const api = {
 
   getServices: async (namespace: string, forceRefresh = false): Promise<ServiceInfo[]> => {
     const { data } = await client.get(`/cluster/namespaces/${namespace}/services`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getIngresses: async (namespace: string, forceRefresh = false): Promise<IngressInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/ingresses`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getIngressClasses: async (forceRefresh = false): Promise<IngressClassInfo[]> => {
+    const { data } = await client.get('/cluster/ingressclasses', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getIngressDetail: async (namespace: string, name: string): Promise<IngressDetail> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/ingresses/${name}/detail`)
+    return data
+  },
+
+  getEndpoints: async (namespace: string, forceRefresh = false): Promise<EndpointInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpoints`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getEndpointSlices: async (namespace: string, forceRefresh = false): Promise<EndpointSliceInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpointslices`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getNetworkPolicies: async (namespace: string, forceRefresh = false): Promise<NetworkPolicyInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/networkpolicies`, {
       params: { force_refresh: forceRefresh },
     })
     return data

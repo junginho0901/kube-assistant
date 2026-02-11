@@ -307,7 +307,8 @@ class K8sService:
                             "name": port.name,
                             "port": port.port,
                             "target_port": str(port.target_port),
-                            "protocol": port.protocol
+                            "protocol": port.protocol,
+                            "node_port": getattr(port, "node_port", None),
                         })
                 
                 external_ip = None
@@ -381,6 +382,14 @@ class K8sService:
                     for spec in pod.spec.containers:
                         limits = None
                         requests = None
+                        ports = []
+                        if getattr(spec, "ports", None):
+                            for p in (spec.ports or []):
+                                ports.append({
+                                    "name": getattr(p, "name", None),
+                                    "container_port": getattr(p, "container_port", None),
+                                    "protocol": getattr(p, "protocol", None),
+                                })
                         if spec.resources:
                             if spec.resources.limits:
                                 # Quantity 객체를 문자열로 변환
@@ -391,7 +400,8 @@ class K8sService:
                                 print(f"[DEBUG] Pod {pod.metadata.name}, Container {spec.name}, Requests: {requests}")
                         container_specs[spec.name] = {
                             "limits": limits,
-                            "requests": requests
+                            "requests": requests,
+                            "ports": ports,
                         }
                 
                 if pod.status.container_statuses:
@@ -404,12 +414,14 @@ class K8sService:
                             "state": self._serialize_container_state(container.state),
                             "last_state": self._serialize_container_state(container.last_state),
                             "limits": None,
-                            "requests": None
+                            "requests": None,
+                            "ports": [],
                         }
                         # limits/requests 추가
                         if container.name in container_specs:
                             container_info["limits"] = container_specs[container.name].get("limits")
                             container_info["requests"] = container_specs[container.name].get("requests")
+                            container_info["ports"] = container_specs[container.name].get("ports") or []
                         containers.append(container_info)
                         restart_count += container.restart_count
                 
@@ -455,6 +467,14 @@ class K8sService:
                     for spec in pod.spec.containers:
                         limits = None
                         requests = None
+                        ports = []
+                        if getattr(spec, "ports", None):
+                            for p in (spec.ports or []):
+                                ports.append({
+                                    "name": getattr(p, "name", None),
+                                    "container_port": getattr(p, "container_port", None),
+                                    "protocol": getattr(p, "protocol", None),
+                                })
                         if spec.resources:
                             if spec.resources.limits:
                                 # Quantity 객체를 문자열로 변환
@@ -465,7 +485,8 @@ class K8sService:
                                 print(f"[DEBUG] Pod {pod.metadata.name}, Container {spec.name}, Requests: {requests}")
                         container_specs[spec.name] = {
                             "limits": limits,
-                            "requests": requests
+                            "requests": requests,
+                            "ports": ports,
                         }
                 
                 if pod.status.container_statuses:
@@ -478,12 +499,14 @@ class K8sService:
                             "state": self._serialize_container_state(container.state),
                             "last_state": self._serialize_container_state(container.last_state),
                             "limits": None,
-                            "requests": None
+                            "requests": None,
+                            "ports": [],
                         }
                         # limits/requests 추가
                         if container.name in container_specs:
                             container_info["limits"] = container_specs[container.name].get("limits")
                             container_info["requests"] = container_specs[container.name].get("requests")
+                            container_info["ports"] = container_specs[container.name].get("ports") or []
                         containers.append(container_info)
                         restart_count += container.restart_count
                 
@@ -768,15 +791,311 @@ class K8sService:
                 hosts = []
                 if ing.spec.rules:
                     hosts = [rule.host for rule in ing.spec.rules if rule.host]
+                backends = set()
+                # default backend
+                default_backend = getattr(ing.spec, "default_backend", None)
+                if default_backend and getattr(default_backend, "service", None):
+                    svc = default_backend.service
+                    if getattr(svc, "name", None):
+                        backends.add(svc.name)
+                # rules backends
+                for rule in (ing.spec.rules or []):
+                    http = getattr(rule, "http", None)
+                    if not http or not getattr(http, "paths", None):
+                        continue
+                    for path in (http.paths or []):
+                        backend = getattr(path, "backend", None)
+                        service = getattr(backend, "service", None) if backend else None
+                        if service and getattr(service, "name", None):
+                            backends.add(service.name)
                 result.append({
                     "name": ing.metadata.name,
                     "hosts": hosts,
-                    "class": ing.spec.ingress_class_name
+                    "class": ing.spec.ingress_class_name,
+                    "backends": sorted(list(backends))
                 })
             return result
         except ApiException as e:
             raise Exception(f"Failed to get ingresses: {e}")
-    
+
+    async def get_ingressclasses(self) -> List[Dict]:
+        """IngressClass 목록 조회 (cluster-scoped)"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            classes = networking_v1.list_ingress_class()
+            result: List[Dict] = []
+            for ic in classes.items:
+                annotations = ic.metadata.annotations or {}
+                is_default = annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                params = None
+                if getattr(ic.spec, "parameters", None):
+                    p = ic.spec.parameters
+                    params = {
+                        "api_group": getattr(p, "api_group", None),
+                        "kind": getattr(p, "kind", None),
+                        "name": getattr(p, "name", None),
+                        "scope": getattr(p, "scope", None),
+                        "namespace": getattr(p, "namespace", None),
+                    }
+                result.append({
+                    "name": ic.metadata.name,
+                    "controller": getattr(ic.spec, "controller", None),
+                    "is_default": is_default,
+                    "parameters": params,
+                    "created_at": str(ic.metadata.creation_timestamp) if ic.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get ingressclasses: {e}")
+
+    async def get_endpoints(self, namespace: str) -> List[Dict]:
+        """Endpoints 목록 조회"""
+        try:
+            eps = self.v1.list_namespaced_endpoints(namespace)
+            result: List[Dict] = []
+            for ep in eps.items:
+                ready_addresses: List[str] = []
+                not_ready_addresses: List[str] = []
+                ready_targets: List[Dict[str, Any]] = []
+                not_ready_targets: List[Dict[str, Any]] = []
+                ports: List[Dict] = []
+
+                for subset in (ep.subsets or []):
+                    for addr in (subset.addresses or []):
+                        ip = getattr(addr, "ip", None)
+                        if ip:
+                            ready_addresses.append(ip)
+                        target_ref = getattr(addr, "target_ref", None)
+                        ready_targets.append({
+                            "ip": ip,
+                            "node_name": getattr(addr, "node_name", None),
+                            "target_ref": {
+                                "kind": getattr(target_ref, "kind", None) if target_ref else None,
+                                "name": getattr(target_ref, "name", None) if target_ref else None,
+                                "namespace": getattr(target_ref, "namespace", None) if target_ref else None,
+                                "uid": getattr(target_ref, "uid", None) if target_ref else None,
+                            } if target_ref else None,
+                        })
+                    for addr in (subset.not_ready_addresses or []):
+                        ip = getattr(addr, "ip", None)
+                        if ip:
+                            not_ready_addresses.append(ip)
+                        target_ref = getattr(addr, "target_ref", None)
+                        not_ready_targets.append({
+                            "ip": ip,
+                            "node_name": getattr(addr, "node_name", None),
+                            "target_ref": {
+                                "kind": getattr(target_ref, "kind", None) if target_ref else None,
+                                "name": getattr(target_ref, "name", None) if target_ref else None,
+                                "namespace": getattr(target_ref, "namespace", None) if target_ref else None,
+                                "uid": getattr(target_ref, "uid", None) if target_ref else None,
+                            } if target_ref else None,
+                        })
+                    for p in (subset.ports or []):
+                        ports.append({
+                            "name": getattr(p, "name", None),
+                            "port": getattr(p, "port", None),
+                            "protocol": getattr(p, "protocol", None),
+                        })
+
+                # de-dup ports
+                seen = set()
+                dedup_ports = []
+                for p in ports:
+                    key = (p.get("name"), p.get("port"), p.get("protocol"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    dedup_ports.append(p)
+
+                result.append({
+                    "name": ep.metadata.name,
+                    "namespace": ep.metadata.namespace,
+                    "ready_count": len(ready_addresses),
+                    "not_ready_count": len(not_ready_addresses),
+                    "ready_addresses": ready_addresses[:50],
+                    "not_ready_addresses": not_ready_addresses[:50],
+                    "ready_targets": ready_targets[:50],
+                    "not_ready_targets": not_ready_targets[:50],
+                    "ports": dedup_ports,
+                    "created_at": str(ep.metadata.creation_timestamp) if ep.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get endpoints: {e}")
+
+    async def get_endpointslices(self, namespace: str) -> List[Dict]:
+        """EndpointSlice 목록 조회 (discovery.k8s.io/v1)"""
+        try:
+            # NOTE: Some clusters may return EndpointSlice objects with `endpoints: null`,
+            # which can break the typed DiscoveryV1Api deserialization (ValueError).
+            # Use CustomObjectsApi (unstructured) to be resilient.
+            custom_api = client.CustomObjectsApi()
+            slices = custom_api.list_namespaced_custom_object(
+                group="discovery.k8s.io",
+                version="v1",
+                namespace=namespace,
+                plural="endpointslices",
+            )
+            result: List[Dict] = []
+            for es in (slices.get("items", []) or []):
+                metadata = es.get("metadata", {}) or {}
+                labels = metadata.get("labels", {}) or {}
+                service_name = labels.get("kubernetes.io/service-name")
+                total = 0
+                ready = 0
+                for e in (es.get("endpoints", []) or []):
+                    total += 1
+                    cond = e.get("conditions", {}) or {}
+                    is_ready = cond.get("ready", None)
+                    if is_ready is True or is_ready is None:
+                        # ready==None can appear; treat as ready-ish for high-level summary
+                        ready += 1
+                ports: List[Dict] = []
+                for p in (es.get("ports", []) or []):
+                    ports.append({
+                        "name": p.get("name"),
+                        "port": p.get("port"),
+                        "protocol": p.get("protocol"),
+                    })
+                result.append({
+                    "name": metadata.get("name"),
+                    "namespace": metadata.get("namespace"),
+                    "service_name": service_name,
+                    "address_type": es.get("addressType"),
+                    "endpoints_total": total,
+                    "endpoints_ready": ready,
+                    "ports": ports,
+                    "created_at": metadata.get("creationTimestamp"),
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get endpointslices: {e}")
+
+    async def get_networkpolicies(self, namespace: str) -> List[Dict]:
+        """NetworkPolicy 목록 조회"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            policies = networking_v1.list_namespaced_network_policy(namespace)
+            result: List[Dict] = []
+
+            def _selector_to_dict(selector: Any) -> Dict[str, Any]:
+                if not selector:
+                    return {"match_labels": {}, "match_expressions": []}
+                return {
+                    "match_labels": getattr(selector, "match_labels", None) or {},
+                    "match_expressions": [
+                        {
+                            "key": getattr(expr, "key", None),
+                            "operator": getattr(expr, "operator", None),
+                            "values": getattr(expr, "values", None),
+                        }
+                        for expr in (getattr(selector, "match_expressions", None) or [])
+                    ],
+                }
+
+            def _selects_all_pods(selector: Any) -> bool:
+                if not selector:
+                    return True
+                ml = getattr(selector, "match_labels", None) or {}
+                me = getattr(selector, "match_expressions", None) or []
+                return len(ml) == 0 and len(me) == 0
+
+            def _policy_types(spec: Any) -> List[str]:
+                if not spec:
+                    return []
+                explicit = list(getattr(spec, "policy_types", None) or [])
+                if explicit:
+                    return explicit
+                inferred: List[str] = []
+                if getattr(spec, "ingress", None) is not None:
+                    inferred.append("Ingress")
+                if getattr(spec, "egress", None) is not None:
+                    inferred.append("Egress")
+                return inferred
+
+            def _port_to_dict(p: Any) -> Dict[str, Any]:
+                if p is None:
+                    return {}
+                port = getattr(p, "port", None)
+                # IntOrString can be int or str
+                port_value = None if port is None else str(port)
+                return {
+                    "protocol": getattr(p, "protocol", None),
+                    "port": port_value,
+                    "end_port": getattr(p, "end_port", None),
+                }
+
+            def _peer_to_dict(peer: Any) -> Dict[str, Any]:
+                if peer is None:
+                    return {}
+                ip_block = getattr(peer, "ip_block", None)
+                ns_sel = getattr(peer, "namespace_selector", None)
+                pod_sel = getattr(peer, "pod_selector", None)
+                return {
+                    "ip_block": {
+                        "cidr": getattr(ip_block, "cidr", None),
+                        "except": list(getattr(ip_block, "_except", None) or []),
+                    } if ip_block is not None else None,
+                    "namespace_selector": _selector_to_dict(ns_sel) if ns_sel is not None else None,
+                    "pod_selector": _selector_to_dict(pod_sel) if pod_sel is not None else None,
+                }
+
+            def _ingress_rules(spec: Any) -> List[Dict[str, Any]]:
+                rules = getattr(spec, "ingress", None)
+                if rules is None:
+                    return []
+                out: List[Dict[str, Any]] = []
+                for r in (rules or []):
+                    peers = list(getattr(r, "_from", None) or getattr(r, "from", None) or [])
+                    ports = list(getattr(r, "ports", None) or [])
+                    out.append({
+                        "from": [_peer_to_dict(p) for p in peers][:20],
+                        "ports": [_port_to_dict(p) for p in ports][:50],
+                    })
+                return out
+
+            def _egress_rules(spec: Any) -> List[Dict[str, Any]]:
+                rules = getattr(spec, "egress", None)
+                if rules is None:
+                    return []
+                out: List[Dict[str, Any]] = []
+                for r in (rules or []):
+                    peers = list(getattr(r, "to", None) or [])
+                    ports = list(getattr(r, "ports", None) or [])
+                    out.append({
+                        "to": [_peer_to_dict(p) for p in peers][:20],
+                        "ports": [_port_to_dict(p) for p in ports][:50],
+                    })
+                return out
+
+            for np in policies.items:
+                spec = getattr(np, "spec", None)
+                ps = getattr(spec, "pod_selector", None) if spec else None
+                selector = _selector_to_dict(ps)
+                types = _policy_types(spec)
+                ingress = getattr(spec, "ingress", None) if spec else None
+                egress = getattr(spec, "egress", None) if spec else None
+                default_deny_ingress = ("Ingress" in types) and (ingress is None or len(ingress or []) == 0)
+                default_deny_egress = ("Egress" in types) and (egress is None or len(egress or []) == 0)
+                result.append({
+                    "name": np.metadata.name,
+                    "namespace": np.metadata.namespace,
+                    "pod_selector": selector,
+                    "selects_all_pods": _selects_all_pods(ps),
+                    "policy_types": types,
+                    "default_deny_ingress": default_deny_ingress,
+                    "default_deny_egress": default_deny_egress,
+                    "ingress_rules": len(ingress or []) if spec else 0,
+                    "egress_rules": len(egress or []) if spec else 0,
+                    "ingress": _ingress_rules(spec) if spec else [],
+                    "egress": _egress_rules(spec) if spec else [],
+                    "created_at": str(np.metadata.creation_timestamp) if np.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get networkpolicies: {e}")
+
     async def get_ingress_yaml(self, namespace: str, name: str) -> str:
         """Ingress YAML 조회"""
         try:
@@ -789,6 +1108,163 @@ class K8sService:
             return yaml.dump(ing_dict, default_flow_style=False, allow_unicode=True)
         except ApiException as e:
             raise Exception(f"Failed to get ingress YAML: {e}")
+
+    async def get_ingress_detail(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Ingress 상세 요약 (주소/규칙/백엔드/TLS/클래스/이벤트)"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            ing = networking_v1.read_namespaced_ingress(name, namespace)
+
+            annotations = ing.metadata.annotations or {}
+            spec_class_name = getattr(ing.spec, "ingress_class_name", None)
+            anno_class_name = annotations.get("kubernetes.io/ingress.class")
+
+            ingress_class_name = None
+            ingress_class_source = None  # spec | annotation | default | None
+
+            if spec_class_name:
+                ingress_class_name = spec_class_name
+                ingress_class_source = "spec"
+            elif anno_class_name:
+                ingress_class_name = anno_class_name
+                ingress_class_source = "annotation"
+
+            # IngressClass controller (optional)
+            class_controller = None
+            class_is_default = None
+            if ingress_class_name:
+                try:
+                    ic = networking_v1.read_ingress_class(ingress_class_name)
+                    class_controller = getattr(ic.spec, "controller", None) if getattr(ic, "spec", None) else None
+                    ic_annotations = ic.metadata.annotations or {}
+                    class_is_default = ic_annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                except Exception:
+                    pass
+            else:
+                # No explicit class: try default ingressclass (candidate only)
+                try:
+                    classes = networking_v1.list_ingress_class().items
+                    defaults = []
+                    for ic in classes:
+                        ic_annotations = ic.metadata.annotations or {}
+                        if ic_annotations.get("ingressclass.kubernetes.io/is-default-class") == "true":
+                            defaults.append(ic)
+                    if len(defaults) == 1:
+                        ic = defaults[0]
+                        ingress_class_name = ic.metadata.name
+                        ingress_class_source = "default"
+                        class_controller = getattr(ic.spec, "controller", None) if getattr(ic, "spec", None) else None
+                        class_is_default = True
+                    elif len(defaults) > 1:
+                        # ambiguous: don't guess; return none and let UI show unknown
+                        ingress_class_name = None
+                        ingress_class_source = None
+                except Exception:
+                    pass
+
+            # Addresses
+            addresses: List[Dict[str, Optional[str]]] = []
+            lb = getattr(ing.status, "load_balancer", None)
+            for item in (getattr(lb, "ingress", None) or []):
+                addresses.append({
+                    "ip": getattr(item, "ip", None),
+                    "hostname": getattr(item, "hostname", None),
+                })
+
+            # TLS
+            tls: List[Dict[str, Any]] = []
+            for t in (getattr(ing.spec, "tls", None) or []):
+                tls.append({
+                    "secret_name": getattr(t, "secret_name", None),
+                    "hosts": list(getattr(t, "hosts", None) or []),
+                })
+
+            def _backend_to_dict(backend: Any) -> Dict[str, Any]:
+                if backend is None:
+                    return {}
+                svc = getattr(backend, "service", None)
+                if svc is not None:
+                    port_obj = getattr(svc, "port", None)
+                    port = None
+                    if port_obj is not None:
+                        port = getattr(port_obj, "number", None) or getattr(port_obj, "name", None)
+                    return {
+                        "type": "service",
+                        "service": {
+                            "name": getattr(svc, "name", None),
+                            "port": port,
+                        },
+                    }
+                res = getattr(backend, "resource", None)
+                if res is not None:
+                    return {
+                        "type": "resource",
+                        "resource": client.ApiClient().sanitize_for_serialization(res),
+                    }
+                return {}
+
+            # Default backend
+            default_backend = _backend_to_dict(getattr(ing.spec, "default_backend", None))
+
+            # Rules + paths
+            rules: List[Dict[str, Any]] = []
+            for rule in (getattr(ing.spec, "rules", None) or []):
+                http = getattr(rule, "http", None)
+                paths: List[Dict[str, Any]] = []
+                if http and getattr(http, "paths", None):
+                    for p in (http.paths or []):
+                        paths.append({
+                            "path": getattr(p, "path", None),
+                            "path_type": getattr(p, "path_type", None),
+                            "backend": _backend_to_dict(getattr(p, "backend", None)),
+                        })
+                rules.append({
+                    "host": getattr(rule, "host", None),
+                    "paths": paths,
+                })
+
+            # Events (best-effort)
+            events: List[Dict[str, Any]] = []
+            try:
+                raw_events = self.v1.list_namespaced_event(namespace)
+                for ev in raw_events.items:
+                    inv = getattr(ev, "involved_object", None)
+                    if not inv:
+                        continue
+                    if getattr(inv, "kind", None) != "Ingress":
+                        continue
+                    if getattr(inv, "name", None) != name:
+                        continue
+                    events.append({
+                        "type": getattr(ev, "type", None),
+                        "reason": getattr(ev, "reason", None),
+                        "message": getattr(ev, "message", None),
+                        "count": getattr(ev, "count", None),
+                        "first_timestamp": self._to_iso(getattr(ev, "first_timestamp", None)),
+                        "last_timestamp": self._to_iso(getattr(ev, "last_timestamp", None)),
+                    })
+                # sort by last_timestamp desc (string iso; None last)
+                events.sort(key=lambda e: (e.get("last_timestamp") is not None, e.get("last_timestamp") or ""), reverse=True)
+                events = events[:10]
+            except Exception:
+                pass
+
+            return {
+                "name": ing.metadata.name,
+                "namespace": ing.metadata.namespace,
+                "class": ingress_class_name,
+                "class_source": ingress_class_source,
+                "class_controller": class_controller,
+                "class_is_default": class_is_default,
+                "addresses": addresses,
+                "tls": tls,
+                "default_backend": default_backend,
+                "rules": rules,
+                "events": events,
+                "created_at": str(ing.metadata.creation_timestamp) if ing.metadata.creation_timestamp else None,
+            }
+        except ApiException as e:
+            raise Exception(f"Failed to get ingress detail: {e}")
     
     async def get_jobs(self, namespace: str) -> List[Dict]:
         """Job 목록 조회"""

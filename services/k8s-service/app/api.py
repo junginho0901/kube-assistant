@@ -357,6 +357,51 @@ async def get_ingress_yaml(namespace: str, name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/namespaces/{namespace}/ingresses/{name}/detail")
+async def get_ingress_detail(namespace: str, name: str):
+    """Ingress 상세 요약 (주소/규칙/백엔드/TLS/클래스/이벤트)"""
+    try:
+        return await k8s_service.get_ingress_detail(namespace, name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Network
+@router.get("/ingressclasses")
+async def get_ingressclasses(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """IngressClass 목록 (cluster-scoped)"""
+    try:
+        return await k8s_service.get_ingressclasses()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/endpoints")
+async def get_endpoints(namespace: str, force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """Endpoints 목록 조회"""
+    try:
+        return await k8s_service.get_endpoints(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/endpointslices")
+async def get_endpointslices(namespace: str, force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """EndpointSlice 목록 조회"""
+    try:
+        return await k8s_service.get_endpointslices(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/networkpolicies")
+async def get_networkpolicies(namespace: str, force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """NetworkPolicy 목록 조회"""
+    try:
+        return await k8s_service.get_networkpolicies(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Job
 @router.get("/namespaces/{namespace}/jobs")
