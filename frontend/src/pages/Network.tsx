@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
-import { Network, Search, Server, Shield, Waypoints } from 'lucide-react'
+import { Network, RefreshCw, Search, Server, Shield, Waypoints } from 'lucide-react'
 
 function buildLabelSelector(selector: Record<string, string> | undefined | null): string | undefined {
   if (!selector) return undefined
@@ -55,10 +55,15 @@ function podMatchesNetworkPolicy(pod: PodInfo, policy: NetworkPolicyInfo): boole
 
 export default function NetworkPage() {
   const { namespace } = useParams<{ namespace: string }>()
+  const queryClient = useQueryClient()
   const [selectedServiceName, setSelectedServiceName] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const { data: services, isLoading: isLoadingServices } = useQuery({
+  const {
+    data: services,
+    isLoading: isLoadingServices,
+  } = useQuery({
     queryKey: ['network', 'services', namespace],
     queryFn: () => api.getServices(namespace!),
     enabled: !!namespace,
@@ -90,7 +95,7 @@ export default function NetworkPage() {
 
   const { data: ingressClasses } = useQuery({
     queryKey: ['network', 'ingressclasses'],
-    queryFn: api.getIngressClasses,
+    queryFn: () => api.getIngressClasses(),
   })
 
   const selectedService: ServiceInfo | null = useMemo(() => {
@@ -105,6 +110,42 @@ export default function NetworkPage() {
     queryFn: () => api.getPods(namespace!, labelSelector),
     enabled: !!namespace && !!selectedService && !!labelSelector,
   })
+
+  const handleRefresh = async () => {
+    if (!namespace) return
+    setIsRefreshing(true)
+    try {
+      const [
+        freshServices,
+        freshIngresses,
+        freshEndpoints,
+        freshEndpointSlices,
+        freshNetworkPolicies,
+        freshIngressClasses,
+        freshPodsForService,
+      ] = await Promise.all([
+        api.getServices(namespace, true),
+        api.getIngresses(namespace, true),
+        api.getEndpoints(namespace, true),
+        api.getEndpointSlices(namespace, true),
+        api.getNetworkPolicies(namespace, true),
+        api.getIngressClasses(true),
+        selectedService && labelSelector ? api.getPods(namespace, labelSelector, true) : Promise.resolve(null),
+      ])
+
+      queryClient.setQueryData(['network', 'services', namespace], freshServices)
+      queryClient.setQueryData(['network', 'ingresses', namespace], freshIngresses)
+      queryClient.setQueryData(['network', 'endpoints', namespace], freshEndpoints)
+      queryClient.setQueryData(['network', 'endpointslices', namespace], freshEndpointSlices)
+      queryClient.setQueryData(['network', 'networkpolicies', namespace], freshNetworkPolicies)
+      queryClient.setQueryData(['network', 'ingressclasses'], freshIngressClasses)
+      if (freshPodsForService && selectedService && labelSelector) {
+        queryClient.setQueryData(['network', 'pods', namespace, selectedService.name, labelSelector], freshPodsForService)
+      }
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500)
+    }
+  }
 
   const filteredServices = useMemo(() => {
     const list = services ?? []
@@ -168,12 +209,24 @@ export default function NetworkPage() {
             Service ↔ Endpoints/EndpointSlices ↔ Ingress ↔ NetworkPolicy 연결을 빠르게 확인합니다
           </p>
         </div>
-        <div className="text-right text-xs text-slate-400">
-          <div>Services: {services?.length ?? 0}</div>
-          <div>Ingresses: {ingresses?.length ?? 0}</div>
-          <div>Endpoints: {endpoints?.length ?? 0}</div>
-          <div>EndpointSlices: {endpointSlices?.length ?? 0}</div>
-          <div>NetworkPolicies: {networkPolicies?.length ?? 0}</div>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="새로고침 (강제 갱신)"
+            className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            새로고침
+          </button>
+          <div className="text-right text-xs text-slate-400">
+            <div>Services: {services?.length ?? 0}</div>
+            <div>Ingresses: {ingresses?.length ?? 0}</div>
+            <div>Endpoints: {endpoints?.length ?? 0}</div>
+            <div>EndpointSlices: {endpointSlices?.length ?? 0}</div>
+            <div>NetworkPolicies: {networkPolicies?.length ?? 0}</div>
+          </div>
         </div>
       </div>
 
@@ -405,4 +458,3 @@ export default function NetworkPage() {
     </div>
   )
 }
-

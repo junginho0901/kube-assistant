@@ -398,28 +398,38 @@ export const api = {
     return data
   },
 
-  getIngresses: async (namespace: string): Promise<IngressInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/ingresses`)
+  getIngresses: async (namespace: string, forceRefresh = false): Promise<IngressInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/ingresses`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
-  getIngressClasses: async (): Promise<IngressClassInfo[]> => {
-    const { data } = await client.get('/cluster/ingressclasses')
+  getIngressClasses: async (forceRefresh = false): Promise<IngressClassInfo[]> => {
+    const { data } = await client.get('/cluster/ingressclasses', {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
-  getEndpoints: async (namespace: string): Promise<EndpointInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpoints`)
+  getEndpoints: async (namespace: string, forceRefresh = false): Promise<EndpointInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpoints`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
-  getEndpointSlices: async (namespace: string): Promise<EndpointSliceInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpointslices`)
+  getEndpointSlices: async (namespace: string, forceRefresh = false): Promise<EndpointSliceInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/endpointslices`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
-  getNetworkPolicies: async (namespace: string): Promise<NetworkPolicyInfo[]> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/networkpolicies`)
+  getNetworkPolicies: async (namespace: string, forceRefresh = false): Promise<NetworkPolicyInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/networkpolicies`, {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 
