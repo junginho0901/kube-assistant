@@ -768,15 +768,186 @@ class K8sService:
                 hosts = []
                 if ing.spec.rules:
                     hosts = [rule.host for rule in ing.spec.rules if rule.host]
+                backends = set()
+                # default backend
+                default_backend = getattr(ing.spec, "default_backend", None)
+                if default_backend and getattr(default_backend, "service", None):
+                    svc = default_backend.service
+                    if getattr(svc, "name", None):
+                        backends.add(svc.name)
+                # rules backends
+                for rule in (ing.spec.rules or []):
+                    http = getattr(rule, "http", None)
+                    if not http or not getattr(http, "paths", None):
+                        continue
+                    for path in (http.paths or []):
+                        backend = getattr(path, "backend", None)
+                        service = getattr(backend, "service", None) if backend else None
+                        if service and getattr(service, "name", None):
+                            backends.add(service.name)
                 result.append({
                     "name": ing.metadata.name,
                     "hosts": hosts,
-                    "class": ing.spec.ingress_class_name
+                    "class": ing.spec.ingress_class_name,
+                    "backends": sorted(list(backends))
                 })
             return result
         except ApiException as e:
             raise Exception(f"Failed to get ingresses: {e}")
-    
+
+    async def get_ingressclasses(self) -> List[Dict]:
+        """IngressClass 목록 조회 (cluster-scoped)"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            classes = networking_v1.list_ingress_class()
+            result: List[Dict] = []
+            for ic in classes.items:
+                annotations = ic.metadata.annotations or {}
+                is_default = annotations.get("ingressclass.kubernetes.io/is-default-class") == "true"
+                params = None
+                if getattr(ic.spec, "parameters", None):
+                    p = ic.spec.parameters
+                    params = {
+                        "api_group": getattr(p, "api_group", None),
+                        "kind": getattr(p, "kind", None),
+                        "name": getattr(p, "name", None),
+                        "scope": getattr(p, "scope", None),
+                        "namespace": getattr(p, "namespace", None),
+                    }
+                result.append({
+                    "name": ic.metadata.name,
+                    "controller": getattr(ic.spec, "controller", None),
+                    "is_default": is_default,
+                    "parameters": params,
+                    "created_at": str(ic.metadata.creation_timestamp) if ic.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get ingressclasses: {e}")
+
+    async def get_endpoints(self, namespace: str) -> List[Dict]:
+        """Endpoints 목록 조회"""
+        try:
+            eps = self.v1.list_namespaced_endpoints(namespace)
+            result: List[Dict] = []
+            for ep in eps.items:
+                ready_addresses: List[str] = []
+                not_ready_addresses: List[str] = []
+                ports: List[Dict] = []
+
+                for subset in (ep.subsets or []):
+                    for addr in (subset.addresses or []):
+                        ip = getattr(addr, "ip", None)
+                        if ip:
+                            ready_addresses.append(ip)
+                    for addr in (subset.not_ready_addresses or []):
+                        ip = getattr(addr, "ip", None)
+                        if ip:
+                            not_ready_addresses.append(ip)
+                    for p in (subset.ports or []):
+                        ports.append({
+                            "name": getattr(p, "name", None),
+                            "port": getattr(p, "port", None),
+                            "protocol": getattr(p, "protocol", None),
+                        })
+
+                # de-dup ports
+                seen = set()
+                dedup_ports = []
+                for p in ports:
+                    key = (p.get("name"), p.get("port"), p.get("protocol"))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    dedup_ports.append(p)
+
+                result.append({
+                    "name": ep.metadata.name,
+                    "namespace": ep.metadata.namespace,
+                    "ready_count": len(ready_addresses),
+                    "not_ready_count": len(not_ready_addresses),
+                    "ready_addresses": ready_addresses[:50],
+                    "not_ready_addresses": not_ready_addresses[:50],
+                    "ports": dedup_ports,
+                    "created_at": str(ep.metadata.creation_timestamp) if ep.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get endpoints: {e}")
+
+    async def get_endpointslices(self, namespace: str) -> List[Dict]:
+        """EndpointSlice 목록 조회 (discovery.k8s.io/v1)"""
+        try:
+            discovery_v1 = client.DiscoveryV1Api()
+            slices = discovery_v1.list_namespaced_endpoint_slice(namespace)
+            result: List[Dict] = []
+            for es in slices.items:
+                labels = es.metadata.labels or {}
+                service_name = labels.get("kubernetes.io/service-name")
+                total = 0
+                ready = 0
+                for e in (es.endpoints or []):
+                    total += 1
+                    cond = getattr(e, "conditions", None)
+                    is_ready = getattr(cond, "ready", None) if cond else None
+                    if is_ready is True or is_ready is None:
+                        # ready==None can appear; treat as ready-ish for high-level summary
+                        ready += 1
+                ports: List[Dict] = []
+                for p in (es.ports or []):
+                    ports.append({
+                        "name": getattr(p, "name", None),
+                        "port": getattr(p, "port", None),
+                        "protocol": getattr(p, "protocol", None),
+                    })
+                result.append({
+                    "name": es.metadata.name,
+                    "namespace": es.metadata.namespace,
+                    "service_name": service_name,
+                    "address_type": getattr(es, "address_type", None),
+                    "endpoints_total": total,
+                    "endpoints_ready": ready,
+                    "ports": ports,
+                    "created_at": str(es.metadata.creation_timestamp) if es.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get endpointslices: {e}")
+
+    async def get_networkpolicies(self, namespace: str) -> List[Dict]:
+        """NetworkPolicy 목록 조회"""
+        try:
+            networking_v1 = client.NetworkingV1Api()
+            policies = networking_v1.list_namespaced_network_policy(namespace)
+            result: List[Dict] = []
+            for np in policies.items:
+                selector = {}
+                if np.spec and getattr(np.spec, "pod_selector", None):
+                    ps = np.spec.pod_selector
+                    selector = {
+                        "match_labels": ps.match_labels or {},
+                        "match_expressions": [
+                            {
+                                "key": getattr(expr, "key", None),
+                                "operator": getattr(expr, "operator", None),
+                                "values": getattr(expr, "values", None),
+                            }
+                            for expr in (ps.match_expressions or [])
+                        ],
+                    }
+                result.append({
+                    "name": np.metadata.name,
+                    "namespace": np.metadata.namespace,
+                    "pod_selector": selector,
+                    "policy_types": list(np.spec.policy_types or []) if np.spec else [],
+                    "ingress_rules": len(np.spec.ingress or []) if np.spec else 0,
+                    "egress_rules": len(np.spec.egress or []) if np.spec else 0,
+                    "created_at": str(np.metadata.creation_timestamp) if np.metadata.creation_timestamp else None,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get networkpolicies: {e}")
+
     async def get_ingress_yaml(self, namespace: str, name: str) -> str:
         """Ingress YAML 조회"""
         try:
