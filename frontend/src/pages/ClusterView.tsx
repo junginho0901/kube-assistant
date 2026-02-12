@@ -1345,7 +1345,15 @@ export default function ClusterView() {
               {showRbac && (
                 <div className="space-y-6">
                   <div className="flex items-start justify-between gap-4">
-                    <h3 className="text-lg font-semibold text-white">RBAC</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-white">RBAC</h3>
+                      <span
+                        className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs border border-slate-600"
+                        title="이 화면은 RBAC(Role/RoleBinding/ClusterRole/ClusterRoleBinding) 기준으로만 요약합니다. 실제 허용/차단은 Admission(OPA/Gatekeeper 등), NetworkPolicy/CNI, 컨트롤러 구현 등에 따라 달라질 수 있습니다."
+                      >
+                        참고: RBAC 기준
+                      </span>
+                    </div>
                     <div className="flex flex-col items-end gap-2">
                       <label className="flex items-center gap-2 text-xs text-slate-300 select-none cursor-pointer">
                         <input
