@@ -59,7 +59,17 @@ export default function Storage() {
     queryKey: ['storage', 'pv', selectedPvc?.volume_name],
     queryFn: async () => {
       if (!selectedPvc?.volume_name) return null
-      return await api.getPV(selectedPvc.volume_name)
+      try {
+        return await api.getPV(selectedPvc.volume_name)
+      } catch (e: any) {
+        // Backend가 아직 /pvs/{name} 엔드포인트를 제공하지 않거나(404) 클러스터 환경에서 비활성화된 경우,
+        // 목록 조회로 fallback한다.
+        if (e?.response?.status === 404) {
+          const all = await api.getPVs()
+          return all.find((pv: any) => pv?.name === selectedPvc.volume_name) || null
+        }
+        throw e
+      }
     },
     enabled: activeTab === 'pvcs' && !!selectedPvc?.volume_name,
     retry: 0,
@@ -69,7 +79,15 @@ export default function Storage() {
     queryKey: ['storage', 'storageclass', selectedPvc?.storage_class],
     queryFn: async () => {
       if (!selectedPvc?.storage_class) return null
-      return await api.getStorageClass(selectedPvc.storage_class)
+      try {
+        return await api.getStorageClass(selectedPvc.storage_class)
+      } catch (e: any) {
+        if (e?.response?.status === 404) {
+          const all = await api.getStorageClasses(false)
+          return all.find((sc: any) => sc?.name === selectedPvc.storage_class) || null
+        }
+        throw e
+      }
     },
     enabled: activeTab === 'pvcs' && !!selectedPvc?.storage_class,
     retry: 0,
