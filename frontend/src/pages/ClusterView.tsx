@@ -288,7 +288,7 @@ export default function ClusterView() {
   })
 
   // Pod RBAC 조회
-  const { data: rbacData, isLoading: isRbacLoading, error: rbacError, refetch: refetchRbac, isFetching: isRbacFetching } = useQuery({
+  const { data: rbacData, isLoading: isRbacLoading, error: rbacError } = useQuery({
     queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name],
     queryFn: async () => {
       if (!selectedPod) return null
@@ -1200,17 +1200,7 @@ export default function ClusterView() {
 
               {showRbac && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">RBAC</h3>
-                    <button
-                      onClick={() => refetchRbac()}
-                      disabled={isRbacFetching}
-                      className="h-9 px-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg border border-slate-600 transition-colors flex items-center gap-2 text-sm"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isRbacFetching ? 'animate-spin' : ''}`} />
-                      새로고침
-                    </button>
-                  </div>
+                  <h3 className="text-lg font-semibold text-white">RBAC</h3>
 
                   {isRbacLoading && (
                     <div className="text-slate-400">RBAC 정보를 불러오는 중...</div>
