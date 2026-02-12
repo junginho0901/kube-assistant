@@ -220,6 +220,24 @@ async def get_pvs():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/storageclasses")
+async def get_storageclasses(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """StorageClass 목록 조회"""
+    try:
+        return await k8s_service.get_storageclasses(force_refresh=force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/volumeattachments")
+async def get_volumeattachments(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """VolumeAttachment 목록 조회 (클러스터/환경에 따라 권한 또는 리소스가 없을 수 있음)"""
+    try:
+        return await k8s_service.get_volumeattachments(force_refresh=force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/namespaces/{namespace}/events")
 async def get_events(
     namespace: str,

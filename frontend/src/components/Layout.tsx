@@ -1,13 +1,14 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { LayoutDashboard, Boxes, MessageSquare, Activity, Layers, LogOut, Shield } from 'lucide-react'
+import { LayoutDashboard, Boxes, MessageSquare, Activity, Layers, LogOut, Shield, HardDrive } from 'lucide-react'
 import { api } from '@/services/api'
 import { clearAccessToken } from '@/services/auth'
 
 const navigation = [
   { name: '대시보드', href: '/', icon: LayoutDashboard },
   { name: '네임스페이스', href: '/namespaces', icon: Boxes },
+  { name: '스토리지', href: '/storage', icon: HardDrive },
   { name: '리소스 모니터링', href: '/monitoring', icon: Activity },
   { name: '클러스터 뷰', href: '/cluster-view', icon: Layers },
   { name: 'AI 챗', href: '/ai-chat', icon: MessageSquare },

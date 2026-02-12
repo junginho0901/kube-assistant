@@ -629,6 +629,70 @@ class K8sService:
             return result
         except ApiException as e:
             raise Exception(f"Failed to get PVs: {e}")
+
+    async def get_storageclasses(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """StorageClass 목록"""
+        try:
+            storage_v1 = client.StorageV1Api()
+            scs = storage_v1.list_storage_class()
+
+            result: List[Dict[str, Any]] = []
+            for sc in scs.items:
+                annotations = sc.metadata.annotations or {}
+                is_default = annotations.get("storageclass.kubernetes.io/is-default-class") == "true" or annotations.get(
+                    "storageclass.beta.kubernetes.io/is-default-class"
+                ) == "true"
+
+                result.append({
+                    "name": sc.metadata.name,
+                    "provisioner": sc.provisioner,
+                    "reclaim_policy": getattr(sc, "reclaim_policy", None),
+                    "volume_binding_mode": getattr(sc, "volume_binding_mode", None),
+                    "allow_volume_expansion": getattr(sc, "allow_volume_expansion", None),
+                    "is_default": is_default,
+                    "parameters": getattr(sc, "parameters", None) or {},
+                    "created_at": self._to_iso(getattr(sc.metadata, "creation_timestamp", None)),
+                })
+
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get StorageClasses: {e}")
+
+    async def get_volumeattachments(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """VolumeAttachment 목록"""
+        try:
+            storage_v1 = client.StorageV1Api()
+            vas = storage_v1.list_volume_attachment()
+
+            result: List[Dict[str, Any]] = []
+            for va in vas.items:
+                source = getattr(va.spec, "source", None)
+                persistent_volume_name = getattr(source, "persistent_volume_name", None) if source else None
+
+                status = getattr(va, "status", None)
+                attach_error = getattr(status, "attach_error", None) if status else None
+                detach_error = getattr(status, "detach_error", None) if status else None
+
+                result.append({
+                    "name": va.metadata.name,
+                    "attacher": getattr(va.spec, "attacher", None),
+                    "node_name": getattr(va.spec, "node_name", None),
+                    "persistent_volume_name": persistent_volume_name,
+                    "attached": getattr(status, "attached", None) if status else None,
+                    "attach_error": {
+                        "time": self._to_iso(getattr(attach_error, "time", None)),
+                        "message": getattr(attach_error, "message", None),
+                    } if attach_error else None,
+                    "detach_error": {
+                        "time": self._to_iso(getattr(detach_error, "time", None)),
+                        "message": getattr(detach_error, "message", None),
+                    } if detach_error else None,
+                    "created_at": self._to_iso(getattr(va.metadata, "creation_timestamp", None)),
+                })
+
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get VolumeAttachments: {e}")
     
     async def get_events(self, namespace: str, resource_name: Optional[str] = None) -> List[Dict]:
         """이벤트 조회"""
