@@ -27,6 +27,14 @@ type PvSortKey =
   | 'reclaim_policy'
   | 'access_modes'
   | 'claim'
+type StorageClassSortKey =
+  | 'name'
+  | 'is_default'
+  | 'provisioner'
+  | 'volume_binding_mode'
+  | 'allow_volume_expansion'
+  | 'reclaim_policy'
+type VolumeAttachmentSortKey = 'name' | 'attached' | 'persistent_volume_name' | 'node_name' | 'attacher' | 'error'
 
 export default function Storage() {
   const queryClient = useQueryClient()
@@ -44,6 +52,14 @@ export default function Storage() {
     dir: 'asc',
   })
   const [pvColumnMode, setPvColumnMode] = useState<'compact' | 'full'>('compact')
+  const [storageClassSort, setStorageClassSort] = useState<{ key: StorageClassSortKey; dir: 'asc' | 'desc' }>({
+    key: 'name',
+    dir: 'asc',
+  })
+  const [volumeAttachmentSort, setVolumeAttachmentSort] = useState<{ key: VolumeAttachmentSortKey; dir: 'asc' | 'desc' }>({
+    key: 'name',
+    dir: 'asc',
+  })
 
   const formatAge = (iso?: string | null) => {
     if (!iso) return '-'
@@ -353,6 +369,97 @@ export default function Storage() {
     return items.slice().sort((a, b) => compare(a, b) * dirMul)
   }, [activeTab, filteredItems, pvSort, parseQuantityToBytes])
 
+  const sortedStorageClassItems = useMemo(() => {
+    if (activeTab !== 'storageclasses') return filteredItems
+    const items = (filteredItems || []) as any[]
+    const dirMul = storageClassSort.dir === 'asc' ? 1 : -1
+
+    const safeStr = (v: any) => (v ?? '').toString()
+    const strCmp = (a: any, b: any) => a.toString().localeCompare(b.toString())
+    const cmpNullableString = (a: string, b: string) => {
+      const aa = safeStr(a).trim()
+      const bb = safeStr(b).trim()
+      if (!aa && !bb) return 0
+      if (!aa) return 1
+      if (!bb) return -1
+      return strCmp(aa, bb)
+    }
+    const cmpNullableNumber = (a: number | null, b: number | null) => {
+      if (a === null && b === null) return 0
+      if (a === null) return 1
+      if (b === null) return -1
+      return a - b
+    }
+    const boolToNum = (v: any): number | null => (v === true ? 1 : v === false ? 0 : null)
+
+    const compare = (a: any, b: any) => {
+      switch (storageClassSort.key) {
+        case 'name':
+          return cmpNullableString(a?.name, b?.name)
+        case 'is_default':
+          return cmpNullableNumber(boolToNum(a?.is_default), boolToNum(b?.is_default))
+        case 'provisioner':
+          return cmpNullableString(a?.provisioner, b?.provisioner)
+        case 'volume_binding_mode':
+          return cmpNullableString(a?.volume_binding_mode, b?.volume_binding_mode)
+        case 'allow_volume_expansion':
+          return cmpNullableNumber(boolToNum(a?.allow_volume_expansion), boolToNum(b?.allow_volume_expansion))
+        case 'reclaim_policy':
+          return cmpNullableString(a?.reclaim_policy, b?.reclaim_policy)
+        default:
+          return 0
+      }
+    }
+
+    return items.slice().sort((a, b) => compare(a, b) * dirMul)
+  }, [activeTab, filteredItems, storageClassSort])
+
+  const sortedVolumeAttachmentItems = useMemo(() => {
+    if (activeTab !== 'volumeattachments') return filteredItems
+    const items = (filteredItems || []) as any[]
+    const dirMul = volumeAttachmentSort.dir === 'asc' ? 1 : -1
+
+    const safeStr = (v: any) => (v ?? '').toString()
+    const strCmp = (a: any, b: any) => a.toString().localeCompare(b.toString())
+    const cmpNullableString = (a: string, b: string) => {
+      const aa = safeStr(a).trim()
+      const bb = safeStr(b).trim()
+      if (!aa && !bb) return 0
+      if (!aa) return 1
+      if (!bb) return -1
+      return strCmp(aa, bb)
+    }
+    const cmpNullableNumber = (a: number | null, b: number | null) => {
+      if (a === null && b === null) return 0
+      if (a === null) return 1
+      if (b === null) return -1
+      return a - b
+    }
+    const boolToNum = (v: any): number | null => (v === true ? 1 : v === false ? 0 : null)
+    const errorMsg = (va: any) => va?.attach_error?.message || va?.detach_error?.message || ''
+
+    const compare = (a: any, b: any) => {
+      switch (volumeAttachmentSort.key) {
+        case 'name':
+          return cmpNullableString(a?.name, b?.name)
+        case 'attached':
+          return cmpNullableNumber(boolToNum(a?.attached), boolToNum(b?.attached))
+        case 'persistent_volume_name':
+          return cmpNullableString(a?.persistent_volume_name, b?.persistent_volume_name)
+        case 'node_name':
+          return cmpNullableString(a?.node_name, b?.node_name)
+        case 'attacher':
+          return cmpNullableString(a?.attacher, b?.attacher)
+        case 'error':
+          return cmpNullableString(errorMsg(a), errorMsg(b))
+        default:
+          return 0
+      }
+    }
+
+    return items.slice().sort((a, b) => compare(a, b) * dirMul)
+  }, [activeTab, filteredItems, volumeAttachmentSort])
+
   const selectedPv = useMemo(() => {
     if (!selectedPvc?.volume_name) return null
     return (pvs || []).find((pv: any) => pv?.name === selectedPvc.volume_name) || null
@@ -381,6 +488,24 @@ export default function Storage() {
     })
   }
 
+  const toggleStorageClassSort = (key: StorageClassSortKey) => {
+    setStorageClassSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, dir: 'asc' }
+    })
+  }
+
+  const toggleVolumeAttachmentSort = (key: VolumeAttachmentSortKey) => {
+    setVolumeAttachmentSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, dir: 'asc' }
+    })
+  }
+
   const SortIcon = ({ colKey }: { colKey: PvcSortKey }) => {
     if (pvcSort.key !== colKey) return null
     return pvcSort.dir === 'asc' ? (
@@ -393,6 +518,24 @@ export default function Storage() {
   const PvSortIcon = ({ colKey }: { colKey: PvSortKey }) => {
     if (pvSort.key !== colKey) return null
     return pvSort.dir === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-slate-400" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
+    )
+  }
+
+  const StorageClassSortIcon = ({ colKey }: { colKey: StorageClassSortKey }) => {
+    if (storageClassSort.key !== colKey) return null
+    return storageClassSort.dir === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-slate-400" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
+    )
+  }
+
+  const VolumeAttachmentSortIcon = ({ colKey }: { colKey: VolumeAttachmentSortKey }) => {
+    if (volumeAttachmentSort.key !== colKey) return null
+    return volumeAttachmentSort.dir === 'asc' ? (
       <ArrowUp className="w-3.5 h-3.5 text-slate-400" />
     ) : (
       <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
@@ -970,16 +1113,40 @@ export default function Storage() {
           <table className="w-full text-sm">
             <thead className="text-slate-400">
               <tr>
-                <th className="text-left py-3 px-4">Name</th>
-                <th className="text-left py-3 px-4">Default</th>
-                <th className="text-left py-3 px-4">Provisioner</th>
-                <th className="text-left py-3 px-4">BindingMode</th>
-                <th className="text-left py-3 px-4">AllowExpansion</th>
-                <th className="text-left py-3 px-4">Reclaim</th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('name')}>
+                  <div className="flex items-center gap-2">
+                    Name <StorageClassSortIcon colKey="name" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('is_default')}>
+                  <div className="flex items-center gap-2">
+                    Default <StorageClassSortIcon colKey="is_default" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('provisioner')}>
+                  <div className="flex items-center gap-2">
+                    Provisioner <StorageClassSortIcon colKey="provisioner" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('volume_binding_mode')}>
+                  <div className="flex items-center gap-2">
+                    BindingMode <StorageClassSortIcon colKey="volume_binding_mode" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('allow_volume_expansion')}>
+                  <div className="flex items-center gap-2">
+                    AllowExpansion <StorageClassSortIcon colKey="allow_volume_expansion" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleStorageClassSort('reclaim_policy')}>
+                  <div className="flex items-center gap-2">
+                    Reclaim <StorageClassSortIcon colKey="reclaim_policy" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {filteredItems.map((sc: any) => (
+              {sortedStorageClassItems.map((sc: any) => (
                 <tr key={sc.name}>
                   <td className="py-3 px-4 text-white font-mono">{sc.name}</td>
                   <td className="py-3 px-4">
@@ -991,7 +1158,7 @@ export default function Storage() {
                   <td className="py-3 px-4 text-slate-200">{sc.reclaim_policy || '-'}</td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
+              {sortedStorageClassItems.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-slate-400" colSpan={6}>
                     (없음)
@@ -1008,16 +1175,40 @@ export default function Storage() {
           <table className="w-full text-sm">
             <thead className="text-slate-400">
               <tr>
-                <th className="text-left py-3 px-4">Name</th>
-                <th className="text-left py-3 px-4">Attached</th>
-                <th className="text-left py-3 px-4">PV</th>
-                <th className="text-left py-3 px-4">Node</th>
-                <th className="text-left py-3 px-4">Attacher</th>
-                <th className="text-left py-3 px-4">Error</th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('name')}>
+                  <div className="flex items-center gap-2">
+                    Name <VolumeAttachmentSortIcon colKey="name" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('attached')}>
+                  <div className="flex items-center gap-2">
+                    Attached <VolumeAttachmentSortIcon colKey="attached" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('persistent_volume_name')}>
+                  <div className="flex items-center gap-2">
+                    PV <VolumeAttachmentSortIcon colKey="persistent_volume_name" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('node_name')}>
+                  <div className="flex items-center gap-2">
+                    Node <VolumeAttachmentSortIcon colKey="node_name" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('attacher')}>
+                  <div className="flex items-center gap-2">
+                    Attacher <VolumeAttachmentSortIcon colKey="attacher" />
+                  </div>
+                </th>
+                <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => toggleVolumeAttachmentSort('error')}>
+                  <div className="flex items-center gap-2">
+                    Error <VolumeAttachmentSortIcon colKey="error" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {filteredItems.map((va: any) => (
+              {sortedVolumeAttachmentItems.map((va: any) => (
                 <tr key={va.name}>
                   <td className="py-3 px-4 text-white font-mono">{va.name}</td>
                   <td className="py-3 px-4 text-slate-200">
@@ -1031,7 +1222,7 @@ export default function Storage() {
                   </td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
+              {sortedVolumeAttachmentItems.length === 0 && (
                 <tr>
                   <td className="py-6 px-4 text-slate-400" colSpan={6}>
                     (없음)
