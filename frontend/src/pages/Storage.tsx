@@ -101,6 +101,13 @@ export default function Storage() {
   }, [activeTab])
 
   useEffect(() => {
+    // 과거 버전에서 사용하던 단건 PV/StorageClass 쿼리 키가 남아있으면(react-query 캐시),
+    // 창 포커스/리커넥트 등으로 재조회하며 404를 유발할 수 있어 정리한다.
+    queryClient.removeQueries({ queryKey: ['storage', 'pv'] })
+    queryClient.removeQueries({ queryKey: ['storage', 'storageclass'] })
+  }, [queryClient])
+
+  useEffect(() => {
     if (pvColumnMode !== 'compact') return
     const hiddenInCompact: PvSortKey[] = ['source_driver', 'volume_handle', 'volume_mode', 'node_affinity']
     if (!hiddenInCompact.includes(pvSort.key)) return
@@ -446,6 +453,7 @@ export default function Storage() {
 
   const isPvCompact = activeTab === 'pvs' && pvColumnMode === 'compact'
   const pvColSpan = isPvCompact ? 8 : 12
+  const pvPx = isPvCompact ? 'px-3' : 'px-4'
 
   return (
     <div className="space-y-6">
@@ -811,7 +819,7 @@ export default function Storage() {
             <thead className="text-slate-400">
               <tr>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[320px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[240px]' : ''}`}
                   onClick={() => togglePvSort('name')}
                 >
                   <div className="flex items-center gap-2">
@@ -819,7 +827,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[120px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[90px]' : ''}`}
                   onClick={() => togglePvSort('status')}
                 >
                   <div className="flex items-center gap-2">
@@ -827,7 +835,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[120px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[90px]' : ''}`}
                   onClick={() => togglePvSort('age')}
                 >
                   <div className="flex items-center gap-2">
@@ -835,7 +843,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[120px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[90px]' : ''}`}
                   onClick={() => togglePvSort('capacity')}
                 >
                   <div className="flex items-center gap-2">
@@ -843,7 +851,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[160px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[110px]' : ''}`}
                   onClick={() => togglePvSort('storage_class')}
                 >
                   <div className="flex items-center gap-2">
@@ -879,7 +887,7 @@ export default function Storage() {
                   </th>
                 )}
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[120px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[90px]' : ''}`}
                   onClick={() => togglePvSort('reclaim_policy')}
                 >
                   <div className="flex items-center gap-2">
@@ -887,7 +895,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[180px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[120px]' : ''}`}
                   onClick={() => togglePvSort('access_modes')}
                 >
                   <div className="flex items-center gap-2">
@@ -895,7 +903,7 @@ export default function Storage() {
                   </div>
                 </th>
                 <th
-                  className={`text-left py-3 px-4 cursor-pointer select-none ${isPvCompact ? 'w-[240px]' : ''}`}
+                  className={`text-left py-3 ${pvPx} cursor-pointer select-none ${isPvCompact ? 'w-[170px]' : ''}`}
                   onClick={() => togglePvSort('claim')}
                 >
                   <div className="flex items-center gap-2">
@@ -907,18 +915,18 @@ export default function Storage() {
             <tbody className="divide-y divide-slate-700">
               {sortedPvItems.map((pv: any) => (
                 <tr key={pv.name}>
-                  <td className={`py-3 px-4 text-white font-mono ${isPvCompact ? 'truncate' : ''}`} title={pv.name}>
+                  <td className={`py-3 ${pvPx} text-white font-mono ${isPvCompact ? 'truncate' : ''}`} title={pv.name}>
                     {pv.name}
                   </td>
-                  <td className="py-3 px-4 text-slate-200">{pv.status}</td>
+                  <td className={`py-3 ${pvPx} text-slate-200`}>{pv.status}</td>
                   <td
-                    className="py-3 px-4 text-slate-200 font-mono whitespace-nowrap"
+                    className={`py-3 ${pvPx} text-slate-200 font-mono whitespace-nowrap`}
                     title={pv.created_at ? new Date(pv.created_at).toLocaleString('ko-KR') : ''}
                   >
                     {formatAge(pv.created_at)}
                   </td>
-                  <td className="py-3 px-4 text-slate-200 font-mono">{pv.capacity || '-'}</td>
-                  <td className={`py-3 px-4 text-slate-200 font-mono ${isPvCompact ? 'truncate' : ''}`} title={pv.storage_class || ''}>
+                  <td className={`py-3 ${pvPx} text-slate-200 font-mono`}>{pv.capacity || '-'}</td>
+                  <td className={`py-3 ${pvPx} text-slate-200 font-mono ${isPvCompact ? 'truncate' : ''}`} title={pv.storage_class || ''}>
                     {pv.storage_class || '-'}
                   </td>
                   {!isPvCompact && (
@@ -935,10 +943,10 @@ export default function Storage() {
                       {pv.node_affinity || '-'}
                     </td>
                   )}
-                  <td className="py-3 px-4 text-slate-200">{pv.reclaim_policy}</td>
-                  <td className="py-3 px-4 text-slate-200">{(pv.access_modes || []).join(', ') || '-'}</td>
+                  <td className={`py-3 ${pvPx} text-slate-200`}>{pv.reclaim_policy}</td>
+                  <td className={`py-3 ${pvPx} text-slate-200`}>{(pv.access_modes || []).join(', ') || '-'}</td>
                   <td
-                    className={`py-3 px-4 text-slate-200 font-mono ${isPvCompact ? 'truncate' : ''}`}
+                    className={`py-3 ${pvPx} text-slate-200 font-mono ${isPvCompact ? 'truncate' : ''}`}
                     title={pv.claim_ref?.namespace && pv.claim_ref?.name ? `${pv.claim_ref.namespace}/${pv.claim_ref.name}` : ''}
                   >
                     {pv.claim_ref?.namespace && pv.claim_ref?.name ? `${pv.claim_ref.namespace}/${pv.claim_ref.name}` : '-'}
