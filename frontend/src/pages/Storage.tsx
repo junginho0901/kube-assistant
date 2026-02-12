@@ -59,54 +59,19 @@ export default function Storage() {
     enabled: activeTab === 'pvcs',
   })
 
-  const { data: selectedPv, isLoading: isSelectedPvLoading } = useQuery({
-    queryKey: ['storage', 'pv', selectedPvc?.volume_name],
-    queryFn: async () => {
-      if (!selectedPvc?.volume_name) return null
-      try {
-        return await api.getPV(selectedPvc.volume_name)
-      } catch (e: any) {
-        // Backend가 아직 /pvs/{name} 엔드포인트를 제공하지 않거나(404) 클러스터 환경에서 비활성화된 경우,
-        // 목록 조회로 fallback한다.
-        if (e?.response?.status === 404) {
-          const all = await api.getPVs()
-          return all.find((pv: any) => pv?.name === selectedPvc.volume_name) || null
-        }
-        throw e
-      }
-    },
-    enabled: activeTab === 'pvcs' && !!selectedPvc?.volume_name,
-    retry: 0,
-  })
+  const shouldFetchPvs = activeTab === 'pvs' || (activeTab === 'pvcs' && !!selectedPvc?.volume_name)
+  const shouldFetchStorageClasses = activeTab === 'storageclasses' || (activeTab === 'pvcs' && !!selectedPvc?.storage_class)
 
-  const { data: selectedStorageClass, isLoading: isSelectedScLoading } = useQuery({
-    queryKey: ['storage', 'storageclass', selectedPvc?.storage_class],
-    queryFn: async () => {
-      if (!selectedPvc?.storage_class) return null
-      try {
-        return await api.getStorageClass(selectedPvc.storage_class)
-      } catch (e: any) {
-        if (e?.response?.status === 404) {
-          const all = await api.getStorageClasses(false)
-          return all.find((sc: any) => sc?.name === selectedPvc.storage_class) || null
-        }
-        throw e
-      }
-    },
-    enabled: activeTab === 'pvcs' && !!selectedPvc?.storage_class,
-    retry: 0,
-  })
-
-  const { data: pvs } = useQuery({
+  const { data: pvs, isLoading: isPvsLoading } = useQuery({
     queryKey: ['storage', 'pvs'],
     queryFn: () => api.getPVs(),
-    enabled: activeTab === 'pvs',
+    enabled: shouldFetchPvs,
   })
 
-  const { data: storageClasses } = useQuery({
+  const { data: storageClasses, isLoading: isStorageClassesLoading } = useQuery({
     queryKey: ['storage', 'storageclasses'],
     queryFn: () => api.getStorageClasses(false),
-    enabled: activeTab === 'storageclasses',
+    enabled: shouldFetchStorageClasses,
   })
 
   const { data: volumeAttachments, error: volumeAttachmentError } = useQuery({
@@ -276,6 +241,16 @@ export default function Storage() {
 
     return items.slice().sort((a, b) => compare(a, b) * dirMul)
   }, [activeTab, filteredItems, pvcSort])
+
+  const selectedPv = useMemo(() => {
+    if (!selectedPvc?.volume_name) return null
+    return (pvs || []).find((pv: any) => pv?.name === selectedPvc.volume_name) || null
+  }, [pvs, selectedPvc?.volume_name])
+
+  const selectedStorageClass = useMemo(() => {
+    if (!selectedPvc?.storage_class) return null
+    return (storageClasses || []).find((sc: any) => sc?.name === selectedPvc.storage_class) || null
+  }, [storageClasses, selectedPvc?.storage_class])
 
   const togglePvcSort = (key: PvcSortKey) => {
     setPvcSort((prev) => {
@@ -596,7 +571,7 @@ export default function Storage() {
                     )}
                   </div>
                   <div className="mt-3 text-sm text-slate-300">
-                    {isSelectedPvLoading ? (
+                    {isPvsLoading ? (
                       <div className="text-slate-400">로딩 중...</div>
                     ) : !selectedPvc.volume_name ? (
                       <div className="text-slate-400">(PV 없음)</div>
@@ -643,7 +618,7 @@ export default function Storage() {
                     )}
                   </div>
                   <div className="mt-3 text-sm text-slate-300">
-                    {isSelectedScLoading ? (
+                    {isStorageClassesLoading ? (
                       <div className="text-slate-400">로딩 중...</div>
                     ) : !selectedPvc.storage_class ? (
                       <div className="text-slate-400">(StorageClass 없음)</div>
