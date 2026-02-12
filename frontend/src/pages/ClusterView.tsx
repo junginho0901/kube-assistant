@@ -1470,11 +1470,11 @@ export default function ClusterView() {
                                   <div>
                                     <p className="text-slate-300 text-sm font-medium mb-2">Resources</p>
                                     <div className="overflow-x-auto">
-                                      <table className="w-full text-sm table-fixed">
+                                      <table className="w-full min-w-[720px] text-sm table-auto">
                                         <colgroup>
-                                          <col className="w-56" />
-                                          <col />
-                                          <col className="w-80" />
+                                          <col className="w-1/3" />
+                                          <col className="w-1/3" />
+                                          <col className="w-1/3" />
                                         </colgroup>
                                         <thead className="text-slate-400">
                                           <tr>
@@ -1510,10 +1510,10 @@ export default function ClusterView() {
                                   <div>
                                     <p className="text-slate-300 text-sm font-medium mb-2">Non-resource URLs</p>
                                     <div className="overflow-x-auto">
-                                      <table className="w-full text-sm table-fixed">
+                                      <table className="w-full min-w-[720px] text-sm table-auto">
                                         <colgroup>
-                                          <col />
-                                          <col className="w-80" />
+                                          <col className="w-1/2" />
+                                          <col className="w-1/2" />
                                         </colgroup>
                                         <thead className="text-slate-400">
                                           <tr>
