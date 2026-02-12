@@ -45,6 +45,7 @@ export default function ClusterView() {
   const [showManifest, setShowManifest] = useState(false)
   const [showDescribe, setShowDescribe] = useState(false)
   const [showRbac, setShowRbac] = useState(false)
+  const [includeAuthenticatedGroup, setIncludeAuthenticatedGroup] = useState(false)
   const [logs, setLogs] = useState<string>('')
   const [, setIsStreamingLogs] = useState(false)
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
@@ -60,6 +61,14 @@ export default function ClusterView() {
   const namespaceDropdownRef = useRef<HTMLDivElement>(null)
   const containerDropdownRef = useRef<HTMLDivElement>(null)
   const tailLinesDropdownRef = useRef<HTMLDivElement>(null)
+
+  const isAuthenticatedOnlyGrant = (binding: any): boolean => {
+    const matchedBy = binding?.matched_by
+    if (Array.isArray(matchedBy) && matchedBy.length > 0) {
+      return matchedBy.every((m: any) => m?.reason === 'group:system:authenticated')
+    }
+    return Boolean(binding?.is_broad)
+  }
 
   // ESC 키로 모달 닫기
   useEffect(() => {
@@ -289,11 +298,11 @@ export default function ClusterView() {
 
   // Pod RBAC 조회
   const { data: rbacData, isLoading: isRbacLoading, error: rbacError } = useQuery({
-    queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name],
+    queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name, includeAuthenticatedGroup],
     queryFn: async () => {
       if (!selectedPod) return null
       return await api.getPodRbac(selectedPod.namespace, selectedPod.name, {
-        include_authenticated: true,
+        include_authenticated: includeAuthenticatedGroup,
       })
     },
     enabled: showRbac && !!selectedPod,
@@ -364,6 +373,7 @@ export default function ClusterView() {
     setShowManifest(false)
     setShowDescribe(false)
     setShowRbac(false)
+    setIncludeAuthenticatedGroup(false)
     
     setSelectedPod(detail)
     setContainerSearchQuery('') // 모달 열 때 검색어 초기화
@@ -1204,9 +1214,21 @@ export default function ClusterView() {
                 <div className="space-y-6">
                   <div className="flex items-start justify-between gap-4">
                     <h3 className="text-lg font-semibold text-white">RBAC</h3>
-                    <p className="text-slate-500 text-xs text-right max-w-[520px] leading-relaxed">
-                      <span className="font-mono">system:authenticated</span> 로 매칭되는 항목은 광범위할 수 있어 별도의 “광범위” 섹션으로 분리해 표시합니다.
-                    </p>
+                    <div className="flex flex-col items-end gap-2">
+                      <label className="flex items-center gap-2 text-xs text-slate-300 select-none cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={includeAuthenticatedGroup}
+                          onChange={(e) => setIncludeAuthenticatedGroup(e.target.checked)}
+                        />
+                        <span>
+                          광범위(<span className="font-mono">system:authenticated</span>) 포함
+                        </span>
+                      </label>
+                      <p className="text-slate-500 text-xs text-right max-w-[520px] leading-relaxed">
+                        체크하면 <span className="font-mono">system:authenticated</span> 로 매칭되는 바인딩도 함께 조회/표시합니다.
+                      </p>
+                    </div>
                   </div>
 
                   {isRbacLoading && (
@@ -1240,21 +1262,32 @@ export default function ClusterView() {
                           <div>
                             <p className="text-sm text-slate-400">Bindings</p>
                             <p className="text-white font-medium">
-                              RoleBinding {rbacData.role_bindings?.length || 0}
-                              {rbacData.role_bindings?.some((b: any) => b?.is_broad) && (
-                                <span className="text-slate-400 text-sm">
-                                  {' '}
-                                  (광범위 {(rbacData.role_bindings || []).filter((b: any) => !!b?.is_broad).length})
-                                </span>
-                              )}
-                              {' '}
-                              · ClusterRoleBinding {rbacData.cluster_role_bindings?.length || 0}
-                              {rbacData.cluster_role_bindings?.some((b: any) => b?.is_broad) && (
-                                <span className="text-slate-400 text-sm">
-                                  {' '}
-                                  (광범위 {(rbacData.cluster_role_bindings || []).filter((b: any) => !!b?.is_broad).length})
-                                </span>
-                              )}
+                              {(() => {
+                                const roleAll = (rbacData.role_bindings || []) as any[]
+                                const roleAuthOnly = roleAll.filter(isAuthenticatedOnlyGrant).length
+                                const clusterAll = (rbacData.cluster_role_bindings || []) as any[]
+                                const clusterAuthOnly = clusterAll.filter(isAuthenticatedOnlyGrant).length
+
+                                return (
+                                  <>
+                                    RoleBinding {roleAll.length}
+                                    {includeAuthenticatedGroup && roleAuthOnly > 0 && (
+                                      <span className="text-slate-400 text-sm">
+                                        {' '}
+                                        (광범위 {roleAuthOnly})
+                                      </span>
+                                    )}
+                                    {' '}
+                                    · ClusterRoleBinding {clusterAll.length}
+                                    {includeAuthenticatedGroup && clusterAuthOnly > 0 && (
+                                      <span className="text-slate-400 text-sm">
+                                        {' '}
+                                        (광범위 {clusterAuthOnly})
+                                      </span>
+                                    )}
+                                  </>
+                                )
+                              })()}
                             </p>
                           </div>
                         </div>
@@ -1275,14 +1308,14 @@ export default function ClusterView() {
                         <h4 className="text-white font-semibold">RoleBindings (Namespace)</h4>
                         {(() => {
                           const all = (rbacData.role_bindings || []) as any[]
-                          const scoped = all.filter((b) => !b?.is_broad)
-                          const broad = all.filter((b) => !!b?.is_broad)
+                          const authenticatedOnly = all.filter(isAuthenticatedOnlyGrant)
+                          const normal = all.filter((b) => !isAuthenticatedOnlyGrant(b))
 
                           return (
                             <>
-                              {scoped.length ? (
+                              {normal.length ? (
                                 <div className="space-y-2">
-                                  {scoped.map((b: any) => (
+                                  {normal.map((b: any) => (
                                     <div key={`rb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
                                       <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -1364,12 +1397,13 @@ export default function ClusterView() {
                                 <div className="text-slate-400 text-sm">(없음)</div>
                               )}
 
-                              {broad.length > 0 && (
+                              {includeAuthenticatedGroup && authenticatedOnly.length > 0 && (
                                 <div className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                       <p className="text-yellow-200 font-medium break-words">
-                                        광범위 RoleBinding {broad.length}개 <span className="text-yellow-200/80">(system:authenticated)</span>
+                                        광범위 RoleBinding {authenticatedOnly.length}개{' '}
+                                        <span className="text-yellow-200/80">(system:authenticated)</span>
                                       </p>
                                       <p className="text-xs text-slate-400 mt-1">
                                         대부분의 인증된 주체가 포함될 수 있어 실제 “이 Pod만의 권한”을 과대해 보이게 만들 수 있습니다.
@@ -1379,7 +1413,7 @@ export default function ClusterView() {
                                   </div>
 
                                   <div className="mt-3 space-y-2">
-                                    {broad.map((b: any) => (
+                                    {authenticatedOnly.map((b: any) => (
                                       <div key={`rb-broad-${b.name}`} className="bg-slate-900 rounded-lg p-4">
                                         <div className="flex items-start justify-between gap-4">
                                           <div className="min-w-0">
@@ -1457,14 +1491,14 @@ export default function ClusterView() {
                         <h4 className="text-white font-semibold">ClusterRoleBindings (Cluster)</h4>
                         {(() => {
                           const all = (rbacData.cluster_role_bindings || []) as any[]
-                          const scoped = all.filter((b) => !b?.is_broad)
-                          const broad = all.filter((b) => !!b?.is_broad)
+                          const authenticatedOnly = all.filter(isAuthenticatedOnlyGrant)
+                          const normal = all.filter((b) => !isAuthenticatedOnlyGrant(b))
 
                           return (
                             <>
-                              {scoped.length ? (
+                              {normal.length ? (
                                 <div className="space-y-2">
-                                  {scoped.map((b: any) => (
+                                  {normal.map((b: any) => (
                                     <div key={`crb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
                                       <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -1546,12 +1580,13 @@ export default function ClusterView() {
                                 <div className="text-slate-400 text-sm">(없음)</div>
                               )}
 
-                              {broad.length > 0 && (
+                              {includeAuthenticatedGroup && authenticatedOnly.length > 0 && (
                                 <div className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                       <p className="text-yellow-200 font-medium break-words">
-                                        광범위 ClusterRoleBinding {broad.length}개 <span className="text-yellow-200/80">(system:authenticated)</span>
+                                        광범위 ClusterRoleBinding {authenticatedOnly.length}개{' '}
+                                        <span className="text-yellow-200/80">(system:authenticated)</span>
                                       </p>
                                       <p className="text-xs text-slate-400 mt-1">
                                         모든 인증된 주체가 포함될 수 있어 노이즈가 많습니다. 문제 분석용으로만 참고하세요.
@@ -1561,7 +1596,7 @@ export default function ClusterView() {
                                   </div>
 
                                   <div className="mt-3 space-y-2">
-                                    {broad.map((b: any) => (
+                                    {authenticatedOnly.map((b: any) => (
                                       <div key={`crb-broad-${b.name}`} className="bg-slate-900 rounded-lg p-4">
                                         <div className="flex items-start justify-between gap-4">
                                           <div className="min-w-0">
