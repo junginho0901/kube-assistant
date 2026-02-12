@@ -45,7 +45,6 @@ export default function ClusterView() {
   const [showManifest, setShowManifest] = useState(false)
   const [showDescribe, setShowDescribe] = useState(false)
   const [showRbac, setShowRbac] = useState(false)
-  const [includeAuthenticatedGroup, setIncludeAuthenticatedGroup] = useState(false)
   const [logs, setLogs] = useState<string>('')
   const [, setIsStreamingLogs] = useState(false)
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
@@ -290,11 +289,11 @@ export default function ClusterView() {
 
   // Pod RBAC 조회
   const { data: rbacData, isLoading: isRbacLoading, error: rbacError } = useQuery({
-    queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name, includeAuthenticatedGroup],
+    queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name],
     queryFn: async () => {
       if (!selectedPod) return null
       return await api.getPodRbac(selectedPod.namespace, selectedPod.name, {
-        include_authenticated: includeAuthenticatedGroup,
+        include_authenticated: true,
       })
     },
     enabled: showRbac && !!selectedPod,
@@ -365,7 +364,6 @@ export default function ClusterView() {
     setShowManifest(false)
     setShowDescribe(false)
     setShowRbac(false)
-    setIncludeAuthenticatedGroup(false)
     
     setSelectedPod(detail)
     setContainerSearchQuery('') // 모달 열 때 검색어 초기화
@@ -1205,25 +1203,9 @@ export default function ClusterView() {
               {showRbac && (
                 <div className="space-y-6">
                   <h3 className="text-lg font-semibold text-white">RBAC</h3>
-
-                  <div className="bg-slate-800 rounded-lg p-4">
-                    <label className="flex items-start gap-3 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={includeAuthenticatedGroup}
-                        onChange={(e) => setIncludeAuthenticatedGroup(e.target.checked)}
-                      />
-                      <div>
-                        <p className="text-white text-sm font-medium">
-                          광범위 그룹 <span className="font-mono">system:authenticated</span> 포함
-                        </p>
-                        <p className="text-slate-400 text-xs mt-1">
-                          일부 클러스터 권한은 이 그룹으로 부여됩니다. 다만 거의 모든 인증된 주체가 포함될 수 있어 결과가 과대해질 수 있습니다.
-                        </p>
-                      </div>
-                    </label>
-                  </div>
+                  <p className="text-slate-400 text-sm">
+                    <span className="font-mono">system:authenticated</span> 로 매칭되는 항목은 광범위할 수 있어 아래에 접어서 표시합니다.
+                  </p>
 
                   {isRbacLoading && (
                     <div className="text-slate-400">RBAC 정보를 불러오는 중...</div>
@@ -1256,7 +1238,21 @@ export default function ClusterView() {
                           <div>
                             <p className="text-sm text-slate-400">Bindings</p>
                             <p className="text-white font-medium">
-                              RoleBinding {rbacData.role_bindings?.length || 0} · ClusterRoleBinding {rbacData.cluster_role_bindings?.length || 0}
+                              RoleBinding {rbacData.role_bindings?.length || 0}
+                              {rbacData.role_bindings?.some((b: any) => b?.is_broad) && (
+                                <span className="text-slate-400 text-sm">
+                                  {' '}
+                                  (광범위 {(rbacData.role_bindings || []).filter((b: any) => !!b?.is_broad).length})
+                                </span>
+                              )}
+                              {' '}
+                              · ClusterRoleBinding {rbacData.cluster_role_bindings?.length || 0}
+                              {rbacData.cluster_role_bindings?.some((b: any) => b?.is_broad) && (
+                                <span className="text-slate-400 text-sm">
+                                  {' '}
+                                  (광범위 {(rbacData.cluster_role_bindings || []).filter((b: any) => !!b?.is_broad).length})
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -1275,186 +1271,378 @@ export default function ClusterView() {
 
                       <div className="space-y-3">
                         <h4 className="text-white font-semibold">RoleBindings (Namespace)</h4>
-                        {rbacData.role_bindings?.length ? (
-                          <div className="space-y-2">
-                            {rbacData.role_bindings.map((b: any) => (
-                              <details key={`rb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
-                                <summary className="cursor-pointer select-none">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                      <p className="text-white font-medium break-words">{b.name}</p>
-                                      <p className="text-sm text-slate-400 break-words">
-                                        {b.role_ref?.kind}:{b.role_ref?.name}
-                                      </p>
-                                    </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <p className="text-sm text-slate-300">
-                                        rules: {b.resolved_role?.rules?.length ?? 0}
-                                      </p>
-                                      {b.is_broad && (
-                                        <p className="text-xs text-yellow-300">광범위</p>
-                                      )}
-                                      {b.resolved_role?.error && (
-                                        <p className="text-xs text-yellow-300">resolve 실패</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </summary>
+                        {(() => {
+                          const all = (rbacData.role_bindings || []) as any[]
+                          const scoped = all.filter((b) => !b?.is_broad)
+                          const broad = all.filter((b) => !!b?.is_broad)
 
-                                <div className="mt-4 space-y-3">
-                                  <div>
-                                    <p className="text-sm text-slate-400 mb-1">Subjects</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {(b.subjects || []).map((s: any, idx: number) => (
-                                        <span
-                                          key={idx}
-                                          className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
-                                          title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
-                                        >
-                                          {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
+                          return (
+                            <>
+                              {scoped.length ? (
+                                <div className="space-y-2">
+                                  {scoped.map((b: any) => (
+                                    <details key={`rb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
+                                      <summary className="cursor-pointer select-none">
+                                        <div className="flex items-start justify-between gap-4">
+                                          <div className="min-w-0">
+                                            <p className="text-white font-medium break-words">{b.name}</p>
+                                            <p className="text-sm text-slate-400 break-words">
+                                              {b.role_ref?.kind}:{b.role_ref?.name}
+                                            </p>
+                                          </div>
+                                          <div className="text-right flex-shrink-0">
+                                            <p className="text-sm text-slate-300">
+                                              rules: {b.resolved_role?.rules?.length ?? 0}
+                                            </p>
+                                            {b.resolved_role?.error && (
+                                              <p className="text-xs text-yellow-300">resolve 실패</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </summary>
 
-                                  {b.resolved_role?.error ? (
-                                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-                                      <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                      <div className="mt-4 space-y-3">
+                                        <div>
+                                          <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                          <div className="flex flex-wrap gap-2">
+                                            {(b.subjects || []).map((s: any, idx: number) => (
+                                              <span
+                                                key={idx}
+                                                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                                title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                              >
+                                                {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+
+                                        {b.resolved_role?.error ? (
+                                          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                            <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                            <div className="space-y-2">
+                                              {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                                <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
+                                                  <div className="flex flex-col gap-1">
+                                                    <div className="flex flex-wrap gap-2">
+                                                      <span className="text-slate-400">verbs</span>
+                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                      <span className="text-slate-400">resources</span>
+                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                      <span className="text-slate-500">apiGroups</span>
+                                                      <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                                    </div>
+                                                    {(r.non_resource_urls || []).length > 0 && (
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">nonResourceURLs</span>
+                                                        <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
+                                                      </div>
+                                                    )}
+                                                    {(r.resource_names || []).length > 0 && (
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">resourceNames</span>
+                                                        <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-slate-400 text-sm">(없음)</div>
+                              )}
+
+                              {broad.length > 0 && (
+                                <details className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
+                                  <summary className="cursor-pointer select-none">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="min-w-0">
+                                        <p className="text-yellow-200 font-medium break-words">
+                                          광범위 RoleBinding {broad.length}개 (system:authenticated)
+                                        </p>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                          대부분의 인증된 주체가 포함될 수 있어 실제 “이 Pod만의 권한”을 과대해 보이게 만들 수 있습니다.
+                                        </p>
+                                      </div>
+                                      <span className="text-xs text-yellow-300 flex-shrink-0">접기/펼치기</span>
                                     </div>
-                                  ) : (
-                                    <div>
-                                      <p className="text-sm text-slate-400 mb-2">Rules</p>
-                                      <div className="space-y-2">
-                                        {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
-                                          <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
-                                            <div className="flex flex-col gap-1">
-                                              <div className="flex flex-wrap gap-2">
-                                                <span className="text-slate-400">verbs</span>
-                                                <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
-                                              </div>
-                                              <div className="flex flex-wrap gap-2">
-                                                <span className="text-slate-400">resources</span>
-                                                <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                <span className="text-slate-500">apiGroups</span>
-                                                <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
-                                              </div>
-                                              {(r.non_resource_urls || []).length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                  <span className="text-slate-400">nonResourceURLs</span>
-                                                  <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
-                                                </div>
-                                              )}
-                                              {(r.resource_names || []).length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                  <span className="text-slate-400">resourceNames</span>
-                                                  <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
-                                                </div>
+                                  </summary>
+
+                                  <div className="mt-3 space-y-2">
+                                    {broad.map((b: any) => (
+                                      <details key={`rb-broad-${b.name}`} className="bg-slate-900 rounded-lg p-4">
+                                        <summary className="cursor-pointer select-none">
+                                          <div className="flex items-start justify-between gap-4">
+                                            <div className="min-w-0">
+                                              <p className="text-white font-medium break-words">{b.name}</p>
+                                              <p className="text-sm text-slate-400 break-words">
+                                                {b.role_ref?.kind}:{b.role_ref?.name}
+                                              </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                              <p className="text-sm text-slate-300">
+                                                rules: {b.resolved_role?.rules?.length ?? 0}
+                                              </p>
+                                              <p className="text-xs text-yellow-300">광범위</p>
+                                              {b.resolved_role?.error && (
+                                                <p className="text-xs text-yellow-300">resolve 실패</p>
                                               )}
                                             </div>
                                           </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </details>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-slate-400 text-sm">(없음)</div>
-                        )}
+                                        </summary>
+
+                                        <div className="mt-4 space-y-3">
+                                          <div>
+                                            <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {(b.subjects || []).map((s: any, idx: number) => (
+                                                <span
+                                                  key={idx}
+                                                  className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                                  title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                                >
+                                                  {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          {b.resolved_role?.error ? (
+                                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                              <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                              <div className="space-y-2">
+                                                {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                                  <div key={idx} className="bg-slate-800 rounded-lg p-3 text-sm">
+                                                    <div className="flex flex-col gap-1">
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">verbs</span>
+                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                      </div>
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">resources</span>
+                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                        <span className="text-slate-500">apiGroups</span>
+                                                        <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </details>
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
 
                       <div className="space-y-3">
                         <h4 className="text-white font-semibold">ClusterRoleBindings (Cluster)</h4>
-                        {rbacData.cluster_role_bindings?.length ? (
-                          <div className="space-y-2">
-                            {rbacData.cluster_role_bindings.map((b: any) => (
-                              <details key={`crb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
-                                <summary className="cursor-pointer select-none">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                      <p className="text-white font-medium break-words">{b.name}</p>
-                                      <p className="text-sm text-slate-400 break-words">
-                                        {b.role_ref?.kind}:{b.role_ref?.name}
-                                      </p>
-                                    </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <p className="text-sm text-slate-300">
-                                        rules: {b.resolved_role?.rules?.length ?? 0}
-                                      </p>
-                                      {b.is_broad && (
-                                        <p className="text-xs text-yellow-300">광범위</p>
-                                      )}
-                                      {b.resolved_role?.error && (
-                                        <p className="text-xs text-yellow-300">resolve 실패</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </summary>
+                        {(() => {
+                          const all = (rbacData.cluster_role_bindings || []) as any[]
+                          const scoped = all.filter((b) => !b?.is_broad)
+                          const broad = all.filter((b) => !!b?.is_broad)
 
-                                <div className="mt-4 space-y-3">
-                                  <div>
-                                    <p className="text-sm text-slate-400 mb-1">Subjects</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {(b.subjects || []).map((s: any, idx: number) => (
-                                        <span
-                                          key={idx}
-                                          className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
-                                          title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
-                                        >
-                                          {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
+                          return (
+                            <>
+                              {scoped.length ? (
+                                <div className="space-y-2">
+                                  {scoped.map((b: any) => (
+                                    <details key={`crb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
+                                      <summary className="cursor-pointer select-none">
+                                        <div className="flex items-start justify-between gap-4">
+                                          <div className="min-w-0">
+                                            <p className="text-white font-medium break-words">{b.name}</p>
+                                            <p className="text-sm text-slate-400 break-words">
+                                              {b.role_ref?.kind}:{b.role_ref?.name}
+                                            </p>
+                                          </div>
+                                          <div className="text-right flex-shrink-0">
+                                            <p className="text-sm text-slate-300">
+                                              rules: {b.resolved_role?.rules?.length ?? 0}
+                                            </p>
+                                            {b.resolved_role?.error && (
+                                              <p className="text-xs text-yellow-300">resolve 실패</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </summary>
 
-                                  {b.resolved_role?.error ? (
-                                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-                                      <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                      <div className="mt-4 space-y-3">
+                                        <div>
+                                          <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                          <div className="flex flex-wrap gap-2">
+                                            {(b.subjects || []).map((s: any, idx: number) => (
+                                              <span
+                                                key={idx}
+                                                className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                                title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                              >
+                                                {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+
+                                        {b.resolved_role?.error ? (
+                                          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                            <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                            <div className="space-y-2">
+                                              {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                                <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
+                                                  <div className="flex flex-col gap-1">
+                                                    <div className="flex flex-wrap gap-2">
+                                                      <span className="text-slate-400">verbs</span>
+                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                      <span className="text-slate-400">resources</span>
+                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                      <span className="text-slate-500">apiGroups</span>
+                                                      <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                                    </div>
+                                                    {(r.non_resource_urls || []).length > 0 && (
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">nonResourceURLs</span>
+                                                        <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
+                                                      </div>
+                                                    )}
+                                                    {(r.resource_names || []).length > 0 && (
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">resourceNames</span>
+                                                        <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-slate-400 text-sm">(없음)</div>
+                              )}
+
+                              {broad.length > 0 && (
+                                <details className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
+                                  <summary className="cursor-pointer select-none">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="min-w-0">
+                                        <p className="text-yellow-200 font-medium break-words">
+                                          광범위 ClusterRoleBinding {broad.length}개 (system:authenticated)
+                                        </p>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                          모든 인증된 주체가 포함될 수 있어 노이즈가 많습니다. 문제 분석용으로만 참고하세요.
+                                        </p>
+                                      </div>
+                                      <span className="text-xs text-yellow-300 flex-shrink-0">접기/펼치기</span>
                                     </div>
-                                  ) : (
-                                    <div>
-                                      <p className="text-sm text-slate-400 mb-2">Rules</p>
-                                      <div className="space-y-2">
-                                        {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
-                                          <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
-                                            <div className="flex flex-col gap-1">
-                                              <div className="flex flex-wrap gap-2">
-                                                <span className="text-slate-400">verbs</span>
-                                                <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
-                                              </div>
-                                              <div className="flex flex-wrap gap-2">
-                                                <span className="text-slate-400">resources</span>
-                                                <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                <span className="text-slate-500">apiGroups</span>
-                                                <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
-                                              </div>
-                                              {(r.non_resource_urls || []).length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                  <span className="text-slate-400">nonResourceURLs</span>
-                                                  <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
-                                                </div>
-                                              )}
-                                              {(r.resource_names || []).length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                  <span className="text-slate-400">resourceNames</span>
-                                                  <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
-                                                </div>
+                                  </summary>
+
+                                  <div className="mt-3 space-y-2">
+                                    {broad.map((b: any) => (
+                                      <details key={`crb-broad-${b.name}`} className="bg-slate-900 rounded-lg p-4">
+                                        <summary className="cursor-pointer select-none">
+                                          <div className="flex items-start justify-between gap-4">
+                                            <div className="min-w-0">
+                                              <p className="text-white font-medium break-words">{b.name}</p>
+                                              <p className="text-sm text-slate-400 break-words">
+                                                {b.role_ref?.kind}:{b.role_ref?.name}
+                                              </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                              <p className="text-sm text-slate-300">
+                                                rules: {b.resolved_role?.rules?.length ?? 0}
+                                              </p>
+                                              <p className="text-xs text-yellow-300">광범위</p>
+                                              {b.resolved_role?.error && (
+                                                <p className="text-xs text-yellow-300">resolve 실패</p>
                                               )}
                                             </div>
                                           </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </details>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-slate-400 text-sm">(없음)</div>
-                        )}
+                                        </summary>
+
+                                        <div className="mt-4 space-y-3">
+                                          <div>
+                                            <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {(b.subjects || []).map((s: any, idx: number) => (
+                                                <span
+                                                  key={idx}
+                                                  className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                                  title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                                >
+                                                  {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          {b.resolved_role?.error ? (
+                                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                              <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                              <div className="space-y-2">
+                                                {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                                  <div key={idx} className="bg-slate-800 rounded-lg p-3 text-sm">
+                                                    <div className="flex flex-col gap-1">
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">verbs</span>
+                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                      </div>
+                                                      <div className="flex flex-wrap gap-2">
+                                                        <span className="text-slate-400">resources</span>
+                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                        <span className="text-slate-500">apiGroups</span>
+                                                        <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </details>
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     </div>
                   )}
