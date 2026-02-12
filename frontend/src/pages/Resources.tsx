@@ -274,7 +274,7 @@ export default function Resources() {
                   )}
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-4">
+              <div className="mt-4 grid grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-slate-400">Phase</p>
                   <p className="text-sm text-white">{pod.phase}</p>
@@ -313,6 +313,10 @@ export default function Resources() {
                 <div>
                   <p className="text-xs text-slate-400">Capacity</p>
                   <p className="text-sm text-white">{pvc.capacity || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Requested</p>
+                  <p className="text-sm text-white">{pvc.requested || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Storage Class</p>

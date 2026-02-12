@@ -331,6 +331,7 @@ export interface PVCInfo {
   volume_name?: string
   storage_class?: string
   capacity?: string
+  requested?: string
   access_modes: string[]
   created_at: string
 }
@@ -346,7 +347,34 @@ export interface PVInfo {
     namespace?: string
     name?: string
   }
+  volume_mode?: string | null
+  source?: string | null
+  driver?: string | null
+  volume_handle?: string | null
+  node_affinity?: string | null
   created_at: string
+}
+
+export interface StorageClassInfo {
+  name: string
+  provisioner: string
+  reclaim_policy?: string | null
+  volume_binding_mode?: string | null
+  allow_volume_expansion?: boolean | null
+  is_default: boolean
+  parameters: Record<string, any>
+  created_at?: string | null
+}
+
+export interface VolumeAttachmentInfo {
+  name: string
+  attacher?: string | null
+  node_name?: string | null
+  persistent_volume_name?: string | null
+  attached?: boolean | null
+  attach_error?: { time?: string | null; message?: string | null } | null
+  detach_error?: { time?: string | null; message?: string | null } | null
+  created_at?: string | null
 }
 
 export interface TopologyGraph {
@@ -642,6 +670,30 @@ export const api = {
 
   getPVs: async (): Promise<PVInfo[]> => {
     const { data } = await client.get('/cluster/pvs')
+    return data
+  },
+
+  getPV: async (name: string): Promise<PVInfo> => {
+    const { data } = await client.get(`/cluster/pvs/${name}`)
+    return data
+  },
+
+  getStorageClasses: async (forceRefresh = false): Promise<StorageClassInfo[]> => {
+    const { data } = await client.get('/cluster/storageclasses', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getStorageClass: async (name: string): Promise<StorageClassInfo> => {
+    const { data } = await client.get(`/cluster/storageclasses/${name}`)
+    return data
+  },
+
+  getVolumeAttachments: async (forceRefresh = false): Promise<VolumeAttachmentInfo[]> => {
+    const { data } = await client.get('/cluster/volumeattachments', {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 

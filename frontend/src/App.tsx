@@ -10,6 +10,7 @@ import NetworkPage from './pages/Network'
 import AIChat from './pages/AIChat'
 import ClusterView from './pages/ClusterView'
 import Monitoring from './pages/Monitoring'
+import Storage from './pages/Storage'
 import Login from './pages/Login'
 import AdminUsers from './pages/AdminUsers'
 import Account from './pages/Account'
@@ -22,6 +23,7 @@ function App() {
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
           <Route index element={<Dashboard />} />
           <Route path="namespaces" element={<Namespaces />} />
+          <Route path="storage" element={<Storage />} />
           <Route path="monitoring" element={<Monitoring />} />
           <Route path="cluster-view" element={<ClusterView />} />
           <Route path="account" element={<Account />} />

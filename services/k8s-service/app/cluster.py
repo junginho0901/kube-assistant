@@ -65,6 +65,7 @@ class PVCInfo(BaseModel):
     volume_name: Optional[str]
     storage_class: Optional[str]
     capacity: Optional[str]
+    requested: Optional[str]
     access_modes: List[str]
     created_at: datetime
 
@@ -78,6 +79,11 @@ class PVInfo(BaseModel):
     storage_class: Optional[str]
     reclaim_policy: str
     claim_ref: Optional[Dict[str, str]]
+    volume_mode: Optional[str] = None
+    source: Optional[str] = None
+    driver: Optional[str] = None
+    volume_handle: Optional[str] = None
+    node_affinity: Optional[str] = None
     created_at: datetime
 
 
