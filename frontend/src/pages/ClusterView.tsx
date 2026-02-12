@@ -70,6 +70,112 @@ export default function ClusterView() {
     return Boolean(binding?.is_broad)
   }
 
+  const buildRbacPermissionSummary = (rbac: any) => {
+    const items: Array<{
+      kind: 'resource' | 'nonResourceURL'
+      apiGroup?: string
+      resource?: string
+      resourceNames?: string[]
+      nonResourceURL?: string
+      verbs: Set<string>
+    }> = []
+
+    const resourceIndex = new Map<string, number>()
+    const nonResourceIndex = new Map<string, number>()
+
+    const addResource = (apiGroup: string, resource: string, resourceNames: string[] | undefined, verbs: string[]) => {
+      const namesKey = (resourceNames || []).slice().sort().join(',')
+      const key = `${apiGroup}::${resource}::${namesKey}`
+      const existingIndex = resourceIndex.get(key)
+      if (existingIndex !== undefined) {
+        for (const v of verbs) items[existingIndex].verbs.add(v)
+        return
+      }
+      const idx = items.length
+      resourceIndex.set(key, idx)
+      items.push({
+        kind: 'resource',
+        apiGroup,
+        resource,
+        resourceNames: resourceNames && resourceNames.length ? resourceNames.slice().sort() : undefined,
+        verbs: new Set(verbs || []),
+      })
+    }
+
+    const addNonResource = (url: string, verbs: string[]) => {
+      const key = url
+      const existingIndex = nonResourceIndex.get(key)
+      if (existingIndex !== undefined) {
+        for (const v of verbs) items[existingIndex].verbs.add(v)
+        return
+      }
+      const idx = items.length
+      nonResourceIndex.set(key, idx)
+      items.push({
+        kind: 'nonResourceURL',
+        nonResourceURL: url,
+        verbs: new Set(verbs || []),
+      })
+    }
+
+    const bindings = [
+      ...((rbac?.role_bindings || []) as any[]),
+      ...((rbac?.cluster_role_bindings || []) as any[]),
+    ]
+
+    for (const b of bindings) {
+      const rules = b?.resolved_role?.rules
+      if (!Array.isArray(rules)) continue
+      for (const rule of rules) {
+        const verbs: string[] = Array.isArray(rule?.verbs) ? rule.verbs : []
+
+        const nonResourceURLs: string[] = Array.isArray(rule?.non_resource_urls) ? rule.non_resource_urls : []
+        if (nonResourceURLs.length > 0) {
+          for (const url of nonResourceURLs) {
+            if (typeof url === 'string' && url.trim()) addNonResource(url, verbs)
+          }
+          continue
+        }
+
+        const apiGroups: string[] = Array.isArray(rule?.api_groups) && rule.api_groups.length ? rule.api_groups : ['']
+        const resources: string[] = Array.isArray(rule?.resources) ? rule.resources : []
+        const resourceNames: string[] | undefined = Array.isArray(rule?.resource_names) ? rule.resource_names : undefined
+
+        for (const ag of apiGroups) {
+          const apiGroup = ag === '' ? '(core)' : ag
+          for (const res of resources) {
+            if (typeof res === 'string' && res.trim()) addResource(apiGroup, res, resourceNames, verbs)
+          }
+        }
+      }
+    }
+
+    const resourceItems = items
+      .filter((i) => i.kind === 'resource')
+      .map((i) => ({
+        ...i,
+        verbsList: Array.from(i.verbs).sort(),
+      }))
+      .sort((a, b) => {
+        const ag = (a.apiGroup || '').localeCompare(b.apiGroup || '')
+        if (ag !== 0) return ag
+        const r = (a.resource || '').localeCompare(b.resource || '')
+        if (r !== 0) return r
+        const an = (a.resourceNames || []).join(',').localeCompare((b.resourceNames || []).join(','))
+        return an
+      })
+
+    const nonResourceItems = items
+      .filter((i) => i.kind === 'nonResourceURL')
+      .map((i) => ({
+        ...i,
+        verbsList: Array.from(i.verbs).sort(),
+      }))
+      .sort((a, b) => (a.nonResourceURL || '').localeCompare(b.nonResourceURL || ''))
+
+    return { resourceItems, nonResourceItems }
+  }
+
   // ESC 키로 모달 닫기
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -1303,6 +1409,94 @@ export default function ClusterView() {
                           </div>
                         )}
                       </div>
+
+                      {(() => {
+                        const { resourceItems, nonResourceItems } = buildRbacPermissionSummary(rbacData)
+                        const total = resourceItems.length + nonResourceItems.length
+                        return (
+                          <div className="bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h4 className="text-white font-semibold">권한 요약</h4>
+                                <p className="text-slate-400 text-xs mt-1">
+                                  표시된 Role/ClusterRole 규칙을 합산한 결과입니다.
+                                  {includeAuthenticatedGroup ? ' (광범위 포함)' : ' (광범위 제외)'}
+                                </p>
+                              </div>
+                              <div className="text-slate-300 text-sm flex-shrink-0">
+                                {total} 항목
+                              </div>
+                            </div>
+
+                            {total === 0 ? (
+                              <div className="text-slate-400 text-sm mt-3">(없음)</div>
+                            ) : (
+                              <div className="mt-3 space-y-4">
+                                {resourceItems.length > 0 && (
+                                  <div>
+                                    <p className="text-slate-300 text-sm font-medium mb-2">Resources</p>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-sm">
+                                        <thead className="text-slate-400">
+                                          <tr>
+                                            <th className="text-left py-2 pr-4">apiGroup</th>
+                                            <th className="text-left py-2 pr-4">resource</th>
+                                            <th className="text-left py-2 pr-4">verbs</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                          {resourceItems.map((it: any, idx: number) => (
+                                            <tr key={idx}>
+                                              <td className="py-2 pr-4 text-slate-300 font-mono whitespace-nowrap">{it.apiGroup}</td>
+                                              <td className="py-2 pr-4 text-white font-mono break-words">
+                                                {it.resource}
+                                                {it.resourceNames?.length ? (
+                                                  <span className="text-slate-400 text-xs ml-2">
+                                                    (names: {it.resourceNames.join(', ')})
+                                                  </span>
+                                                ) : null}
+                                              </td>
+                                              <td className="py-2 pr-4 text-slate-200 font-mono break-words">
+                                                {it.verbsList.join(', ') || '(none)'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {nonResourceItems.length > 0 && (
+                                  <div>
+                                    <p className="text-slate-300 text-sm font-medium mb-2">Non-resource URLs</p>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-sm">
+                                        <thead className="text-slate-400">
+                                          <tr>
+                                            <th className="text-left py-2 pr-4">url</th>
+                                            <th className="text-left py-2 pr-4">verbs</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                          {nonResourceItems.map((it: any, idx: number) => (
+                                            <tr key={idx}>
+                                              <td className="py-2 pr-4 text-white font-mono break-words">{it.nonResourceURL}</td>
+                                              <td className="py-2 pr-4 text-slate-200 font-mono break-words">
+                                                {it.verbsList.join(', ') || '(none)'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
 
                       <div className="space-y-3">
                         <h4 className="text-white font-semibold">RoleBindings (Namespace)</h4>
