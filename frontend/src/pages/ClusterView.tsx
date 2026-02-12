@@ -1202,10 +1202,12 @@ export default function ClusterView() {
 
               {showRbac && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white">RBAC</h3>
-                  <p className="text-slate-400 text-sm">
-                    <span className="font-mono">system:authenticated</span> 로 매칭되는 항목은 광범위할 수 있어 아래에 접어서 표시합니다.
-                  </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <h3 className="text-lg font-semibold text-white">RBAC</h3>
+                    <p className="text-slate-500 text-xs text-right max-w-[520px] leading-relaxed">
+                      <span className="font-mono">system:authenticated</span> 로 매칭되는 항목은 광범위할 수 있어 별도의 “광범위” 섹션으로 분리해 표시합니다.
+                    </p>
+                  </div>
 
                   {isRbacLoading && (
                     <div className="text-slate-400">RBAC 정보를 불러오는 중...</div>
