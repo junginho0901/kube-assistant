@@ -15,7 +15,8 @@ import {
   Terminal,
   ChevronDown,
   Search,
-  Download
+  Download,
+  Shield
 } from 'lucide-react'
 
 interface PodDetail {
@@ -43,6 +44,7 @@ export default function ClusterView() {
   const [showLogs, setShowLogs] = useState(false)
   const [showManifest, setShowManifest] = useState(false)
   const [showDescribe, setShowDescribe] = useState(false)
+  const [showRbac, setShowRbac] = useState(false)
   const [logs, setLogs] = useState<string>('')
   const [, setIsStreamingLogs] = useState(false)
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
@@ -285,6 +287,16 @@ export default function ClusterView() {
     enabled: showDescribe && !!selectedPod,
   })
 
+  // Pod RBAC 조회
+  const { data: rbacData, isLoading: isRbacLoading, error: rbacError, refetch: refetchRbac, isFetching: isRbacFetching } = useQuery({
+    queryKey: ['pod-rbac', selectedPod?.namespace, selectedPod?.name],
+    queryFn: async () => {
+      if (!selectedPod) return null
+      return await api.getPodRbac(selectedPod.namespace, selectedPod.name)
+    },
+    enabled: showRbac && !!selectedPod,
+  })
+
   // 검색어로 Pod 필터링
   const filteredPods = allPods?.filter(pod => {
     if (!searchQuery.trim()) return true
@@ -349,6 +361,7 @@ export default function ClusterView() {
     setShowLogs(false)
     setShowManifest(false)
     setShowDescribe(false)
+    setShowRbac(false)
     
     setSelectedPod(detail)
     setContainerSearchQuery('') // 모달 열 때 검색어 초기화
@@ -633,9 +646,10 @@ export default function ClusterView() {
                   setShowLogs(false)
                   setShowManifest(false)
                   setShowDescribe(false)
+                  setShowRbac(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors ${
-                  !showLogs && !showManifest && !showDescribe
+                  !showLogs && !showManifest && !showDescribe && !showRbac
                     ? 'text-primary-400 border-b-2 border-primary-400'
                     : 'text-slate-400 hover:text-white'
                 }`}
@@ -667,6 +681,7 @@ export default function ClusterView() {
                   setShowLogs(true)
                   setShowManifest(false)
                   setShowDescribe(false)
+                  setShowRbac(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showLogs
@@ -682,6 +697,7 @@ export default function ClusterView() {
                   setShowLogs(false)
                   setShowManifest(false)
                   setShowDescribe(true)
+                  setShowRbac(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showDescribe
@@ -697,6 +713,7 @@ export default function ClusterView() {
                   setShowLogs(false)
                   setShowManifest(true)
                   setShowDescribe(false)
+                  setShowRbac(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showManifest
@@ -707,11 +724,27 @@ export default function ClusterView() {
                 <FileCode className="w-4 h-4" />
                 Manifest
               </button>
+              <button
+                onClick={() => {
+                  setShowLogs(false)
+                  setShowManifest(false)
+                  setShowDescribe(false)
+                  setShowRbac(true)
+                }}
+                className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+                  showRbac
+                    ? 'text-primary-400 border-b-2 border-primary-400'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                RBAC
+              </button>
             </div>
 
             {/* 모달 내용 */}
             <div className="flex-1 overflow-y-auto p-6">
-              {!showLogs && !showManifest && !showDescribe && (
+              {!showLogs && !showManifest && !showDescribe && !showRbac && (
                 <div className="space-y-6">
                   {/* 기본 정보 */}
                   <div className="grid grid-cols-2 gap-4">
@@ -1159,6 +1192,250 @@ export default function ClusterView() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {showRbac && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">RBAC</h3>
+                    <button
+                      onClick={() => refetchRbac()}
+                      disabled={isRbacFetching}
+                      className="h-9 px-3 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg border border-slate-600 transition-colors flex items-center gap-2 text-sm"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isRbacFetching ? 'animate-spin' : ''}`} />
+                      새로고침
+                    </button>
+                  </div>
+
+                  {isRbacLoading && (
+                    <div className="text-slate-400">RBAC 정보를 불러오는 중...</div>
+                  )}
+
+                  {rbacError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                      <p className="text-red-300 text-sm">
+                        RBAC 정보를 불러오지 못했습니다. (권한 부족 또는 API 오류일 수 있습니다)
+                      </p>
+                    </div>
+                  )}
+
+                  {rbacData && (
+                    <div className="space-y-6">
+                      <div className="bg-slate-800 rounded-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-slate-400">ServiceAccount</p>
+                            <p className="text-white font-medium">
+                              {rbacData.service_account?.name || 'default'}
+                              {rbacData.service_account?.name === 'default' && (
+                                <span className="ml-2 text-xs text-slate-400">(default)</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1 break-words">
+                              system:serviceaccount:{rbacData.pod.namespace}:{rbacData.service_account?.name || 'default'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-slate-400">Bindings</p>
+                            <p className="text-white font-medium">
+                              RoleBinding {rbacData.role_bindings?.length || 0} · ClusterRoleBinding {rbacData.cluster_role_bindings?.length || 0}
+                            </p>
+                          </div>
+                        </div>
+
+                        {Array.isArray(rbacData.errors) && rbacData.errors.length > 0 && (
+                          <div className="mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                            <p className="text-yellow-300 text-sm font-medium mb-2">주의</p>
+                            <ul className="text-yellow-200/90 text-sm list-disc pl-5 space-y-1">
+                              {rbacData.errors.map((e: string, idx: number) => (
+                                <li key={idx} className="break-words">{e}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="text-white font-semibold">RoleBindings (Namespace)</h4>
+                        {rbacData.role_bindings?.length ? (
+                          <div className="space-y-2">
+                            {rbacData.role_bindings.map((b: any) => (
+                              <details key={`rb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
+                                <summary className="cursor-pointer select-none">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <p className="text-white font-medium break-words">{b.name}</p>
+                                      <p className="text-sm text-slate-400 break-words">
+                                        {b.role_ref?.kind}:{b.role_ref?.name}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <p className="text-sm text-slate-300">
+                                        rules: {b.resolved_role?.rules?.length ?? 0}
+                                      </p>
+                                      {b.resolved_role?.error && (
+                                        <p className="text-xs text-yellow-300">resolve 실패</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </summary>
+
+                                <div className="mt-4 space-y-3">
+                                  <div>
+                                    <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {(b.subjects || []).map((s: any, idx: number) => (
+                                        <span
+                                          key={idx}
+                                          className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                          title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                        >
+                                          {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {b.resolved_role?.error ? (
+                                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                      <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                      <div className="space-y-2">
+                                        {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                          <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
+                                            <div className="flex flex-col gap-1">
+                                              <div className="flex flex-wrap gap-2">
+                                                <span className="text-slate-400">verbs</span>
+                                                <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                              </div>
+                                              <div className="flex flex-wrap gap-2">
+                                                <span className="text-slate-400">resources</span>
+                                                <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                <span className="text-slate-500">apiGroups</span>
+                                                <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                              </div>
+                                              {(r.non_resource_urls || []).length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  <span className="text-slate-400">nonResourceURLs</span>
+                                                  <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
+                                                </div>
+                                              )}
+                                              {(r.resource_names || []).length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  <span className="text-slate-400">resourceNames</span>
+                                                  <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 text-sm">(없음)</div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="text-white font-semibold">ClusterRoleBindings (Cluster)</h4>
+                        {rbacData.cluster_role_bindings?.length ? (
+                          <div className="space-y-2">
+                            {rbacData.cluster_role_bindings.map((b: any) => (
+                              <details key={`crb-${b.name}`} className="bg-slate-800 rounded-lg p-4">
+                                <summary className="cursor-pointer select-none">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <p className="text-white font-medium break-words">{b.name}</p>
+                                      <p className="text-sm text-slate-400 break-words">
+                                        {b.role_ref?.kind}:{b.role_ref?.name}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <p className="text-sm text-slate-300">
+                                        rules: {b.resolved_role?.rules?.length ?? 0}
+                                      </p>
+                                      {b.resolved_role?.error && (
+                                        <p className="text-xs text-yellow-300">resolve 실패</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </summary>
+
+                                <div className="mt-4 space-y-3">
+                                  <div>
+                                    <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {(b.subjects || []).map((s: any, idx: number) => (
+                                        <span
+                                          key={idx}
+                                          className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs break-words"
+                                          title={`${s.kind || ''} ${s.namespace ? `${s.namespace}/` : ''}${s.name || ''}`}
+                                        >
+                                          {s.kind}:{s.namespace ? `${s.namespace}/` : ''}{s.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {b.resolved_role?.error ? (
+                                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                      <p className="text-yellow-200 text-sm break-words">{b.resolved_role.error}</p>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                      <div className="space-y-2">
+                                        {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
+                                          <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
+                                            <div className="flex flex-col gap-1">
+                                              <div className="flex flex-wrap gap-2">
+                                                <span className="text-slate-400">verbs</span>
+                                                <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                              </div>
+                                              <div className="flex flex-wrap gap-2">
+                                                <span className="text-slate-400">resources</span>
+                                                <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
+                                                <span className="text-slate-500">apiGroups</span>
+                                                <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
+                                              </div>
+                                              {(r.non_resource_urls || []).length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  <span className="text-slate-400">nonResourceURLs</span>
+                                                  <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
+                                                </div>
+                                              )}
+                                              {(r.resource_names || []).length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                  <span className="text-slate-400">resourceNames</span>
+                                                  <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 text-sm">(없음)</div>
+                        )}
                       </div>
                     </div>
                   )}

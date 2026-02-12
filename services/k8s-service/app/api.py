@@ -509,6 +509,15 @@ async def describe_pod(namespace: str, name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/namespaces/{namespace}/pods/{name}/rbac")
+async def get_pod_rbac(namespace: str, name: str):
+    """Pod가 사용하는 ServiceAccount 기반 RBAC(RoleBinding/ClusterRoleBinding) 체인 조회"""
+    try:
+        return await k8s_service.get_pod_rbac(namespace, name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.websocket("/namespaces/{namespace}/pods/{pod_name}/logs/ws")
 async def websocket_pod_logs(
     websocket: WebSocket,

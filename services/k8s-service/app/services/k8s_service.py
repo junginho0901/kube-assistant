@@ -113,6 +113,27 @@ class K8sService:
             }
 
         return result or None
+
+    def _serialize_rbac_subject(self, subject: Any) -> Dict[str, Any]:
+        if subject is None:
+            return {}
+        return {
+            "kind": getattr(subject, "kind", None),
+            "api_group": getattr(subject, "api_group", None),
+            "name": getattr(subject, "name", None),
+            "namespace": getattr(subject, "namespace", None),
+        }
+
+    def _serialize_policy_rule(self, rule: Any) -> Dict[str, Any]:
+        if rule is None:
+            return {}
+        return {
+            "verbs": list(getattr(rule, "verbs", None) or []),
+            "api_groups": list(getattr(rule, "api_groups", None) or []),
+            "resources": list(getattr(rule, "resources", None) or []),
+            "resource_names": list(getattr(rule, "resource_names", None) or []),
+            "non_resource_urls": list(getattr(rule, "non_resource_urls", None) or []),
+        }
     
     async def get_cluster_overview(self, force_refresh: bool = False) -> ClusterOverview:
         """클러스터 전체 개요 (Redis 캐시)"""
@@ -1462,6 +1483,133 @@ class K8sService:
             return describe_info
         except ApiException as e:
             raise Exception(f"Failed to describe pod: {e}")
+
+    async def get_pod_rbac(self, namespace: str, name: str) -> Dict[str, Any]:
+        """
+        Pod → ServiceAccount → (RoleBinding/ClusterRoleBinding) → (Role/ClusterRole rules) 체인을 조회한다.
+
+        주의: 1차 구현은 '직접 매칭(ServiceAccount subject / system:serviceaccount User)'만 대상으로 한다.
+        """
+        rbac_v1 = client.RbacAuthorizationV1Api()
+
+        pod = self.v1.read_namespaced_pod(name, namespace)
+        service_account_name = getattr(pod.spec, "service_account_name", None) or "default"
+        service_account_user = f"system:serviceaccount:{namespace}:{service_account_name}"
+
+        result: Dict[str, Any] = {
+            "pod": {"name": name, "namespace": namespace},
+            "service_account": {"name": service_account_name, "namespace": namespace},
+            "role_bindings": [],
+            "cluster_role_bindings": [],
+            "errors": [],
+        }
+
+        def subject_matches(subject: Any) -> bool:
+            if subject is None:
+                return False
+            kind = getattr(subject, "kind", None)
+            subj_name = getattr(subject, "name", None)
+            subj_ns = getattr(subject, "namespace", None)
+
+            if kind == "ServiceAccount":
+                return subj_name == service_account_name and (subj_ns == namespace or subj_ns is None)
+            if kind == "User":
+                return subj_name == service_account_user
+            return False
+
+        def resolve_role_ref(role_ref: Any, binding_namespace: Optional[str]) -> Dict[str, Any]:
+            info: Dict[str, Any] = {
+                "api_group": getattr(role_ref, "api_group", None),
+                "kind": getattr(role_ref, "kind", None),
+                "name": getattr(role_ref, "name", None),
+                "rules": [],
+                "error": None,
+            }
+
+            try:
+                kind = info["kind"]
+                ref_name = info["name"]
+                if kind == "Role":
+                    if not binding_namespace:
+                        raise Exception("Missing namespace for Role ref")
+                    role = rbac_v1.read_namespaced_role(ref_name, binding_namespace)
+                    info["rules"] = [self._serialize_policy_rule(r) for r in (role.rules or [])]
+                elif kind == "ClusterRole":
+                    cluster_role = rbac_v1.read_cluster_role(ref_name)
+                    info["rules"] = [self._serialize_policy_rule(r) for r in (cluster_role.rules or [])]
+                else:
+                    info["error"] = f"Unsupported roleRef kind: {kind}"
+            except ApiException as e:
+                info["error"] = f"Failed to resolve roleRef: {e.status} {e.reason}"
+            except Exception as e:
+                info["error"] = str(e)
+
+            return info
+
+        # Namespaced RoleBindings
+        try:
+            role_bindings = rbac_v1.list_namespaced_role_binding(namespace)
+            for rb in role_bindings.items:
+                subjects = list(getattr(rb, "subjects", None) or [])
+                if not any(subject_matches(s) for s in subjects):
+                    continue
+
+                role_ref = getattr(rb, "role_ref", None)
+                role_ref_info = resolve_role_ref(role_ref, namespace) if role_ref is not None else {
+                    "api_group": None,
+                    "kind": None,
+                    "name": None,
+                    "rules": [],
+                    "error": "Missing roleRef",
+                }
+
+                result["role_bindings"].append({
+                    "name": rb.metadata.name,
+                    "namespace": namespace,
+                    "subjects": [self._serialize_rbac_subject(s) for s in subjects],
+                    "role_ref": {
+                        "api_group": getattr(role_ref, "api_group", None) if role_ref else None,
+                        "kind": getattr(role_ref, "kind", None) if role_ref else None,
+                        "name": getattr(role_ref, "name", None) if role_ref else None,
+                    },
+                    "resolved_role": role_ref_info,
+                    "created_at": self._to_iso(getattr(rb.metadata, "creation_timestamp", None)),
+                })
+        except ApiException as e:
+            result["errors"].append(f"Failed to list RoleBindings: {e.status} {e.reason}")
+
+        # ClusterRoleBindings
+        try:
+            cluster_role_bindings = rbac_v1.list_cluster_role_binding()
+            for crb in cluster_role_bindings.items:
+                subjects = list(getattr(crb, "subjects", None) or [])
+                if not any(subject_matches(s) for s in subjects):
+                    continue
+
+                role_ref = getattr(crb, "role_ref", None)
+                role_ref_info = resolve_role_ref(role_ref, None) if role_ref is not None else {
+                    "api_group": None,
+                    "kind": None,
+                    "name": None,
+                    "rules": [],
+                    "error": "Missing roleRef",
+                }
+
+                result["cluster_role_bindings"].append({
+                    "name": crb.metadata.name,
+                    "subjects": [self._serialize_rbac_subject(s) for s in subjects],
+                    "role_ref": {
+                        "api_group": getattr(role_ref, "api_group", None) if role_ref else None,
+                        "kind": getattr(role_ref, "kind", None) if role_ref else None,
+                        "name": getattr(role_ref, "name", None) if role_ref else None,
+                    },
+                    "resolved_role": role_ref_info,
+                    "created_at": self._to_iso(getattr(crb.metadata, "creation_timestamp", None)),
+                })
+        except ApiException as e:
+            result["errors"].append(f"Failed to list ClusterRoleBindings: {e.status} {e.reason}")
+
+        return result
     
     async def describe_deployment(self, namespace: str, name: str) -> Dict:
         """Deployment 상세 정보 조회"""
