@@ -70,6 +70,32 @@ export default function ClusterView() {
     return Boolean(binding?.is_broad)
   }
 
+  const formatMatchReason = (reason: string) => {
+    switch (reason) {
+      case 'serviceaccount':
+        return 'ServiceAccount 직접'
+      case 'user:system:serviceaccount':
+        return 'User(system:serviceaccount)'
+      case 'group:serviceaccounts':
+        return 'Group(system:serviceaccounts)'
+      case 'group:system:authenticated':
+        return 'Group(system:authenticated)'
+      default:
+        return reason
+    }
+  }
+
+  const getBindingMatchPathText = (binding: any) => {
+    const matchedBy = binding?.matched_by
+    if (!Array.isArray(matchedBy) || matchedBy.length === 0) return null
+    const reasons = matchedBy
+      .map((m: any) => m?.reason)
+      .filter((r: any) => typeof r === 'string' && r.trim())
+    if (!reasons.length) return null
+    const unique = Array.from(new Set(reasons))
+    return unique.map(formatMatchReason).join(' · ')
+  }
+
   const buildRbacPermissionSummary = (rbac: any) => {
     const items: Array<{
       kind: 'resource' | 'nonResourceURL'
@@ -1517,6 +1543,11 @@ export default function ClusterView() {
                                           <p className="text-sm text-slate-400 break-words">
                                             {b.role_ref?.kind}:{b.role_ref?.name}
                                           </p>
+                                          {getBindingMatchPathText(b) && (
+                                            <p className="text-xs text-slate-500 mt-1 break-words">
+                                              매칭: {getBindingMatchPathText(b)}
+                                            </p>
+                                          )}
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                           <p className="text-sm text-slate-300">
@@ -1615,6 +1646,11 @@ export default function ClusterView() {
                                             <p className="text-sm text-slate-400 break-words">
                                               {b.role_ref?.kind}:{b.role_ref?.name}
                                             </p>
+                                            {getBindingMatchPathText(b) && (
+                                              <p className="text-xs text-slate-500 mt-1 break-words">
+                                                매칭: {getBindingMatchPathText(b)}
+                                              </p>
+                                            )}
                                           </div>
                                           <div className="text-right flex-shrink-0">
                                             <p className="text-sm text-slate-300">
@@ -1700,6 +1736,11 @@ export default function ClusterView() {
                                           <p className="text-sm text-slate-400 break-words">
                                             {b.role_ref?.kind}:{b.role_ref?.name}
                                           </p>
+                                          {getBindingMatchPathText(b) && (
+                                            <p className="text-xs text-slate-500 mt-1 break-words">
+                                              매칭: {getBindingMatchPathText(b)}
+                                            </p>
+                                          )}
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                           <p className="text-sm text-slate-300">
@@ -1798,6 +1839,11 @@ export default function ClusterView() {
                                             <p className="text-sm text-slate-400 break-words">
                                               {b.role_ref?.kind}:{b.role_ref?.name}
                                             </p>
+                                            {getBindingMatchPathText(b) && (
+                                              <p className="text-xs text-slate-500 mt-1 break-words">
+                                                매칭: {getBindingMatchPathText(b)}
+                                              </p>
+                                            )}
                                           </div>
                                           <div className="text-right flex-shrink-0">
                                             <p className="text-sm text-slate-300">
