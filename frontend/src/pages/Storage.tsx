@@ -423,6 +423,12 @@ export default function Storage() {
     { id: 'volumeattachments', name: 'VolumeAttachment', icon: HardDrive },
   ]
 
+  const handleTabClick = (tabId: StorageTab) => {
+    if (tabId === activeTab) return
+    setSearchQuery('')
+    setActiveTab(tabId)
+  }
+
   const searchPlaceholder: Record<StorageTab, string> = {
     pvcs: 'PVC 이름 검색...',
     pvs: 'PV 이름 검색...',
@@ -452,7 +458,7 @@ export default function Storage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabClick(tab.id)}
             className={`
               flex items-center gap-2 px-4 py-3 font-medium transition-colors
               border-b-2 -mb-px
