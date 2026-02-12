@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { Database, HardDrive, RefreshCw, Search, X, ExternalLink, ArrowDown, ArrowUp } from 'lucide-react'
@@ -42,6 +42,10 @@ export default function Storage() {
     if (hours > 0) return `${hours}h ${minutes}m`
     return `${minutes}m`
   }
+
+  useEffect(() => {
+    if (activeTab !== 'pvcs') setSelectedPvc(null)
+  }, [activeTab])
 
   const { data: namespaces } = useQuery({
     queryKey: ['namespaces'],
@@ -417,9 +421,10 @@ export default function Storage() {
 
       {/* Lists */}
       {activeTab === 'pvcs' && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="card overflow-x-auto xl:col-span-2">
-            <table className="w-full text-sm">
+        (() => {
+          const pvcTable = (tableCardClassName: string) => (
+            <div className={tableCardClassName}>
+              <table className="w-full text-sm">
               <thead className="text-slate-400">
                 <tr>
                   <th className="text-left py-3 px-4 cursor-pointer select-none" onClick={() => togglePvcSort('namespace')}>
@@ -505,29 +510,33 @@ export default function Storage() {
                 )}
               </tbody>
             </table>
-          </div>
-
-          <div className="card">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-white">연결 보기</h3>
-                <p className="text-sm text-slate-400 mt-1">PVC → PV / StorageClass</p>
-              </div>
-              {selectedPvc && (
-                <button
-                  onClick={() => setSelectedPvc(null)}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                  title="닫기"
-                >
-                  <X className="w-4 h-4 text-slate-300" />
-                </button>
-              )}
             </div>
+          )
 
-            {!selectedPvc ? (
-              <div className="mt-4 text-slate-400 text-sm">(PVC 행을 클릭하세요)</div>
-            ) : (
-              <div className="mt-4 space-y-5">
+          if (!selectedPvc) {
+            return pvcTable('card overflow-x-auto')
+          }
+
+          return (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {pvcTable('card overflow-x-auto xl:col-span-2')}
+
+              <div className="card">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">PVC 연결</h3>
+                    <p className="text-sm text-slate-400 mt-1">PVC → PV / StorageClass</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedPvc(null)}
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                    title="닫기"
+                  >
+                    <X className="w-4 h-4 text-slate-300" />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-5">
                 <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -659,9 +668,10 @@ export default function Storage() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+          )
+        })()
       )}
 
       {activeTab === 'pvs' && (
