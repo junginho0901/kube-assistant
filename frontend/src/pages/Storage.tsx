@@ -187,6 +187,7 @@ export default function Storage() {
                 <th className="text-left py-3 px-4">Status</th>
                 <th className="text-left py-3 px-4">StorageClass</th>
                 <th className="text-left py-3 px-4">Volume</th>
+                <th className="text-left py-3 px-4">Requested</th>
                 <th className="text-left py-3 px-4">Capacity</th>
                 <th className="text-left py-3 px-4">AccessModes</th>
               </tr>
@@ -199,13 +200,14 @@ export default function Storage() {
                   <td className="py-3 px-4 text-slate-200">{pvc.status}</td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.storage_class || '-'}</td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.volume_name || '-'}</td>
+                  <td className="py-3 px-4 text-slate-200 font-mono">{pvc.requested || '-'}</td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.capacity || '-'}</td>
                   <td className="py-3 px-4 text-slate-200">{(pvc.access_modes || []).join(', ') || '-'}</td>
                 </tr>
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td className="py-6 px-4 text-slate-400" colSpan={7}>
+                  <td className="py-6 px-4 text-slate-400" colSpan={8}>
                     (없음)
                   </td>
                 </tr>

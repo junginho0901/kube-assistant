@@ -585,6 +585,13 @@ class K8sService:
                 capacity = None
                 if pvc.status.capacity:
                     capacity = pvc.status.capacity.get("storage")
+
+                requested = None
+                try:
+                    if pvc.spec.resources and pvc.spec.resources.requests:
+                        requested = pvc.spec.resources.requests.get("storage")
+                except Exception:
+                    requested = None
                 
                 result.append(PVCInfo(
                     name=pvc.metadata.name,
@@ -593,6 +600,7 @@ class K8sService:
                     volume_name=pvc.spec.volume_name,
                     storage_class=pvc.spec.storage_class_name,
                     capacity=capacity,
+                    requested=requested,
                     access_modes=pvc.spec.access_modes or [],
                     created_at=pvc.metadata.creation_timestamp
                 ))

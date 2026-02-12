@@ -331,6 +331,7 @@ export interface PVCInfo {
   volume_name?: string
   storage_class?: string
   capacity?: string
+  requested?: string
   access_modes: string[]
   created_at: string
 }

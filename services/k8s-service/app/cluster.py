@@ -65,6 +65,7 @@ class PVCInfo(BaseModel):
     volume_name: Optional[str]
     storage_class: Optional[str]
     capacity: Optional[str]
+    requested: Optional[str]
     access_modes: List[str]
     created_at: datetime
 
