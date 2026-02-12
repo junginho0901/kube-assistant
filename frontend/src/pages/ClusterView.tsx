@@ -713,22 +713,6 @@ export default function ClusterView() {
               <button
                 onClick={() => {
                   setShowLogs(false)
-                  setShowManifest(true)
-                  setShowDescribe(false)
-                  setShowRbac(false)
-                }}
-                className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
-                  showManifest
-                    ? 'text-primary-400 border-b-2 border-primary-400'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <FileCode className="w-4 h-4" />
-                Manifest
-              </button>
-              <button
-                onClick={() => {
-                  setShowLogs(false)
                   setShowManifest(false)
                   setShowDescribe(false)
                   setShowRbac(true)
@@ -741,6 +725,22 @@ export default function ClusterView() {
               >
                 <Shield className="w-4 h-4" />
                 RBAC
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogs(false)
+                  setShowManifest(true)
+                  setShowDescribe(false)
+                  setShowRbac(false)
+                }}
+                className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+                  showManifest
+                    ? 'text-primary-400 border-b-2 border-primary-400'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileCode className="w-4 h-4" />
+                Manifest
               </button>
             </div>
 
