@@ -1365,20 +1365,18 @@ export default function ClusterView() {
                               )}
 
                               {broad.length > 0 && (
-                                <details className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
-                                  <summary className="cursor-pointer select-none">
-                                    <div className="flex items-center justify-between gap-4">
-                                      <div className="min-w-0">
-                                        <p className="text-yellow-200 font-medium break-words">
-                                          광범위 RoleBinding {broad.length}개 (system:authenticated)
-                                        </p>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                          대부분의 인증된 주체가 포함될 수 있어 실제 “이 Pod만의 권한”을 과대해 보이게 만들 수 있습니다.
-                                        </p>
-                                      </div>
-                                      <span className="text-xs text-yellow-300 flex-shrink-0">접기/펼치기</span>
+                                <div className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <p className="text-yellow-200 font-medium break-words">
+                                        광범위 RoleBinding {broad.length}개 <span className="text-yellow-200/80">(system:authenticated)</span>
+                                      </p>
+                                      <p className="text-xs text-slate-400 mt-1">
+                                        대부분의 인증된 주체가 포함될 수 있어 실제 “이 Pod만의 권한”을 과대해 보이게 만들 수 있습니다.
+                                      </p>
                                     </div>
-                                  </summary>
+                                    <span className="text-xs text-yellow-300 flex-shrink-0">광범위</span>
+                                  </div>
 
                                   <div className="mt-3 space-y-2">
                                     {broad.map((b: any) => (
@@ -1450,7 +1448,7 @@ export default function ClusterView() {
                                       </details>
                                     ))}
                                   </div>
-                                </details>
+                                </div>
                               )}
                             </>
                           )
@@ -1553,20 +1551,18 @@ export default function ClusterView() {
                               )}
 
                               {broad.length > 0 && (
-                                <details className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
-                                  <summary className="cursor-pointer select-none">
-                                    <div className="flex items-center justify-between gap-4">
-                                      <div className="min-w-0">
-                                        <p className="text-yellow-200 font-medium break-words">
-                                          광범위 ClusterRoleBinding {broad.length}개 (system:authenticated)
-                                        </p>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                          모든 인증된 주체가 포함될 수 있어 노이즈가 많습니다. 문제 분석용으로만 참고하세요.
-                                        </p>
-                                      </div>
-                                      <span className="text-xs text-yellow-300 flex-shrink-0">접기/펼치기</span>
+                                <div className="bg-slate-800 rounded-lg p-4 border border-yellow-500/30">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <p className="text-yellow-200 font-medium break-words">
+                                        광범위 ClusterRoleBinding {broad.length}개 <span className="text-yellow-200/80">(system:authenticated)</span>
+                                      </p>
+                                      <p className="text-xs text-slate-400 mt-1">
+                                        모든 인증된 주체가 포함될 수 있어 노이즈가 많습니다. 문제 분석용으로만 참고하세요.
+                                      </p>
                                     </div>
-                                  </summary>
+                                    <span className="text-xs text-yellow-300 flex-shrink-0">광범위</span>
+                                  </div>
 
                                   <div className="mt-3 space-y-2">
                                     {broad.map((b: any) => (
@@ -1638,7 +1634,7 @@ export default function ClusterView() {
                                       </details>
                                     ))}
                                   </div>
-                                </details>
+                                </div>
                               )}
                             </>
                           )
