@@ -12,6 +12,22 @@ export default function Storage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
 
+  const formatAge = (iso?: string | null) => {
+    if (!iso) return '-'
+    const createdAt = new Date(iso)
+    const createdMs = createdAt.getTime()
+    if (Number.isNaN(createdMs)) return '-'
+
+    const diffSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000))
+    const days = Math.floor(diffSec / 86400)
+    const hours = Math.floor((diffSec % 86400) / 3600)
+    const minutes = Math.floor((diffSec % 3600) / 60)
+
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
+  }
+
   const { data: namespaces } = useQuery({
     queryKey: ['namespaces'],
     queryFn: () => api.getNamespaces(false),
@@ -185,6 +201,7 @@ export default function Storage() {
                 <th className="text-left py-3 px-4">Namespace</th>
                 <th className="text-left py-3 px-4">Name</th>
                 <th className="text-left py-3 px-4">Status</th>
+                <th className="text-left py-3 px-4">Age</th>
                 <th className="text-left py-3 px-4">StorageClass</th>
                 <th className="text-left py-3 px-4">Volume</th>
                 <th className="text-left py-3 px-4">Requested</th>
@@ -198,6 +215,12 @@ export default function Storage() {
                   <td className="py-3 px-4 text-slate-300">{pvc.namespace}</td>
                   <td className="py-3 px-4 text-white font-mono">{pvc.name}</td>
                   <td className="py-3 px-4 text-slate-200">{pvc.status}</td>
+                  <td
+                    className="py-3 px-4 text-slate-200 font-mono whitespace-nowrap"
+                    title={pvc.created_at ? new Date(pvc.created_at).toLocaleString('ko-KR') : ''}
+                  >
+                    {formatAge(pvc.created_at)}
+                  </td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.storage_class || '-'}</td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.volume_name || '-'}</td>
                   <td className="py-3 px-4 text-slate-200 font-mono">{pvc.requested || '-'}</td>
@@ -207,7 +230,7 @@ export default function Storage() {
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td className="py-6 px-4 text-slate-400" colSpan={8}>
+                  <td className="py-6 px-4 text-slate-400" colSpan={9}>
                     (없음)
                   </td>
                 </tr>
