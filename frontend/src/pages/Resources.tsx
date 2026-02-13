@@ -383,6 +383,11 @@ export default function Resources() {
               </div>
             </div>
           ))}
+          {filteredDeployments.length === 0 && (
+            <div className="card">
+              <div className="text-slate-400">(없음)</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -799,6 +804,11 @@ export default function Resources() {
               )}
             </div>
           ))}
+          {filteredServices.length === 0 && (
+            <div className="card">
+              <div className="text-slate-400">(없음)</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -863,6 +873,11 @@ export default function Resources() {
               </div>
             </div>
           ))}
+          {filteredPods.length === 0 && (
+            <div className="card">
+              <div className="text-slate-400">(없음)</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -902,6 +917,11 @@ export default function Resources() {
               </div>
             </div>
           ))}
+          {filteredPVCs.length === 0 && (
+            <div className="card">
+              <div className="text-slate-400">(없음)</div>
+            </div>
+          )}
         </div>
       )}
     </div>
