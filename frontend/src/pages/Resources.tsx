@@ -495,9 +495,10 @@ export default function Resources() {
               return false
             })
 
-            const desiredDisplay = metricsMissing
-              ? 'unavailable (metrics missing)'
+            const desiredPrimary = metricsMissing
+              ? 'unavailable'
               : (hpa.desired_replicas ?? '-')
+            const desiredSecondary = metricsMissing ? '(metrics missing)' : null
 
             const hasBadCond = conditions.some((c) => c?.status && c.status !== 'True')
             const isLimited = (scalingLimited?.status ?? 'False') === 'True'
@@ -556,7 +557,15 @@ export default function Resources() {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Desired</p>
-                    <p className="text-lg font-bold text-white font-mono break-words">{desiredDisplay}</p>
+                    <p
+                      className="text-lg font-bold text-white font-mono truncate"
+                      title={desiredSecondary ? `${desiredPrimary} ${desiredSecondary}` : String(desiredPrimary)}
+                    >
+                      {desiredPrimary}
+                    </p>
+                    {desiredSecondary && (
+                      <p className="mt-0.5 text-xs text-slate-400 font-mono">{desiredSecondary}</p>
+                    )}
                   </div>
                 </div>
 
