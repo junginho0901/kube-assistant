@@ -360,9 +360,28 @@ export default function Resources() {
                     )
                   })()}
                 </div>
-                <span className={`badge ${getStatusColor(rs.status)}`}>
-                  {rs.status}
-                </span>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`badge ${getStatusColor(rs.status)}`}>
+                    {rs.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const selectorObj = compactSelector(rs.selector || {})
+                      const selector = Object.entries(selectorObj)
+                        .map(([k, v]: any) => `${k}=${v}`)
+                        .join(',')
+                      setPodLabelSelector(selector)
+                      setSearchQuery('')
+                      setActiveTab('pods')
+                    }}
+                    disabled={!rs.selector || Object.keys(rs.selector).length === 0}
+                    className="text-xs text-slate-300 hover:text-white border border-slate-600 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="ReplicaSet selector로 Pod 목록을 필터링합니다"
+                  >
+                    Pods로 이동
+                  </button>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-4">
                 <div>
@@ -377,26 +396,6 @@ export default function Resources() {
                   <p className="text-xs text-slate-400">Available</p>
                   <p className="text-lg font-bold text-white">{rs.available_replicas}</p>
                 </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const selectorObj = compactSelector(rs.selector || {})
-                    const selector = Object.entries(selectorObj)
-                      .map(([k, v]: any) => `${k}=${v}`)
-                      .join(',')
-                    setPodLabelSelector(selector)
-                    setSearchQuery('')
-                    setActiveTab('pods')
-                  }}
-                  disabled={!rs.selector || Object.keys(rs.selector).length === 0}
-                  className="text-xs text-slate-300 hover:text-white border border-slate-600 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="ReplicaSet selector로 Pod 목록을 필터링합니다"
-                >
-                  Pods로 이동
-                </button>
               </div>
             </div>
           ))}
@@ -650,9 +649,25 @@ export default function Resources() {
                     return <p className="text-xs text-yellow-200 mt-2">현재는 보호 불가: disruptionsAllowed=0 입니다.</p>
                   })()}
                 </div>
-                <span className={`badge ${pdb.disruptions_allowed > 0 ? 'badge-success' : 'badge-warning'}`}>
-                  disruptionsAllowed: {pdb.disruptions_allowed}
-                </span>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`badge ${pdb.disruptions_allowed > 0 ? 'badge-success' : 'badge-warning'}`}>
+                    disruptionsAllowed: {pdb.disruptions_allowed}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const selector = selectorToString(pdb.selector || {})
+                      setPodLabelSelector(selector)
+                      setSearchQuery('')
+                      setActiveTab('pods')
+                    }}
+                    disabled={!pdb.selector || Object.keys(pdb.selector).length === 0}
+                    className="text-xs text-slate-300 hover:text-white border border-slate-600 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="PDB selector로 Pod 목록을 필터링합니다"
+                  >
+                    Pods로 이동
+                  </button>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-4">
                 <div>
@@ -673,23 +688,6 @@ export default function Resources() {
                     {Object.entries(pdb.selector || {}).map(([k, v]: any) => `${k}=${v}`).join(', ') || '-'}
                   </p>
                 </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const selector = selectorToString(pdb.selector || {})
-                    setPodLabelSelector(selector)
-                    setSearchQuery('')
-                    setActiveTab('pods')
-                  }}
-                  disabled={!pdb.selector || Object.keys(pdb.selector).length === 0}
-                  className="text-xs text-slate-300 hover:text-white border border-slate-600 rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="PDB selector로 Pod 목록을 필터링합니다"
-                >
-                  Pods로 이동
-                </button>
               </div>
             </div>
           ))}
