@@ -98,6 +98,21 @@ export default function Resources() {
       .join(',')
   }
 
+  const compactSelector = (selectorObj: Record<string, string> | undefined | null) => {
+    const obj = selectorObj || {}
+    const entries = Object.entries(obj)
+    if (entries.length === 0) return {}
+
+    // ReplicaSet/Deployment 등에서 자주 붙는 "버전/해시" 라벨은 노이즈가 되기 쉬워 숨긴다.
+    const noisyKeys = new Set([
+      'pod-template-hash',
+      'controller-revision-hash',
+    ])
+
+    const compact = Object.fromEntries(entries.filter(([k]) => !noisyKeys.has(k)))
+    return Object.keys(compact).length > 0 ? compact : obj
+  }
+
   const podMatchesSelector = (pod: any, selectorObj: Record<string, string> | undefined | null) => {
     const sel = selectorObj || {}
     const entries = Object.entries(sel)
@@ -330,14 +345,20 @@ export default function Resources() {
                   <h3 className="text-lg font-bold text-white">{rs.name}</h3>
                   <p className="text-sm text-slate-400 mt-1">{rs.image || '-'}</p>
                   {rs.owner && <p className="text-xs text-slate-500 mt-1">Owner: {rs.owner}</p>}
-                  {rs.selector && Object.keys(rs.selector).length > 0 && (
-                    <p
-                      className="text-xs text-slate-500 mt-1 font-mono break-words"
-                      title={Object.entries(rs.selector).map(([k, v]: any) => `${k}=${v}`).join(', ')}
-                    >
-                      selector: {Object.entries(rs.selector).map(([k, v]: any) => `${k}=${v}`).join(', ')}
-                    </p>
-                  )}
+                  {rs.selector && Object.keys(rs.selector).length > 0 && (() => {
+                    const full = rs.selector || {}
+                    const compact = compactSelector(full)
+                    const fullText = Object.entries(full).map(([k, v]: any) => `${k}=${v}`).join(', ')
+                    const compactText = Object.entries(compact).map(([k, v]: any) => `${k}=${v}`).join(', ')
+                    return (
+                      <p
+                        className="text-xs text-slate-500 mt-1 font-mono break-words"
+                        title={`전체 selector: ${fullText}`}
+                      >
+                        selector: {compactText}
+                      </p>
+                    )
+                  })()}
                 </div>
                 <span className={`badge ${getStatusColor(rs.status)}`}>
                   {rs.status}
@@ -362,7 +383,7 @@ export default function Resources() {
                 <button
                   type="button"
                   onClick={() => {
-                    const selectorObj = rs.selector || {}
+                    const selectorObj = compactSelector(rs.selector || {})
                     const selector = Object.entries(selectorObj)
                       .map(([k, v]: any) => `${k}=${v}`)
                       .join(',')
