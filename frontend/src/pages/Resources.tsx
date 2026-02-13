@@ -126,11 +126,11 @@ export default function Resources() {
 
   const tabs = [
     { id: 'deployments' as ResourceType, name: 'Deployments', icon: Server },
+    { id: 'pods' as ResourceType, name: 'Pods', icon: Box },
+    { id: 'services' as ResourceType, name: 'Services', icon: Database },
     { id: 'replicasets' as ResourceType, name: 'ReplicaSets', icon: Layers },
     { id: 'hpas' as ResourceType, name: 'HPA', icon: TrendingUp },
     { id: 'pdbs' as ResourceType, name: 'PDB', icon: Shield },
-    { id: 'services' as ResourceType, name: 'Services', icon: Database },
-    { id: 'pods' as ResourceType, name: 'Pods', icon: Box },
     { id: 'pvcs' as ResourceType, name: 'PVCs', icon: Database },
   ]
 
