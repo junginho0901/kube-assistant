@@ -606,6 +606,16 @@ export default function Resources() {
                     const matched = (podsForPdbs || []).filter((pod: any) => podMatchesSelector(pod, selectorObj))
                     const matchedCount = matched.length
                     const readyCount = matched.filter(isPodReady).length
+                    const phaseCounts = matched.reduce((acc: Record<string, number>, pod: any) => {
+                      const phase = (pod?.phase || pod?.status || 'Unknown').toString()
+                      acc[phase] = (acc[phase] || 0) + 1
+                      return acc
+                    }, {})
+                    const phaseSummary = Object.entries(phaseCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 4)
+                      .map(([k, v]) => `${k}:${v}`)
+                      .join(' · ')
 
                     if (Object.keys(selectorObj).length === 0) {
                       return <p className="text-xs text-slate-500 mt-1">selector가 없어 매칭 Pod를 계산할 수 없습니다.</p>
@@ -613,7 +623,7 @@ export default function Resources() {
 
                     return (
                       <p className="text-xs text-slate-500 mt-1 font-mono">
-                        matchedPods: {matchedCount} · ready: {readyCount}
+                        matchedPods: {matchedCount} · ready: {readyCount}{phaseSummary ? ` · phase: ${phaseSummary}` : ''}
                       </p>
                     )
                   })()}
