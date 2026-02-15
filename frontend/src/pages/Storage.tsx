@@ -752,9 +752,9 @@ export default function Storage() {
               </button>
             </div>
           </div>
-        ) : activeTab === 'storageclasses' ? (
-          <div className="flex items-center justify-end">
-            <div className="inline-flex rounded-lg border border-slate-600 bg-slate-700 overflow-hidden">
+	        ) : activeTab === 'storageclasses' ? (
+	          <div className="flex items-center justify-end">
+	            <div className="inline-flex rounded-lg border border-slate-600 bg-slate-700 overflow-hidden">
               <button
                 type="button"
                 onClick={() => setStorageClassColumnMode('compact')}
@@ -775,12 +775,18 @@ export default function Storage() {
               >
                 상세
               </button>
-            </div>
-          </div>
-        ) : (
-          <div />
-        )}
-      </div>
+	            </div>
+	          </div>
+	        ) : activeTab === 'volumeattachments' ? (
+	          <div className="hidden md:flex items-center justify-end text-xs text-slate-400 leading-snug text-right">
+	            VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다.
+	            <br />
+	            (예: NFS 계열은 생성되지 않을 수 있음)
+	          </div>
+	        ) : (
+	          <div />
+	        )}
+	      </div>
 
       {activeTab === 'volumeattachments' && volumeAttachmentError && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-200">
@@ -788,15 +794,9 @@ export default function Storage() {
         </div>
       )}
 
-      {activeTab === 'volumeattachments' && !volumeAttachmentError && (
-        <div className="text-xs text-slate-400">
-          VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다. (예: NFS 계열은 생성되지 않을 수 있음)
-        </div>
-      )}
-
-      {/* Lists */}
-      {activeTab === 'pvcs' && (
-        (() => {
+	      {/* Lists */}
+	      {activeTab === 'pvcs' && (
+	        (() => {
           const pvcTable = (tableCardClassName: string) => (
             <div className={tableCardClassName}>
               <table className="w-full text-sm">
