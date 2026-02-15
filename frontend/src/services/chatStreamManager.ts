@@ -1,4 +1,4 @@
-import { getAuthHeaders } from '@/services/auth'
+import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 
 export type StreamingPhase = 'waiting' | 'tools' | 'answer'
 
@@ -132,6 +132,11 @@ class ChatStreamManager {
           signal: this.abortController.signal,
         }
       )
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error('Unauthorized')
+      }
 
       if (!response.body) throw new Error('No response body')
 

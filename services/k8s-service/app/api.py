@@ -610,6 +610,9 @@ async def websocket_pod_logs(
     """WebSocket을 통한 실시간 로그 스트리밍 (자동 이전 연결 종료)"""
     # Authenticate via HttpOnly cookie (Argo CD style).
     # Note: browser WebSocket API cannot reliably set Authorization headers.
+    # NOTE: If we close before accepting, ASGI servers typically respond with HTTP 403,
+    # and browsers won't expose a close code. Accept first so the client can reliably
+    # detect auth failures (e.g. close code 1008) and trigger global logout UX.
     try:
         from http.cookies import SimpleCookie
         from app.config import settings
@@ -625,11 +628,16 @@ async def websocket_pod_logs(
                 token = morsel.value
 
         if not token:
+            await websocket.accept()
             await websocket.close(code=1008, reason="Missing auth token")
             return
 
-        _payload = decode_access_token(token)
+        decode_access_token(token)
     except Exception:
+        try:
+            await websocket.accept()
+        except Exception:
+            pass
         await websocket.close(code=1008, reason="Invalid token")
         return
 

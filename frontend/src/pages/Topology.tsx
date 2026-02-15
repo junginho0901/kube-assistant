@@ -4,7 +4,7 @@ import { FileCode, Package, Network as NetworkIcon, Database, Key, Box, Clock, G
 import { useState } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { dracula } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { getAuthHeaders } from '@/services/auth'
+import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 
 type ResourceType = 
   | 'deployment' 
@@ -57,6 +57,10 @@ export default function Topology() {
         `/api/v1/cluster/namespaces/${namespace}/${category.endpoint}`,
         { headers: { ...getAuthHeaders() } }
       )
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error('Unauthorized')
+      }
       return response.json()
     },
     enabled: !!namespace,
@@ -75,6 +79,11 @@ export default function Topology() {
           `/api/v1/cluster/namespaces/${namespace}/${category.endpoint}/${selectedResource}/yaml`,
           { headers: { ...getAuthHeaders() } }
         )
+
+        if (response.status === 401) {
+          handleUnauthorized()
+          throw new Error('Unauthorized')
+        }
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))

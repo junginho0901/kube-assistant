@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken } from './auth'
+import { getAccessToken, handleUnauthorized } from './auth'
 
 const client = axios.create({
   baseURL: '/api/v1',
@@ -17,6 +17,19 @@ client.interceptors.request.use((config) => {
   }
   return config
 })
+
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status
+    const url = String(error?.config?.url || '')
+    const isAuthRequest = url.startsWith('/auth/login') || url.startsWith('/auth/register')
+    if (status === 401 && !isAuthRequest) {
+      handleUnauthorized()
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Types
 export interface ClusterOverview {
@@ -580,29 +593,6 @@ export const api = {
     await client.delete(`/auth/admin/users/${userId}`)
   },
 
-  // Members
-  getMembers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
-    const { data } = await client.get('/members', { params })
-    if (!Array.isArray(data)) {
-      throw new Error('Invalid members response')
-    }
-    return data as Member[]
-  },
-
-  createMember: async (request: { name: string; email: string; password: string; role?: 'admin' | 'user' }): Promise<Member> => {
-    const { data } = await client.post('/members', request)
-    return data
-  },
-
-  updateMember: async (memberId: string, patch: { name?: string; email?: string; password?: string; role?: 'admin' | 'user' }): Promise<Member> => {
-    const { data } = await client.patch(`/members/${memberId}`, patch)
-    return data
-  },
-
-  deleteMember: async (memberId: string): Promise<void> => {
-    await client.delete(`/members/${memberId}`)
-  },
-
   // Cluster
   getClusterOverview: async (forceRefresh = false): Promise<ClusterOverview> => {
     const { data } = await client.get('/cluster/overview', {
@@ -811,17 +801,24 @@ export const api = {
     const token = getAccessToken()
     if (token) headers.Authorization = `Bearer ${token}`
 
-    const response = await fetch(`/api/v1/ai/suggest-optimization/stream?namespace=${encodeURIComponent(namespace)}`, {
-      method: 'GET',
-      headers,
-      signal,
-    })
+	    const response = await fetch(`/api/v1/ai/suggest-optimization/stream?namespace=${encodeURIComponent(namespace)}`, {
+	      method: 'GET',
+	      headers,
+	      signal,
+	    })
 
-    if (!response.ok) {
-      const message = `HTTP ${response.status}`
-      onError?.(message)
-      throw new Error(message)
-    }
+	    if (response.status === 401) {
+	      const message = 'Unauthorized'
+	      onError?.(message)
+	      handleUnauthorized()
+	      throw new Error(message)
+	    }
+
+	    if (!response.ok) {
+	      const message = `HTTP ${response.status}`
+	      onError?.(message)
+	      throw new Error(message)
+	    }
 
     if (!response.body) {
       const message = 'No response body'

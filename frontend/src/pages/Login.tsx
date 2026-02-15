@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
-import { setAccessToken } from '@/services/auth'
+import { clearRedirectAfterLogin, getRedirectAfterLogin, setAccessToken } from '@/services/auth'
 import { Activity, Layers, LayoutDashboard, Lock, MessageSquare, UserPlus } from 'lucide-react'
 
 type Mode = 'login' | 'register'
@@ -23,13 +23,16 @@ export default function Login() {
 
   const redirectTo = useMemo(() => {
     const state = location.state as any
-    return (state?.from?.pathname as string) || '/'
+    const from = (state?.from?.pathname as string) || ''
+    if (from) return from
+    return getRedirectAfterLogin() || '/'
   }, [location.state])
 
   const loginMutation = useMutation({
     mutationFn: () => api.login({ email, password }),
     onSuccess: (res) => {
       setAccessToken(res.access_token)
+      clearRedirectAfterLogin()
       queryClient.setQueryData(['me'], res.member)
       navigate(redirectTo)
     },
