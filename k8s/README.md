@@ -26,6 +26,16 @@ kind load docker-image kube-assistant/frontend:local --name kube-assistant
 kubectl apply -k k8s
 ```
 
+## 4-1) 외부 클러스터 연결 (선택)
+kind 내부가 아니라 **기존 클러스터**를 보려면 kubeconfig를 시크릿으로 주입하세요.
+```bash
+KUBECONFIG=/Users/okestro/AgentForCMP/.kubeconfig-kind kubectl -n kube-assistant create secret generic k8s-kubeconfig \
+  --from-file=kubeconfig.yaml=/Users/okestro/AgentForCMP/kubeconfig-proxy.yaml \
+  --dry-run=client -o yaml | KUBECONFIG=/Users/okestro/AgentForCMP/.kubeconfig-kind kubectl apply -f -
+KUBECONFIG=/Users/okestro/AgentForCMP/.kubeconfig-kind kubectl -n kube-assistant rollout restart deploy/k8s-service
+```
+> kubeconfig 경로는 로컬 환경에 맞게 바꿔주세요.
+
 ## 5) 접속 (NodePort)
 ```bash
 kubectl -n kube-assistant get svc gateway

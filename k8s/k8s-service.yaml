@@ -24,6 +24,14 @@ spec:
                 name: kube-assistant-config
             - secretRef:
                 name: kube-assistant-secrets
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /app/kubeconfig.yaml
+              subPath: kubeconfig.yaml
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: k8s-kubeconfig
 ---
 apiVersion: v1
 kind: Service

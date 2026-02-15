@@ -27,7 +27,8 @@ data:
   OPENAI_BASE_URL: "https://api.openai.com/v1"
   OPENAI_OPTIMIZATION_MAX_TOKENS: "1800"
 
-  IN_CLUSTER: "true"
+  IN_CLUSTER: "false"
+  KUBECONFIG_PATH: "/app/kubeconfig.yaml"
   AUTH_JWKS_URL: "http://auth-service:8004/api/v1/auth/jwks.json"
 
   VITE_API_URL: "http://localhost:30080"
