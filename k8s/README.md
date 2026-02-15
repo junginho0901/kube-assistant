@@ -34,6 +34,11 @@ kubectl -n kube-assistant get svc gateway
 
 > kind에서 NodePort가 로컬에 안 뜨면, 포트포워딩으로 임시 접근하거나
 > cluster 재생성 시 `extraPortMappings`를 설정해야 합니다.
+>
+> 예: `kind-config.yaml` 사용
+> ```bash
+> kind create cluster --name kube-assistant --config kind-config.yaml
+> ```
 
 ## 6) LiteLLM 사용 (선택)
 `k8s/configmap.yaml`의 `OPENAI_BASE_URL`을 `http://litellm:4000/v1`로 설정 후 재적용.
