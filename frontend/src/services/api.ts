@@ -593,29 +593,6 @@ export const api = {
     await client.delete(`/auth/admin/users/${userId}`)
   },
 
-  // Members
-  getMembers: async (params?: { limit?: number; offset?: number }): Promise<Member[]> => {
-    const { data } = await client.get('/members', { params })
-    if (!Array.isArray(data)) {
-      throw new Error('Invalid members response')
-    }
-    return data as Member[]
-  },
-
-  createMember: async (request: { name: string; email: string; password: string; role?: 'admin' | 'user' }): Promise<Member> => {
-    const { data } = await client.post('/members', request)
-    return data
-  },
-
-  updateMember: async (memberId: string, patch: { name?: string; email?: string; password?: string; role?: 'admin' | 'user' }): Promise<Member> => {
-    const { data } = await client.patch(`/members/${memberId}`, patch)
-    return data
-  },
-
-  deleteMember: async (memberId: string): Promise<void> => {
-    await client.delete(`/members/${memberId}`)
-  },
-
   // Cluster
   getClusterOverview: async (forceRefresh = false): Promise<ClusterOverview> => {
     const { data } = await client.get('/cluster/overview', {
