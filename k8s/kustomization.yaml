@@ -23,7 +23,7 @@ generatorOptions:
 configMapGenerator:
   - name: gateway-nginx
     files:
-      - nginx.conf=../services/gateway/nginx.conf
+      - nginx.conf=nginx.conf
   - name: litellm-config
     files:
-      - config.yaml=../services/litellm/config.yaml
+      - config.yaml=litellm-config.yaml
