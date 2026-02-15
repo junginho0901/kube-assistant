@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { getAuthHeaders } from '@/services/auth'
+import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { 
   Server, 
@@ -309,7 +309,10 @@ export default function ClusterView() {
           setLogs((prev) => prev + '\n\n로그 스트리밍 중 오류가 발생했습니다.')
         }
         
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+          if (event.code === 1008) {
+            handleUnauthorized()
+          }
           console.log('WebSocket closed')
           setIsStreamingLogs(false)
         }
@@ -412,6 +415,10 @@ export default function ClusterView() {
         `/api/v1/cluster/namespaces/${selectedPod.namespace}/pods/${selectedPod.name}/yaml`,
         { headers: { ...getAuthHeaders() } }
       )
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error('Unauthorized')
+      }
       const data = await response.json()
       return data.yaml
     },
@@ -494,6 +501,10 @@ export default function ClusterView() {
       `/api/v1/cluster/namespaces/${pod.namespace}/pods/${pod.name}/describe`,
       { headers: { ...getAuthHeaders() } }
     )
+    if (response.status === 401) {
+      handleUnauthorized()
+      return
+    }
     const detail = await response.json()
     console.log('Pod detail response:', detail) // 디버깅용
     console.log('Phase:', detail.phase, 'Status:', detail.status)

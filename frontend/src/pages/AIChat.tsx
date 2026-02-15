@@ -8,7 +8,7 @@ import { Send, Bot, User, Sparkles, Plus, MessageSquare, Trash2, Edit2, Check, X
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { getAuthHeaders } from '@/services/auth'
+import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 
 const TOOL_RESULT_DISPLAY_MAX_CHARS = 2000
 const TRUNCATED_MARKER = '... (truncated) ...'
@@ -526,6 +526,11 @@ export default function AIChat() {
             ],
           }),
         })
+
+        if (response.status === 401) {
+          handleUnauthorized()
+          return
+        }
 
         if (response.ok) {
           console.log('[DEBUG] Messages saved successfully')
