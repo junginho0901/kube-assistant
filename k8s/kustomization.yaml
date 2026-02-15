@@ -4,11 +4,13 @@ namespace: kube-assistant
 
 resources:
   - namespace.yaml
+  - model-config-crd.yaml
   - configmap.yaml
   - secret.yaml
   - rbac.yaml
   - postgres.yaml
   - redis.yaml
+  - model-config-controller.yaml
   - auth-service.yaml
   - ai-service.yaml
   - k8s-service.yaml

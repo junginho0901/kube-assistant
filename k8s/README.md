@@ -80,3 +80,24 @@ curl -s -X POST http://localhost:30080/api/v1/ai/model-configs \
     "is_default":true
   }'
 ```
+
+## ModelConfig (CRD + Controller)
+CRD와 컨트롤러로 ModelConfig를 관리합니다. 컨트롤러가 CRD를 DB로 동기화합니다.
+
+### 적용
+```bash
+kubectl apply -f k8s/model-config-crd.yaml
+kubectl apply -f k8s/model-config-controller.yaml
+```
+
+### 컨트롤러 이미지 (kind)
+```bash
+docker build -t kube-assistant/model-config-controller:local services/model-config-controller
+kind load docker-image kube-assistant/model-config-controller:local --name kube-assistant
+kubectl -n kube-assistant rollout restart deploy/model-config-controller
+```
+
+### 예시 CR
+```bash
+kubectl apply -f k8s/model-config-sample.yaml
+```
