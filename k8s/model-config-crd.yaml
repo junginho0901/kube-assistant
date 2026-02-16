@@ -35,6 +35,14 @@ spec:
               properties:
                 provider:
                   type: string
+                  enum:
+                    - openai
+                    - anthropic
+                    - azureopenai
+                    - gemini
+                    - geminivertexai
+                    - anthropicvertexai
+                    - ollama
                 model:
                   type: string
                 baseURL:
