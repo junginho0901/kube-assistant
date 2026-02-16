@@ -300,8 +300,9 @@ def _reconcile_modelconfig(
         return
 
     status = obj.get("status") or {}
+    fetched_status: Dict[str, Any] = {}
     if not update_db:
-        status = _load_existing_status(api, name, namespace)
+        fetched_status = _load_existing_status(api, name, namespace)
 
     try:
         data = _parse_spec(name, spec)
@@ -311,9 +312,8 @@ def _reconcile_modelconfig(
             last_sync_time = _now_iso()
             sync_message = "Synced to DB"
         else:
-            db_id = status.get("dbId")
-            synced_ok = bool(status.get("synced", True))
-            last_sync_time = status.get("lastSyncTime") or _now_iso()
+            db_id = fetched_status.get("dbId") or status.get("dbId")
+            synced_ok = bool(fetched_status.get("synced", status.get("synced", True)))
             sync_message = "Synced to DB" if synced_ok else "Not synced"
 
         secret_hash, secret_error = _get_secret_hash(
@@ -327,22 +327,24 @@ def _reconcile_modelconfig(
         secret_message = "Secret not required" if not secret_required else (secret_error or "Secret resolved")
 
         message = sync_message if secret_state == "True" else f"{sync_message}; {secret_message}"
-        patch_status(api, name, namespace, {
+        status_payload = {
             "synced": synced_ok,
             "dbId": db_id,
-            "lastSyncTime": last_sync_time,
             "message": message,
             "observedGeneration": generation,
             "secretHash": secret_hash,
             "conditions": _build_conditions(
-                previous_conditions=status.get("conditions"),
+                previous_conditions=fetched_status.get("conditions") or status.get("conditions"),
                 synced_ok=synced_ok,
                 secret_state=secret_state,
                 observed_generation=generation,
                 sync_message=sync_message,
                 secret_message=secret_message,
             ),
-        })
+        }
+        if update_db:
+            status_payload["lastSyncTime"] = last_sync_time
+        patch_status(api, name, namespace, status_payload)
     except Exception as e:
         try:
             err_message = f"Sync error: {str(e)}"
