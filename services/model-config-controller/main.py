@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import os
+import threading
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
@@ -169,6 +170,7 @@ def _get_secret_hash(
 
 
 def _build_conditions(
+    previous_conditions: Optional[list],
     synced_ok: bool,
     secret_state: str,
     observed_generation: Optional[int],
@@ -176,23 +178,39 @@ def _build_conditions(
     secret_message: str,
 ) -> list:
     now = _now_iso()
+    previous_map = {}
+    for cond in previous_conditions or []:
+        cond_type = cond.get("type")
+        if cond_type:
+            previous_map[cond_type] = cond
+
+    def build_condition(cond_type: str, status: str, reason: str, message: str) -> Dict[str, Any]:
+        prev = previous_map.get(cond_type) or {}
+        last_transition = prev.get("lastTransitionTime")
+        if prev.get("status") != status or not last_transition:
+            last_transition = now
+        return {
+            "type": cond_type,
+            "status": status,
+            "lastTransitionTime": last_transition,
+            "reason": reason,
+            "message": message,
+            "observedGeneration": observed_generation,
+        }
+
     conditions = [
-        {
-            "type": "Synced",
-            "status": "True" if synced_ok else "False",
-            "lastTransitionTime": now,
-            "reason": "Synced" if synced_ok else "SyncError",
-            "message": sync_message,
-            "observedGeneration": observed_generation,
-        },
-        {
-            "type": "SecretReady",
-            "status": secret_state,
-            "lastTransitionTime": now,
-            "reason": "SecretResolved" if secret_state == "True" else ("SecretMissing" if secret_state == "False" else "Unknown"),
-            "message": secret_message,
-            "observedGeneration": observed_generation,
-        },
+        build_condition(
+            "Synced",
+            "True" if synced_ok else "False",
+            "Synced" if synced_ok else "SyncError",
+            sync_message,
+        ),
+        build_condition(
+            "SecretReady",
+            secret_state,
+            "SecretResolved" if secret_state == "True" else ("SecretMissing" if secret_state == "False" else "Unknown"),
+            secret_message,
+        ),
     ]
     return conditions
 
@@ -255,7 +273,12 @@ def patch_status(api: client.CustomObjectsApi, name: str, namespace: str, status
     )
 
 
-def handle_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, event_type: str, obj: Dict[str, Any]):
+def _reconcile_modelconfig(
+    api: client.CustomObjectsApi,
+    core_api: client.CoreV1Api,
+    obj: Dict[str, Any],
+    update_db: bool,
+):
     meta = obj.get("metadata") or {}
     spec = obj.get("spec") or {}
     name = meta.get("name")
@@ -264,37 +287,48 @@ def handle_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, event
     if not name:
         return
 
+    status = obj.get("status") or {}
+
     try:
-        if event_type in ("ADDED", "MODIFIED"):
-            data = _parse_spec(name, spec)
+        data = _parse_spec(name, spec)
+        if update_db:
             db_id = upsert_config(data)
-            secret_hash, secret_error = _get_secret_hash(
-                core_api,
-                namespace,
-                data.get("api_key_secret_name"),
-                data.get("api_key_secret_key"),
-            )
-            secret_required = bool(data.get("api_key_secret_name") and data.get("api_key_secret_key"))
-            secret_state = "True" if (not secret_required or secret_error is None) else "False"
-            secret_message = "Secret not required" if not secret_required else (secret_error or "Secret resolved")
+            synced_ok = True
+            last_sync_time = _now_iso()
             sync_message = "Synced to DB"
-            patch_status(api, name, namespace, {
-                "synced": True,
-                "dbId": db_id,
-                "lastSyncTime": _now_iso(),
-                "message": sync_message if secret_state == "True" else f"{sync_message}; {secret_message}",
-                "observedGeneration": generation,
-                "secretHash": secret_hash,
-                "conditions": _build_conditions(
-                    synced_ok=True,
-                    secret_state=secret_state,
-                    observed_generation=generation,
-                    sync_message=sync_message,
-                    secret_message=secret_message,
-                ),
-            })
-        elif event_type == "DELETED":
-            delete_config(name)
+        else:
+            db_id = status.get("dbId")
+            synced_ok = bool(status.get("synced", True))
+            last_sync_time = status.get("lastSyncTime") or _now_iso()
+            sync_message = "Synced to DB" if synced_ok else "Not synced"
+
+        secret_hash, secret_error = _get_secret_hash(
+            core_api,
+            namespace,
+            data.get("api_key_secret_name"),
+            data.get("api_key_secret_key"),
+        )
+        secret_required = bool(data.get("api_key_secret_name") and data.get("api_key_secret_key"))
+        secret_state = "True" if (not secret_required or secret_error is None) else "False"
+        secret_message = "Secret not required" if not secret_required else (secret_error or "Secret resolved")
+
+        message = sync_message if secret_state == "True" else f"{sync_message}; {secret_message}"
+        patch_status(api, name, namespace, {
+            "synced": synced_ok,
+            "dbId": db_id,
+            "lastSyncTime": last_sync_time,
+            "message": message,
+            "observedGeneration": generation,
+            "secretHash": secret_hash,
+            "conditions": _build_conditions(
+                previous_conditions=status.get("conditions"),
+                synced_ok=synced_ok,
+                secret_state=secret_state,
+                observed_generation=generation,
+                sync_message=sync_message,
+                secret_message=secret_message,
+            ),
+        })
     except Exception as e:
         try:
             err_message = f"Sync error: {str(e)}"
@@ -304,6 +338,7 @@ def handle_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, event
                 "message": err_message,
                 "observedGeneration": generation,
                 "conditions": _build_conditions(
+                    previous_conditions=status.get("conditions"),
                     synced_ok=False,
                     secret_state="Unknown",
                     observed_generation=generation,
@@ -316,17 +351,36 @@ def handle_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, event
         raise
 
 
-def main():
-    print("[model-config-controller] starting...", flush=True)
-    ensure_table()
+def handle_modelconfig_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, event_type: str, obj: Dict[str, Any]):
+    if event_type in ("ADDED", "MODIFIED"):
+        _reconcile_modelconfig(api, core_api, obj, update_db=True)
+    elif event_type == "DELETED":
+        meta = obj.get("metadata") or {}
+        name = meta.get("name")
+        if name:
+            delete_config(name)
 
+
+def _extract_secret_name(spec: Dict[str, Any]) -> Optional[str]:
+    secret_ref = spec.get("apiKeySecretRef") or {}
+    if isinstance(secret_ref, str):
+        return secret_ref
+    return secret_ref.get("name")
+
+
+def handle_secret_event(api: client.CustomObjectsApi, core_api: client.CoreV1Api, secret_name: str, namespace: str):
     try:
-        config.load_incluster_config()
-    except Exception:
-        config.load_kube_config()
+        resp = api.list_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL)
+        items = resp.get("items") or []
+        for obj in items:
+            spec = obj.get("spec") or {}
+            if _extract_secret_name(spec) == secret_name:
+                _reconcile_modelconfig(api, core_api, obj, update_db=False)
+    except Exception as e:
+        print(f"[model-config-controller] secret sync error: {e}", flush=True)
 
-    api = client.CustomObjectsApi()
-    core_api = client.CoreV1Api()
+
+def watch_modelconfigs(api: client.CustomObjectsApi, core_api: client.CoreV1Api):
     w = watch.Watch()
     resource_version: Optional[str] = None
 
@@ -345,10 +399,53 @@ def main():
                 obj = event.get("object") or {}
                 event_type = event.get("type") or ""
                 resource_version = (obj.get("metadata") or {}).get("resourceVersion") or resource_version
-                handle_event(api, core_api, event_type, obj)
+                handle_modelconfig_event(api, core_api, event_type, obj)
         except Exception as e:
             print(f"[model-config-controller] watch error: {e}", flush=True)
             time.sleep(2)
+
+
+def watch_secrets(api: client.CustomObjectsApi, core_api: client.CoreV1Api):
+    w = watch.Watch()
+    resource_version: Optional[str] = None
+
+    while True:
+        try:
+            stream = w.stream(
+                core_api.list_namespaced_secret,
+                NAMESPACE,
+                resource_version=resource_version,
+                timeout_seconds=60,
+            )
+            for event in stream:
+                secret_obj = event.get("object")
+                if not secret_obj or not secret_obj.metadata:
+                    continue
+                resource_version = secret_obj.metadata.resource_version or resource_version
+                secret_name = secret_obj.metadata.name
+                if secret_name:
+                    handle_secret_event(api, core_api, secret_name, NAMESPACE)
+        except Exception as e:
+            print(f"[model-config-controller] secret watch error: {e}", flush=True)
+            time.sleep(2)
+
+
+def main():
+    print("[model-config-controller] starting...", flush=True)
+    ensure_table()
+
+    try:
+        config.load_incluster_config()
+    except Exception:
+        config.load_kube_config()
+
+    api = client.CustomObjectsApi()
+    core_api = client.CoreV1Api()
+    threading.Thread(target=watch_modelconfigs, args=(api, core_api), daemon=True).start()
+    threading.Thread(target=watch_secrets, args=(api, core_api), daemon=True).start()
+
+    while True:
+        time.sleep(60)
 
 
 if __name__ == "__main__":
