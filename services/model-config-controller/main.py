@@ -277,15 +277,12 @@ def _load_existing_status(
     api: client.CustomObjectsApi,
     name: str,
     namespace: str,
-    fallback: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    if fallback and (fallback.get("conditions") or fallback.get("lastSyncTime") or "synced" in fallback):
-        return fallback
     try:
         obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
-        return (obj or {}).get("status") or (fallback or {})
+        return (obj or {}).get("status") or {}
     except Exception:
-        return fallback or {}
+        return {}
 
 
 def _reconcile_modelconfig(
@@ -302,7 +299,9 @@ def _reconcile_modelconfig(
     if not name:
         return
 
-    status = _load_existing_status(api, name, namespace, obj.get("status") or {})
+    status = obj.get("status") or {}
+    if not update_db:
+        status = _load_existing_status(api, name, namespace)
 
     try:
         data = _parse_spec(name, spec)
