@@ -32,9 +32,11 @@ spec:
               type: object
               required:
                 - model
+                - provider
               properties:
                 provider:
                   type: string
+                  default: openai
                   enum:
                     - openai
                     - anthropic
@@ -217,6 +219,10 @@ spec:
                   rule: '!(has(self.anthropicVertexAI) && self.provider != ''anthropicvertexai'')'
                 - message: spec.ollama must be nil if provider is not ollama
                   rule: '!(has(self.ollama) && self.provider != ''ollama'')'
+                - message: apiKeySecretRef.name requires apiKeySecretRef.key
+                  rule: '!(has(self.apiKeySecretRef) && has(self.apiKeySecretRef.name) && size(self.apiKeySecretRef.name) > 0 && (!has(self.apiKeySecretRef.key) || size(self.apiKeySecretRef.key) == 0))'
+                - message: apiKeySecretRef.key requires apiKeySecretRef.name
+                  rule: '!(has(self.apiKeySecretRef) && has(self.apiKeySecretRef.key) && size(self.apiKeySecretRef.key) > 0 && (!has(self.apiKeySecretRef.name) || size(self.apiKeySecretRef.name) == 0))'
             status:
               type: object
               properties:
