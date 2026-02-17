@@ -14,3 +14,8 @@
 cd services/model-config-controller-go
 go test ./internal/controller -v
 ```
+
+또는 스크립트로 실행:
+```bash
+scripts/test-controller.sh
+```
