@@ -14,7 +14,7 @@
 - Postgres 필요 (`k8s/postgres.yaml`)
 
 3) **컨트롤러**
-- `model-config-controller`가 CRD를 DB로 동기화
+- `model-config-controller-go`가 CRD를 DB로 동기화
 
 ## 로컬(kind) 배포
 ```bash

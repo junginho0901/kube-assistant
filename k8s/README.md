@@ -99,10 +99,6 @@ kind load docker-image kube-assistant/model-config-controller-go:local --name ku
 kubectl -n kube-assistant rollout restart deploy/model-config-controller-go
 ```
 
-> 기존 Python 컨트롤러를 쓰고 있었다면 중복 동기화 방지를 위해 비활성화하세요.
-> ```bash
-> kubectl -n kube-assistant scale deploy/model-config-controller --replicas=0
-> ```
 
 ### 예시 CR
 ```bash
