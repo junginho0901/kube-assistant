@@ -5,9 +5,9 @@ import (
 
 	"github.com/junginho0901/kube-assistant/model-config-controller-go/api/v1alpha1"
 	"github.com/junginho0901/kube-assistant/model-config-controller-go/internal/controller"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"

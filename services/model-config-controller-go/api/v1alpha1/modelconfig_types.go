@@ -1,19 +1,19 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
-	GroupVersion = schema.GroupVersion{Group: "ai.kube-assistant.io", Version: "v1alpha1"}
+	GroupVersion  = schema.GroupVersion{Group: "ai.kube-assistant.io", Version: "v1alpha1"}
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	AddToScheme = SchemeBuilder.AddToScheme
-	Codecs = serializer.NewCodecFactory(runtime.NewScheme())
-	ProviderSet = sets.NewString(
+	AddToScheme   = SchemeBuilder.AddToScheme
+	Codecs        = serializer.NewCodecFactory(runtime.NewScheme())
+	ProviderSet   = sets.NewString(
 		"openai",
 		"anthropic",
 		"azureopenai",
@@ -26,24 +26,24 @@ var (
 )
 
 type ModelConfigSpec struct {
-	Provider           string            `json:"provider,omitempty"`
-	Model              string            `json:"model,omitempty"`
-	BaseURL            string            `json:"baseURL,omitempty"`
-	APIKeySecretRef    *SecretKeyRef     `json:"apiKeySecretRef,omitempty"`
-	APIKeyEnv          string            `json:"apiKeyEnv,omitempty"`
-	ExtraHeaders       map[string]string `json:"extraHeaders,omitempty"`
-	TLSVerify          *bool             `json:"tlsVerify,omitempty"`
-	Enabled            *bool             `json:"enabled,omitempty"`
-	IsDefault          *bool             `json:"isDefault,omitempty"`
-	ModelInfo          *ModelInfo        `json:"modelInfo,omitempty"`
-	OpenAI             *OpenAIConfig     `json:"openAI,omitempty"`
-	Anthropic          *AnthropicConfig  `json:"anthropic,omitempty"`
-	AzureOpenAI        *AzureOpenAIConfig `json:"azureOpenAI,omitempty"`
-	Gemini             *GeminiConfig     `json:"gemini,omitempty"`
-	GeminiVertexAI     *GeminiVertexAIConfig `json:"geminiVertexAI,omitempty"`
-	AnthropicVertexAI  *AnthropicVertexAIConfig `json:"anthropicVertexAI,omitempty"`
-	Ollama             *OllamaConfig     `json:"ollama,omitempty"`
-	Bedrock            *BedrockConfig    `json:"bedrock,omitempty"`
+	Provider          string                   `json:"provider,omitempty"`
+	Model             string                   `json:"model,omitempty"`
+	BaseURL           string                   `json:"baseURL,omitempty"`
+	APIKeySecretRef   *SecretKeyRef            `json:"apiKeySecretRef,omitempty"`
+	APIKeyEnv         string                   `json:"apiKeyEnv,omitempty"`
+	ExtraHeaders      map[string]string        `json:"extraHeaders,omitempty"`
+	TLSVerify         *bool                    `json:"tlsVerify,omitempty"`
+	Enabled           *bool                    `json:"enabled,omitempty"`
+	IsDefault         *bool                    `json:"isDefault,omitempty"`
+	ModelInfo         *ModelInfo               `json:"modelInfo,omitempty"`
+	OpenAI            *OpenAIConfig            `json:"openAI,omitempty"`
+	Anthropic         *AnthropicConfig         `json:"anthropic,omitempty"`
+	AzureOpenAI       *AzureOpenAIConfig       `json:"azureOpenAI,omitempty"`
+	Gemini            *GeminiConfig            `json:"gemini,omitempty"`
+	GeminiVertexAI    *GeminiVertexAIConfig    `json:"geminiVertexAI,omitempty"`
+	AnthropicVertexAI *AnthropicVertexAIConfig `json:"anthropicVertexAI,omitempty"`
+	Ollama            *OllamaConfig            `json:"ollama,omitempty"`
+	Bedrock           *BedrockConfig           `json:"bedrock,omitempty"`
 }
 
 type SecretKeyRef struct {
@@ -52,12 +52,12 @@ type SecretKeyRef struct {
 }
 
 type ModelInfo struct {
-	Family                string `json:"family,omitempty"`
-	FunctionCalling       *bool  `json:"functionCalling,omitempty"`
-	JSONOutput            *bool  `json:"jsonOutput,omitempty"`
-	MultipleSystemMessages *bool `json:"multipleSystemMessages,omitempty"`
-	StructuredOutput      *bool  `json:"structuredOutput,omitempty"`
-	Vision                *bool  `json:"vision,omitempty"`
+	Family                 string `json:"family,omitempty"`
+	FunctionCalling        *bool  `json:"functionCalling,omitempty"`
+	JSONOutput             *bool  `json:"jsonOutput,omitempty"`
+	MultipleSystemMessages *bool  `json:"multipleSystemMessages,omitempty"`
+	StructuredOutput       *bool  `json:"structuredOutput,omitempty"`
+	Vision                 *bool  `json:"vision,omitempty"`
 }
 
 type OpenAIConfig struct {
@@ -92,12 +92,12 @@ type AzureOpenAIConfig struct {
 }
 
 type GeminiConfig struct {
-	MaxOutputTokens *int64  `json:"maxOutputTokens,omitempty"`
-	Temperature     string  `json:"temperature,omitempty"`
-	TopP            string  `json:"topP,omitempty"`
-	TopK            string  `json:"topK,omitempty"`
-	StopSequences   []string `json:"stopSequences,omitempty"`
-	ResponseMimeType string `json:"responseMimeType,omitempty"`
+	MaxOutputTokens  *int64   `json:"maxOutputTokens,omitempty"`
+	Temperature      string   `json:"temperature,omitempty"`
+	TopP             string   `json:"topP,omitempty"`
+	TopK             string   `json:"topK,omitempty"`
+	StopSequences    []string `json:"stopSequences,omitempty"`
+	ResponseMimeType string   `json:"responseMimeType,omitempty"`
 }
 
 type GeminiVertexAIConfig struct {
@@ -113,13 +113,13 @@ type GeminiVertexAIConfig struct {
 }
 
 type AnthropicVertexAIConfig struct {
-	ProjectID      string   `json:"projectID,omitempty"`
-	Location       string   `json:"location,omitempty"`
-	MaxTokens      *int64   `json:"maxTokens,omitempty"`
-	Temperature    string   `json:"temperature,omitempty"`
-	TopP           string   `json:"topP,omitempty"`
-	TopK           string   `json:"topK,omitempty"`
-	StopSequences  []string `json:"stopSequences,omitempty"`
+	ProjectID     string   `json:"projectID,omitempty"`
+	Location      string   `json:"location,omitempty"`
+	MaxTokens     *int64   `json:"maxTokens,omitempty"`
+	Temperature   string   `json:"temperature,omitempty"`
+	TopP          string   `json:"topP,omitempty"`
+	TopK          string   `json:"topK,omitempty"`
+	StopSequences []string `json:"stopSequences,omitempty"`
 }
 
 type OllamaConfig struct {
@@ -132,13 +132,13 @@ type BedrockConfig struct {
 }
 
 type ModelConfigStatus struct {
-	Synced             *bool             `json:"synced,omitempty"`
-	DBID               *int64            `json:"dbId,omitempty"`
-	LastSyncTime       *v1.Time          `json:"lastSyncTime,omitempty"`
-	Message            string            `json:"message,omitempty"`
-	ObservedGeneration *int64            `json:"observedGeneration,omitempty"`
-	SecretHash         string            `json:"secretHash,omitempty"`
-	Conditions         []v1.Condition    `json:"conditions,omitempty"`
+	Synced             *bool          `json:"synced,omitempty"`
+	DBID               *int64         `json:"dbId,omitempty"`
+	LastSyncTime       *v1.Time       `json:"lastSyncTime,omitempty"`
+	Message            string         `json:"message,omitempty"`
+	ObservedGeneration *int64         `json:"observedGeneration,omitempty"`
+	SecretHash         string         `json:"secretHash,omitempty"`
+	Conditions         []v1.Condition `json:"conditions,omitempty"`
 }
 
 type ModelConfig struct {
