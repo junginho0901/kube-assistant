@@ -98,13 +98,15 @@ class K8sService:
             raise Exception("Kubernetes client not initialized")
         if not path.startswith("/"):
             path = "/" + path
-        host = (self.api_client.configuration.host or "").rstrip("/")
-        if not host:
-            raise Exception("Kubernetes API host is not configured")
-
-        url = f"{host}{path}"
-        resp = self.api_client.rest_client.GET(url, _preload_content=False)
-        data = resp.data
+        # call_api는 인증 헤더를 포함해 호출한다.
+        resp = self.api_client.call_api(
+            path,
+            "GET",
+            response_type="str",
+            auth_settings=["BearerToken"],
+            _preload_content=False,
+        )[0]
+        data = resp.data if hasattr(resp, "data") else resp
         if isinstance(data, bytes):
             data = data.decode("utf-8")
         return json.loads(data)
