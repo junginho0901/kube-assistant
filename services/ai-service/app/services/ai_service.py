@@ -107,22 +107,11 @@ class AIService:
         return "\n".join(lines)
 
     def _format_k8s_get_resources_display(self, resource_type: str, output: str, raw_text: str) -> Optional[str]:
-        try:
-            import yaml
-        except Exception:
-            yaml = None
-
         data = None
-        if isinstance(output, str) and output.lower() == "yaml" and yaml is not None:
-            try:
-                data = yaml.safe_load(raw_text)
-            except Exception:
-                data = None
-        else:
-            try:
-                data = json.loads(raw_text)
-            except Exception:
-                data = None
+        try:
+            data = json.loads(raw_text)
+        except Exception:
+            data = None
 
         if not data:
             return None
@@ -585,7 +574,7 @@ JSON 형식으로 응답해주세요:
                 "type": "function",
                 "function": {
                     "name": "get_pods",
-                    "description": "특정 네임스페이스의 Pod 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Pod 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -602,7 +591,7 @@ JSON 형식으로 응답해주세요:
                 "type": "function",
                 "function": {
                     "name": "get_deployments",
-                    "description": "특정 네임스페이스의 Deployment 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Deployment 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -619,7 +608,7 @@ JSON 형식으로 응답해주세요:
                 "type": "function",
                 "function": {
                     "name": "get_services",
-                    "description": "특정 네임스페이스의 Service 목록을 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Service 목록을 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -932,7 +921,7 @@ Draft (rules-based, keep numbers unchanged):
 출력:
 - 마크다운
 - High/Medium/Low 우선순위
-- 각 항목에 (효과: 비용/성능/안정성) + 근거 + 적용 예시(yaml 또는 kubectl 짧게)
+- 각 항목에 (효과: 비용/성능/안정성) + 근거 + 적용 예시(kubectl 짧게)
 
 금지:
 - 응답 전체를 ```markdown ... ``` 같은 코드 펜스로 감싸지 마세요. (그렇게 하면 UI에서 마크다운 렌더가 코드블록으로 깨집니다)
@@ -1693,7 +1682,7 @@ Draft (rules-based, keep numbers unchanged):
                 )
                 if suspicious:
                     action_lines.append(
-                        "  - 주의: **표상 usage(pods avg snapshot)가 limit보다 큼** → (1) 컨테이너별 limits 일부 누락 (2) 여러 컨테이너 합산/파싱 차이 가능. Pod YAML로 컨테이너별 resources를 먼저 확인하세요."
+                        "  - 주의: **표상 usage(pods avg snapshot)가 limit보다 큼** → (1) 컨테이너별 limits 일부 누락 (2) 여러 컨테이너 합산/파싱 차이 가능. Pod 스펙으로 컨테이너별 resources를 먼저 확인하세요."
                     )
                     continue
 
@@ -1703,12 +1692,13 @@ Draft (rules-based, keep numbers unchanged):
                     action_lines.append(
                         f"  - 권장(초안): requests.memory≈`{fmt_mi(rec_req)}` (pods avg snapshot*1.5, round) / limits.memory≈`{fmt_mi(rec_lim)}` (request*2)  \n"
                         f"    - 적용 예시:\n"
-                        f"      ```yaml\n"
-                        f"      resources:\n"
-                        f"        requests:\n"
-                        f"          memory: \"{rec_req}Mi\"\n"
-                        f"        limits:\n"
-                        f"          memory: \"{rec_lim}Mi\"\n"
+                        f"      ```json\n"
+                        f"      {{\n"
+                        f"        \"resources\": {{\n"
+                        f"          \"requests\": {{\"memory\": \"{rec_req}Mi\"}},\n"
+                        f"          \"limits\": {{\"memory\": \"{rec_lim}Mi\"}}\n"
+                        f"        }}\n"
+                        f"      }}\n"
                         f"      ```"
                     )
 
@@ -1744,7 +1734,7 @@ Draft (rules-based, keep numbers unchanged):
                 )
                 if suspicious:
                     action_lines.append(
-                        "  - 주의: **표상 usage(pods avg snapshot)가 limit보다 큼** → (1) 컨테이너별 limits 일부 누락 (2) 여러 컨테이너 합산/파싱 차이 가능. Pod YAML로 컨테이너별 resources를 먼저 확인하세요."
+                        "  - 주의: **표상 usage(pods avg snapshot)가 limit보다 큼** → (1) 컨테이너별 limits 일부 누락 (2) 여러 컨테이너 합산/파싱 차이 가능. Pod 스펙으로 컨테이너별 resources를 먼저 확인하세요."
                     )
                     continue
 
@@ -1754,12 +1744,13 @@ Draft (rules-based, keep numbers unchanged):
                     action_lines.append(
                         f"  - 권장(초안): requests.cpu≈`{fmt_m(rec_req)}` (pods avg snapshot*2, round) / limits.cpu≈`{fmt_m(rec_lim)}`  \n"
                         f"    - 적용 예시:\n"
-                        f"      ```yaml\n"
-                        f"      resources:\n"
-                        f"        requests:\n"
-                        f"          cpu: \"{rec_req}m\"\n"
-                        f"        limits:\n"
-                        f"          cpu: \"{rec_lim}m\"\n"
+                        f"      ```json\n"
+                        f"      {{\n"
+                        f"        \"resources\": {{\n"
+                        f"          \"requests\": {{\"cpu\": \"{rec_req}m\"}},\n"
+                        f"          \"limits\": {{\"cpu\": \"{rec_lim}m\"}}\n"
+                        f"        }}\n"
+                        f"      }}\n"
                         f"      ```"
                     )
 
@@ -1935,8 +1926,7 @@ Draft (rules-based, keep numbers unchanged):
 - `get_pods`: 특정 네임스페이스의 Pod 목록 조회. Pod 상태, 재시작 횟수, 준비 상태 확인
 - `get_deployments`: Deployment 목록 조회. 배포 상태 및 레플리카 확인
 - `get_services`: Service 목록 조회. 서비스 엔드포인트 및 포트 확인
-- `k8s_get_resources`: kubectl get (json/yaml/wide) 형식 지원. 출력 형식 요청 시 우선 사용
-- `k8s_get_resource_yaml`: 단일 리소스 YAML 조회
+- `k8s_get_resources`: kubectl get (json/wide) 형식 지원. 출력 형식 요청 시 우선 사용
 - `get_node_list`: 클러스터의 노드 목록 조회. 노드 상태, 리소스 용량 확인
 - `get_pod_logs`: 특정 Pod의 로그 조회. 에러 메시지 및 스택 트레이스 분석
 - `describe_pod`: Pod의 상세 정보 조회. 이벤트, 조건, 구성 확인
@@ -1960,8 +1950,8 @@ Draft (rules-based, keep numbers unchanged):
 
 ## 출력 포맷/툴 선택 규칙 (중요)
 
-- 사용자가 YAML/WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
-- 단일 리소스 YAML 요청은 `k8s_get_resource_yaml`을 사용하세요.
+- 사용자가 WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
+- YAML 요청은 지원하지 않습니다. JSON으로 조회하고 화면에는 kubectl 테이블로 표시하세요.
 - `get_pods`, `get_deployments`, `get_services`는 legacy JSON-only이므로 출력 형식 요청 시 사용하지 마세요.
 
 1. **항상 도구를 적극적으로 사용**: 
@@ -2112,7 +2102,7 @@ Draft (rules-based, keep numbers unchanged):
                 "type": "function",
                 "function": {
                     "name": "get_pods",
-                    "description": "특정 네임스페이스의 Pod 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Pod 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -2126,7 +2116,7 @@ Draft (rules-based, keep numbers unchanged):
                 "type": "function",
                 "function": {
                     "name": "get_deployments",
-                    "description": "특정 네임스페이스의 Deployment 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Deployment 목록과 상태를 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -2209,7 +2199,7 @@ Draft (rules-based, keep numbers unchanged):
                 "type": "function",
                 "function": {
                     "name": "get_services",
-                    "description": "특정 네임스페이스의 Service 목록을 조회합니다 (legacy JSON-only). 출력 형식(yaml/wide) 요청에는 k8s_get_resources 사용.",
+                    "description": "특정 네임스페이스의 Service 목록을 조회합니다 (legacy JSON-only). 출력 형식(wide/json) 요청에는 k8s_get_resources 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -2921,6 +2911,8 @@ Draft (rules-based, keep numbers unchanged):
                     all_namespaces = all_namespaces_raw.strip().lower() == "true"
                 else:
                     all_namespaces = bool(all_namespaces_raw)
+                if isinstance(output, str) and output.strip().lower() == "yaml":
+                    output = "json"
 
                 payload = await self.k8s_service.get_resources(
                     resource_type=resource_type,
@@ -2932,13 +2924,10 @@ Draft (rules-based, keep numbers unchanged):
                 return self._render_k8s_resource_payload(payload)
 
             elif function_name == "k8s_get_resource_yaml":
-                namespace = function_args.get("namespace")
-                yaml_content = await self.k8s_service.get_resource_yaml(
-                    resource_type=function_args.get("resource_type", ""),
-                    resource_name=function_args.get("resource_name", ""),
-                    namespace=namespace if isinstance(namespace, str) else None,
+                return json.dumps(
+                    {"error": "YAML 출력은 비활성화되었습니다. k8s_get_resources(JSON)로 조회하세요."},
+                    ensure_ascii=False,
                 )
-                return yaml_content
 
             elif function_name == "k8s_describe_resource":
                 namespace = function_args.get("namespace")
@@ -2995,27 +2984,10 @@ Draft (rules-based, keep numbers unchanged):
                 return json.dumps(cfg, ensure_ascii=False)
 
             elif function_name == "k8s_generate_resource":
-                resource_type = function_args.get("resource_type", "")
-                description = function_args.get("resource_description", "")
-                if not resource_type or not description:
-                    raise Exception("resource_type and resource_description are required")
-
-                system_prompt = (
-                    "You are a Kubernetes YAML generator. "
-                    "Output only valid YAML without explanation. "
-                    "Use best practices and include required fields."
+                return json.dumps(
+                    {"error": "YAML 생성은 비활성화되었습니다."},
+                    ensure_ascii=False,
                 )
-                user_prompt = f"Resource type: {resource_type}\nDescription: {description}"
-                resp = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.2,
-                )
-                content = resp.choices[0].message.content if resp.choices else ""
-                return (content or "").strip()
             
             elif function_name == "get_node_list":
                 nodes = await self.k8s_service.get_node_list()
@@ -3053,16 +3025,7 @@ Draft (rules-based, keep numbers unchanged):
         Returns:
             (formatted_text, is_json, is_yaml)
         """
-        def _is_yaml_output() -> bool:
-            if function_name in {"k8s_get_resource_yaml", "k8s_generate_resource"}:
-                return True
-            if function_name == "k8s_get_resources":
-                output = function_args.get("output")
-                if isinstance(output, str) and output.strip().lower() == "yaml":
-                    return True
-            return False
-
-        is_yaml = _is_yaml_output()
+        is_yaml = False
         try:
             # dict/list 는 그대로 pretty-print
             if isinstance(function_response, (dict, list)):
@@ -3071,7 +3034,7 @@ Draft (rules-based, keep numbers unchanged):
             # 문자열인 경우 JSON 여부를 감지해서 포맷
             if isinstance(function_response, str):
                 stripped = function_response.strip()
-                if not is_yaml and (stripped.startswith("{") or stripped.startswith("[")):
+                if stripped.startswith("{") or stripped.startswith("["):
                     try:
                         parsed = json.loads(stripped)
                         return json.dumps(parsed, ensure_ascii=False, indent=2), True, False
@@ -3091,7 +3054,7 @@ Draft (rules-based, keep numbers unchanged):
             return None
         lowered = text.lower()
         if "yaml" in lowered or "yml" in lowered:
-            return "yaml"
+            return "json"
         if "wide" in lowered:
             return "wide"
         if "json" in lowered:
@@ -3118,7 +3081,7 @@ Draft (rules-based, keep numbers unchanged):
 
     def _filter_tools_for_output_preference(self, tools: List[Dict], user_text: Optional[str]) -> List[Dict]:
         pref = self._detect_output_preference(user_text)
-        if pref not in {"yaml", "wide"}:
+        if pref not in {"json", "wide"}:
             return tools
 
         want_events = self._mentions_events(user_text)
@@ -3126,7 +3089,7 @@ Draft (rules-based, keep numbers unchanged):
         want_describe = self._mentions_describe(user_text)
 
         # Strongly prefer k8s_get_resources when output format is requested.
-        allow = {"k8s_get_resources", "k8s_get_resource_yaml"}
+        allow = {"k8s_get_resources"}
         if want_events:
             allow.add("k8s_get_events")
         if want_logs:
@@ -3147,8 +3110,6 @@ Draft (rules-based, keep numbers unchanged):
         """k8s_get_resources 결과 포맷을 문자열로 변환"""
         try:
             if isinstance(payload, dict) and "format" in payload:
-                if payload.get("format") == "yaml":
-                    return payload.get("data", "")
                 return json.dumps(payload.get("data"), ensure_ascii=False)
             return json.dumps(payload, ensure_ascii=False)
         except Exception:
@@ -3665,8 +3626,7 @@ Draft (rules-based, keep numbers unchanged):
 - `get_pods`: 특정 네임스페이스의 Pod 목록 조회. Pod 상태, 재시작 횟수 확인
 - `get_deployments`: Deployment 목록 조회
 - `get_services`: Service 목록 조회
-- `k8s_get_resources`: kubectl get (json/yaml/wide) 형식 지원. 출력 형식 요청 시 우선 사용
-- `k8s_get_resource_yaml`: 단일 리소스 YAML 조회
+- `k8s_get_resources`: kubectl get (json/wide) 형식 지원. 출력 형식 요청 시 우선 사용
 - `get_node_list`: 노드 목록 조회
 - `get_pod_logs`: Pod 로그 조회. 에러 메시지 분석
 - `describe_pod`: Pod 상세 정보 조회. 이벤트, 조건 확인
@@ -3690,8 +3650,8 @@ Draft (rules-based, keep numbers unchanged):
 
 ### 출력 포맷/툴 선택 규칙 (중요)
 
-- 사용자가 YAML/WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
-- 단일 리소스 YAML 요청은 `k8s_get_resource_yaml`을 사용하세요.
+- 사용자가 WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
+- YAML 요청은 지원하지 않습니다. JSON으로 조회하고 화면에는 kubectl 테이블로 표시하세요.
 - `get_pods`, `get_deployments`, `get_services`는 legacy JSON-only이므로 출력 형식 요청 시 사용하지 마세요.
 
 1. **항상 도구를 적극적으로 사용**: 
@@ -4220,7 +4180,7 @@ If namespace is not provided, search across namespaces first.""",
                 "type": "function",
                 "function": {
                     "name": "k8s_get_resources",
-                    "description": "Kubernetes 리소스를 조회합니다 (kubectl get). 출력 형식(yaml/wide/json) 요청 시 우선 사용.",
+                    "description": "Kubernetes 리소스를 조회합니다 (kubectl get). 출력 형식(wide/json) 요청 시 우선 사용.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -4242,7 +4202,7 @@ If namespace is not provided, search across namespaces first.""",
                             },
                             "output": {
                                 "type": "string",
-                                "description": "출력 포맷 (json, yaml, wide)",
+                                "description": "출력 포맷 (json, wide)",
                                 "default": "wide",
                             },
                         },
@@ -4299,22 +4259,6 @@ If namespace is not provided, search across namespaces first.""",
             {
                 "type": "function",
                 "function": {
-                    "name": "k8s_get_resource_yaml",
-                    "description": "단일 리소스 YAML 조회 (kubectl get -o yaml).",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "resource_type": {"type": "string", "description": "리소스 타입"},
-                            "resource_name": {"type": "string", "description": "리소스 이름"},
-                            "namespace": {"type": "string", "description": "네임스페이스 (선택)"},
-                        },
-                        "required": ["resource_type", "resource_name"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "k8s_describe_resource",
                     "description": "리소스 상세 조회 (kubectl describe).",
                     "parameters": {
@@ -4325,21 +4269,6 @@ If namespace is not provided, search across namespaces first.""",
                             "namespace": {"type": "string", "description": "네임스페이스 (선택)"},
                         },
                         "required": ["resource_type", "resource_name"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "k8s_generate_resource",
-                    "description": "설명으로부터 Kubernetes YAML을 생성합니다.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "resource_type": {"type": "string", "description": "리소스 타입"},
-                            "resource_description": {"type": "string", "description": "생성할 리소스 설명"},
-                        },
-                        "required": ["resource_type", "resource_description"],
                     },
                 },
             },
@@ -4530,6 +4459,8 @@ If namespace is not provided, search across namespaces first.""",
                     all_namespaces = all_namespaces_raw.strip().lower() == "true"
                 else:
                     all_namespaces = bool(all_namespaces_raw)
+                if isinstance(output, str) and output.strip().lower() == "yaml":
+                    output = "json"
 
                 payload = await self.k8s_service.get_resources(
                     resource_type=resource_type,
@@ -4541,13 +4472,10 @@ If namespace is not provided, search across namespaces first.""",
                 result = self._render_k8s_resource_payload(payload)
 
             elif function_name == "k8s_get_resource_yaml":
-                namespace = function_args.get("namespace")
-                yaml_content = await self.k8s_service.get_resource_yaml(
-                    resource_type=function_args.get("resource_type", ""),
-                    resource_name=function_args.get("resource_name", ""),
-                    namespace=namespace if isinstance(namespace, str) else None,
+                result = json.dumps(
+                    {"error": "YAML 출력은 비활성화되었습니다. k8s_get_resources(JSON)로 조회하세요."},
+                    ensure_ascii=False,
                 )
-                result = yaml_content
 
             elif function_name == "k8s_describe_resource":
                 namespace = function_args.get("namespace")
@@ -4611,27 +4539,10 @@ If namespace is not provided, search across namespaces first.""",
                 result = json.dumps(cfg, ensure_ascii=False)
 
             elif function_name == "k8s_generate_resource":
-                resource_type = function_args.get("resource_type", "")
-                description = function_args.get("resource_description", "")
-                if not resource_type or not description:
-                    raise Exception("resource_type and resource_description are required")
-
-                system_prompt = (
-                    "You are a Kubernetes YAML generator. "
-                    "Output only valid YAML without explanation. "
-                    "Use best practices and include required fields."
+                result = json.dumps(
+                    {"error": "YAML 생성은 비활성화되었습니다."},
+                    ensure_ascii=False,
                 )
-                user_prompt = f"Resource type: {resource_type}\nDescription: {description}"
-                resp = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.2,
-                )
-                content = resp.choices[0].message.content if resp.choices else ""
-                result = (content or "").strip()
             
             elif function_name == "get_node_list":
                 nodes = await self.k8s_service.get_node_list()
