@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
+import JSZip from 'jszip'
 
 const TOOL_RESULT_DISPLAY_MAX_CHARS = 2000
 const TRUNCATED_MARKER = '... (truncated) ...'
@@ -852,18 +853,18 @@ export default function AIChat() {
         return next > 1 ? `${base}_${next}` : base
       }
 
-      const downloadBlob = async (content: string, filename: string, mime: string) => {
-        const blob = new Blob([content], { type: mime })
-        const url = URL.createObjectURL(blob)
+      const downloadZip = async (content: Blob, filename: string) => {
+        const url = URL.createObjectURL(content)
         const a = document.createElement('a')
         a.href = url
         a.download = filename
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
-        await new Promise((resolve) => setTimeout(resolve, 80))
         URL.revokeObjectURL(url)
       }
+
+      const zip = new JSZip()
 
       for (const tc of toolCalls) {
         if (!tc) continue
@@ -975,20 +976,20 @@ export default function AIChat() {
         const base = sanitizeName(functionName)
         const uniqueBase = getUniqueBase(base)
         let ext = 'txt'
-        let mime = 'text/plain;charset=utf-8'
         if (isLog) {
           ext = 'log'
         } else if (isYaml) {
           ext = 'yaml'
-          mime = 'text/yaml;charset=utf-8'
         } else if (isJson) {
           ext = 'json'
-          mime = 'application/json;charset=utf-8'
         }
 
         const filename = `${uniqueBase}_${timestamp}.${ext}`
-        await downloadBlob(content, filename, mime)
+        zip.file(filename, content)
       }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      await downloadZip(zipBlob, `tool_results_${timestamp}.zip`)
     } catch (err) {
       console.error('[ERROR] Failed to download JSON:', err)
     }
@@ -1338,7 +1339,7 @@ export default function AIChat() {
                                 }}
                                 className="px-2.5 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 text-slate-100"
                               >
-                                Result 다운로드 
+                                Result ZIP 다운로드 
                               </button>
                             </div>
                           )}
