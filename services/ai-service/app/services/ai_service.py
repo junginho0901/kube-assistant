@@ -59,6 +59,15 @@ class AIService:
         if len(sanitized) > max_chars:
             sanitized = sanitized[:max_chars] + "\n... (truncated) ..."
         return sanitized
+
+    def _truncate_tool_result_for_llm(self, content: Optional[str]) -> str:
+        """Tool 결과를 LLM 입력용으로 축약"""
+        if not isinstance(content, str):
+            content = "" if content is None else str(content)
+        max_chars = 6000
+        if len(content) > max_chars:
+            return content[:max_chars] + "\n... (truncated for LLM) ..."
+        return content
     
     async def analyze_logs(self, request: LogAnalysisRequest) -> LogAnalysisResponse:
         """로그 분석"""
@@ -457,12 +466,18 @@ JSON 형식으로 응답해주세요:
                     
                     # 함수 실행
                     function_response = await self._execute_function(function_name, function_args)
+                    formatted_result, _, _ = self._format_tool_result(
+                        function_name,
+                        function_args,
+                        function_response,
+                    )
+                    tool_message_content = self._truncate_tool_result_for_llm(formatted_result)
                     
                     messages.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
                         "name": function_name,
-                        "content": str(function_response)
+                        "content": tool_message_content
                     })
                 
                 # 함수 결과를 바탕으로 최종 답변 생성
@@ -2081,12 +2096,19 @@ Draft (rules-based, keep numbers unchanged):
                     function_response = await self._execute_function(function_name, function_args)
                     
                     print(f"[DEBUG] Function response length: {len(str(function_response))}")
+
+                    formatted_result, _, _ = self._format_tool_result(
+                        function_name,
+                        function_args,
+                        function_response,
+                    )
+                    tool_message_content = self._truncate_tool_result_for_llm(formatted_result)
                     
                     messages.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
                         "name": function_name,
-                        "content": str(function_response)
+                        "content": tool_message_content
                     })
                 
                 print(f"[DEBUG] Starting second GPT call for analysis with {len(messages)} messages")
@@ -3088,11 +3110,12 @@ Draft (rules-based, keep numbers unchanged):
                             'is_yaml': is_yaml
                         })
                         
+                        tool_message_content = self._truncate_tool_result_for_llm(formatted_result)
                         messages.append({
                             "tool_call_id": tool_call.id,
                             "role": "tool",
                             "name": function_name,
-                            "content": str(function_response)
+                            "content": tool_message_content
                         })
                     
                     # 다음 iteration으로 계속
