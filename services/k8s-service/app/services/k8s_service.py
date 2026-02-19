@@ -98,8 +98,12 @@ class K8sService:
             raise Exception("Kubernetes client not initialized")
         if not path.startswith("/"):
             path = "/" + path
+        host = (self.api_client.configuration.host or "").rstrip("/")
+        if not host:
+            raise Exception("Kubernetes API host is not configured")
 
-        resp = self.api_client.rest_client.GET(path, _preload_content=False)
+        url = f"{host}{path}"
+        resp = self.api_client.rest_client.GET(url, _preload_content=False)
         data = resp.data
         if isinstance(data, bytes):
             data = data.decode("utf-8")
