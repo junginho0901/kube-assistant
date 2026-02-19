@@ -190,6 +190,7 @@ class ChatStreamManager {
                 args: data.args || {},
                 result: '',
                 is_json: false,
+                is_yaml: false,
               }
 
               this.setState({
@@ -203,10 +204,13 @@ class ChatStreamManager {
             if (data.function_result) {
               const functionName = String(data.function_result)
               const isJson = !!data.is_json
+              const isYaml = !!data.is_yaml
               const resultText = String(data.result ?? '')
 
               const toolCalls = this.state.toolCalls.map((tc) =>
-                tc.function === functionName ? { ...tc, result: resultText, is_json: isJson } : tc
+                tc.function === functionName
+                  ? { ...tc, result: resultText, is_json: isJson, is_yaml: isYaml }
+                  : tc
               )
 
               const lastFunctionIndex = this.state.functionCallsContent.lastIndexOf(
@@ -218,7 +222,11 @@ class ChatStreamManager {
                 const beforeFunction = functionCallsContent.substring(0, lastFunctionIndex)
                 const afterFunction = functionCallsContent.substring(lastFunctionIndex)
 
-                const codeBlock = isJson ? `\`\`\`json\n${resultText}\n\`\`\`` : `\`\`\`\n${resultText}\n\`\`\``
+                const codeBlock = isYaml
+                  ? `\`\`\`yaml\n${resultText}\n\`\`\``
+                  : isJson
+                  ? `\`\`\`json\n${resultText}\n\`\`\``
+                  : `\`\`\`\n${resultText}\n\`\`\``
                 functionCallsContent = beforeFunction + afterFunction.replace('Executing...', codeBlock)
               }
 

@@ -2738,34 +2738,49 @@ Draft (rules-based, keep numbers unchanged):
             print(f"[DEBUG] {error_msg}")
             return json.dumps({"error": error_msg}, ensure_ascii=False)
     
-    def _format_tool_result(self, function_response) -> (str, bool):
+    def _format_tool_result(
+        self,
+        function_name: str,
+        function_args: Dict,
+        function_response,
+    ) -> (str, bool, bool):
         """Tool 실행 결과를 사용자 친화적으로 포맷 (JSON은 pretty-print)
 
         Returns:
-            (formatted_text, is_json)
+            (formatted_text, is_json, is_yaml)
         """
+        def _is_yaml_output() -> bool:
+            if function_name in {"k8s_get_resource_yaml", "k8s_generate_resource"}:
+                return True
+            if function_name == "k8s_get_resources":
+                output = function_args.get("output")
+                if isinstance(output, str) and output.strip().lower() == "yaml":
+                    return True
+            return False
+
+        is_yaml = _is_yaml_output()
         try:
             # dict/list 는 그대로 pretty-print
             if isinstance(function_response, (dict, list)):
-                return json.dumps(function_response, ensure_ascii=False, indent=2), True
+                return json.dumps(function_response, ensure_ascii=False, indent=2), True, False
             
             # 문자열인 경우 JSON 여부를 감지해서 포맷
             if isinstance(function_response, str):
                 stripped = function_response.strip()
-                if stripped.startswith("{") or stripped.startswith("["):
+                if not is_yaml and (stripped.startswith("{") or stripped.startswith("[")):
                     try:
                         parsed = json.loads(stripped)
-                        return json.dumps(parsed, ensure_ascii=False, indent=2), True
+                        return json.dumps(parsed, ensure_ascii=False, indent=2), True, False
                     except json.JSONDecodeError:
                         # JSON 이 아니면 원본 그대로 사용
-                        return function_response, False
-                return function_response, False
+                        return function_response, False, is_yaml
+                return function_response, False, is_yaml
             
             # 그 외 타입은 문자열로 변환
-            return str(function_response), False
+            return str(function_response), False, is_yaml
         except Exception as e:
             print(f"[DEBUG] Failed to format tool result: {e}")
-            return str(function_response), False
+            return str(function_response), False, is_yaml
 
     def _render_k8s_resource_payload(self, payload) -> str:
         """k8s_get_resources 결과 포맷을 문자열로 변환"""
@@ -2950,7 +2965,11 @@ Draft (rules-based, keep numbers unchanged):
                         print(f"[DEBUG] Function response length: {len(str(function_response))}")
                         
                         # 결과를 사용자 친화적으로 포맷 (JSON이면 pretty-print)
-                        formatted_result, is_json = self._format_tool_result(function_response)
+                        formatted_result, is_json, is_yaml = self._format_tool_result(
+                            function_name,
+                            function_args,
+                            function_response,
+                        )
                         
                         # 결과 미리보기 (너무 길면 잘라서 전송하되, 표시를 남김)
                         max_preview_len = 2500
@@ -2961,14 +2980,15 @@ Draft (rules-based, keep numbers unchanged):
                         
                         # Function 결과를 프론트엔드로 전송 (스트리밍) - 실행 후
                         # 👉 프론트에는 미리보기만 전달 (약 2500자)
-                        yield f"data: {json.dumps({'function_result': function_name, 'result': result_preview, 'is_json': is_json}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'function_result': function_name, 'result': result_preview, 'is_json': is_json, 'is_yaml': is_yaml}, ensure_ascii=False)}\n\n"
                         
                         # Tool call 정보 + 실행 결과 전체 저장 (DB에는 전체 결과 보관)
                         tool_calls_log.append({
                             'function': function_name, 
                             'args': function_args,
                             'result': formatted_result,
-                            'is_json': is_json
+                            'is_json': is_json,
+                            'is_yaml': is_yaml
                         })
                         
                         messages.append({
@@ -3162,7 +3182,11 @@ Draft (rules-based, keep numbers unchanged):
                     # Results 섹션 - 실제 tool 실행 결과
                     result_preview = tc.get('result', 'No result')
                     is_json = tc.get('is_json', False)
-                    code_fence = "```json" if is_json else "```"
+                    is_yaml = tc.get('is_yaml', False)
+                    if is_yaml:
+                        code_fence = "```yaml"
+                    else:
+                        code_fence = "```json" if is_json else "```"
                     
                     results_section = f"""<details>
 <summary><strong>📊 Results</strong></summary>
