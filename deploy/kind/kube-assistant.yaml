@@ -540,6 +540,8 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30080
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment
