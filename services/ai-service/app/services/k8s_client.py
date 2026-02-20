@@ -86,10 +86,30 @@ class K8sServiceClient:
         response = await self.client.get(f"/namespaces/{namespace}/services/{name}/describe")
         response.raise_for_status()
         return response.json()
+
+    async def check_service_connectivity(
+        self,
+        namespace: str,
+        service_name: str,
+        port: Optional[str] = None,
+    ) -> Dict:
+        """Service/Endpoint 연결성 확인"""
+        params: Dict[str, object] = {}
+        if port:
+            params["port"] = port
+        response = await self.client.get(
+            f"/namespaces/{namespace}/services/{service_name}/connectivity",
+            params=params,
+        )
+        response.raise_for_status()
+        return response.json()
     
-    async def get_events(self, namespace: str) -> List[Dict]:
+    async def get_events(self, namespace: Optional[str]) -> List[Dict]:
         """이벤트 조회"""
-        response = await self.client.get(f"/namespaces/{namespace}/events")
+        if namespace:
+            response = await self.client.get(f"/namespaces/{namespace}/events")
+        else:
+            response = await self.client.get("/events")
         response.raise_for_status()
         data = response.json()
         return data.get("events", [])

@@ -116,14 +116,43 @@ class K8sService:
 
     def _get_default_namespace(self) -> str:
         sa_ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-        try:
-            if os.path.exists(sa_ns_path):
-                with open(sa_ns_path, "r", encoding="utf-8") as f:
-                    ns = f.read().strip()
-                    if ns:
-                        return ns
-        except Exception:
-            pass
+
+        # 1) In-cluster: service account namespace
+        if getattr(settings, "IN_CLUSTER", False):
+            try:
+                if os.path.exists(sa_ns_path):
+                    with open(sa_ns_path, "r", encoding="utf-8") as f:
+                        ns = f.read().strip()
+                        if ns:
+                            return ns
+            except Exception:
+                pass
+
+        # 2) Out-of-cluster: kubeconfig current-context namespace
+        kubeconfig_path = ""
+        if settings.KUBECONFIG_PATH and os.path.exists(settings.KUBECONFIG_PATH):
+            kubeconfig_path = settings.KUBECONFIG_PATH
+        else:
+            default_path = os.path.expanduser("~/.kube/config")
+            if os.path.exists(default_path):
+                kubeconfig_path = default_path
+
+        if kubeconfig_path:
+            try:
+                import yaml
+
+                with open(kubeconfig_path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                current = data.get("current-context")
+                if current:
+                    for ctx in data.get("contexts", []) or []:
+                        if ctx.get("name") == current:
+                            ns = (ctx.get("context") or {}).get("namespace")
+                            if ns:
+                                return ns
+            except Exception:
+                pass
+
         return "default"
 
     async def get_available_api_resources(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -778,6 +807,121 @@ class K8sService:
             return result
         except ApiException as e:
             raise Exception(f"Failed to get services: {e}")
+
+    async def check_service_connectivity(
+        self,
+        namespace: str,
+        service_name: str,
+        port: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Service/Endpoint 연결성 확인"""
+        try:
+            svc = self.v1.read_namespaced_service(service_name, namespace)
+        except ApiException as e:
+            raise Exception(f"Failed to get service: {e}")
+
+        ports: List[Dict[str, Any]] = []
+        for p in (svc.spec.ports or []):
+            ports.append(
+                {
+                    "name": p.name,
+                    "port": p.port,
+                    "target_port": str(p.target_port) if p.target_port is not None else None,
+                    "protocol": p.protocol,
+                    "node_port": getattr(p, "node_port", None),
+                }
+            )
+
+        requested_port = None
+        if port is not None:
+            requested_port = str(port).strip()
+
+        matched_port: Optional[Dict[str, Any]] = None
+        if requested_port:
+            for p in ports:
+                if requested_port == str(p.get("name") or ""):
+                    matched_port = p
+                    break
+                if requested_port == str(p.get("port") or ""):
+                    matched_port = p
+                    break
+                if requested_port == str(p.get("target_port") or ""):
+                    matched_port = p
+                    break
+
+        ready_addresses: List[str] = []
+        not_ready_addresses: List[str] = []
+        endpoints_source = "endpoints"
+
+        try:
+            ep = self.v1.read_namespaced_endpoints(service_name, namespace)
+            for subset in (ep.subsets or []):
+                for addr in (subset.addresses or []):
+                    ip = getattr(addr, "ip", None)
+                    if ip:
+                        ready_addresses.append(ip)
+                for addr in (subset.not_ready_addresses or []):
+                    ip = getattr(addr, "ip", None)
+                    if ip:
+                        not_ready_addresses.append(ip)
+        except ApiException as e:
+            if getattr(e, "status", None) != 404:
+                raise Exception(f"Failed to get endpoints: {e}")
+
+        ready_count = len(ready_addresses)
+        not_ready_count = len(not_ready_addresses)
+        endpoints_total = ready_count + not_ready_count
+
+        if endpoints_total == 0:
+            try:
+                slices = await self.get_endpointslices(namespace)
+                svc_slices = [s for s in slices if s.get("service_name") == service_name]
+                if svc_slices:
+                    endpoints_source = "endpointslices"
+                    ready_count = sum(int(s.get("endpoints_ready") or 0) for s in svc_slices)
+                    endpoints_total = sum(int(s.get("endpoints_total") or 0) for s in svc_slices)
+                    not_ready_count = max(endpoints_total - ready_count, 0)
+            except Exception:
+                pass
+
+        status = "ok"
+        message = "Service has ready endpoints."
+        if svc.spec.type == "ExternalName":
+            status = "external_name"
+            message = "ExternalName service uses external DNS; endpoints are not managed by the cluster."
+        elif requested_port and matched_port is None:
+            status = "port_not_found"
+            message = "Requested port was not found on the service."
+        elif endpoints_total == 0:
+            status = "no_endpoints"
+            message = "No endpoints found for this service."
+        elif ready_count == 0:
+            status = "no_ready_endpoints"
+            message = "Endpoints exist but none are ready."
+
+        return {
+            "namespace": namespace,
+            "service": service_name,
+            "type": svc.spec.type,
+            "cluster_ip": svc.spec.cluster_ip,
+            "external_name": getattr(svc.spec, "external_name", None),
+            "selector": svc.spec.selector or {},
+            "ports": ports,
+            "port_check": {
+                "requested": requested_port,
+                "matched": matched_port,
+            } if requested_port else None,
+            "endpoints": {
+                "ready": ready_count,
+                "not_ready": not_ready_count,
+                "total": endpoints_total,
+                "ready_addresses": ready_addresses[:50],
+                "not_ready_addresses": not_ready_addresses[:50],
+                "source": endpoints_source,
+            },
+            "status": status,
+            "message": message,
+        }
     
     async def get_deployments(self, namespace: str) -> List[DeploymentInfo]:
         """디플로이먼트 목록"""
@@ -1380,10 +1524,13 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get VolumeAttachments: {e}")
     
-    async def get_events(self, namespace: str, resource_name: Optional[str] = None) -> List[Dict]:
+    async def get_events(self, namespace: Optional[str], resource_name: Optional[str] = None) -> List[Dict]:
         """이벤트 조회"""
         try:
-            events = self.v1.list_namespaced_event(namespace)
+            if namespace:
+                events = self.v1.list_namespaced_event(namespace)
+            else:
+                events = self.v1.list_event_for_all_namespaces()
             result = []
             
             for event in events.items:
@@ -1394,6 +1541,7 @@ class K8sService:
                     "type": event.type,
                     "reason": event.reason,
                     "message": event.message,
+                    "namespace": getattr(event.metadata, "namespace", None),
                     "object": {
                         "kind": event.involved_object.kind,
                         "name": event.involved_object.name

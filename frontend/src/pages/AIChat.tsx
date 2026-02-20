@@ -15,6 +15,16 @@ const TOOL_RESULT_DISPLAY_MAX_CHARS = 2000
 const TRUNCATED_MARKER = '... (truncated) ...'
 const SESSIONS_PAGE_SIZE = 50
 
+const hasTruncatedToolCalls = (toolCalls?: any[]) => {
+  if (!Array.isArray(toolCalls)) return false
+  return toolCalls.some((tc) => {
+    if (!tc) return false
+    const result = typeof tc.result === 'string' ? tc.result : ''
+    const display = typeof tc.display === 'string' ? tc.display : ''
+    return result.includes(TRUNCATED_MARKER) || display.includes(TRUNCATED_MARKER)
+  })
+}
+
 function truncateToolResultsInContent(content: string, maxChars = TOOL_RESULT_DISPLAY_MAX_CHARS) {
   if (!content) return content
 
@@ -840,15 +850,16 @@ export default function AIChat() {
         try {
           const session = await api.getSession(sessionId)
           let dbMessage: any | undefined
+          const dbToolMessages = session.messages.filter(
+            (m) => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0,
+          )
 
           if (message.id != null) {
             dbMessage = session.messages.find((m) => m.id === message.id)
           }
 
           if (!dbMessage) {
-            const candidates = session.messages.filter(
-              (m) => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0,
-            )
+            const candidates = dbToolMessages
 
             const currentFns = current
               .map((tc) => (tc && typeof tc.function === 'string' ? tc.function : ''))
@@ -880,6 +891,29 @@ export default function AIChat() {
             }
           }
 
+          if (!dbMessage && dbToolMessages.length > 0) {
+            const uiToolMessages = messagesRef.current.filter(
+              (m) => m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length > 0,
+            )
+            const uiIndex = uiToolMessages.findIndex((m) => m === message)
+            if (uiIndex >= 0 && uiIndex < dbToolMessages.length) {
+              dbMessage = dbToolMessages[uiIndex]
+            }
+          }
+
+          if (!dbMessage && dbToolMessages.length > 0 && message.content) {
+            const hint = message.content.trim().slice(0, 200)
+            if (hint.length >= 20) {
+              dbMessage = dbToolMessages.find(
+                (m) => typeof m.content === 'string' && m.content.includes(hint)
+              )
+            }
+          }
+
+          if (!dbMessage && dbToolMessages.length > 0) {
+            dbMessage = dbToolMessages[dbToolMessages.length - 1]
+          }
+
           if (dbMessage?.tool_calls?.length) {
             return dbMessage.tool_calls
           }
@@ -890,7 +924,31 @@ export default function AIChat() {
         return current
       }
 
-      const toolCalls = await resolveToolCallsForDownload()
+      let toolCalls = await resolveToolCallsForDownload()
+
+      // If current toolCalls contain truncated markers, try to recover full results from DB
+      if (hasTruncatedToolCalls(toolCalls)) {
+        const sessionId = viewSessionId || selectedSessionId
+        if (sessionId) {
+          try {
+            const session = await api.getSession(sessionId)
+            const candidates = session.messages
+              .filter((m) => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0)
+              .reverse()
+
+            const full = candidates.find((m) => !hasTruncatedToolCalls(m.tool_calls))
+            if (full?.tool_calls?.length) {
+              toolCalls = full.tool_calls
+            }
+          } catch (e) {
+            console.warn('[WARN] Failed to recover full tool results from session:', e)
+          }
+        }
+      }
+
+      if (hasTruncatedToolCalls(toolCalls)) {
+        console.warn('[WARN] Downloading truncated tool results (full results not available).')
+      }
       const now = new Date()
       const pad = (n: number) => n.toString().padStart(2, '0')
       const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
@@ -909,6 +967,31 @@ export default function AIChat() {
         const next = current + 1
         nameCounts.set(base, next)
         return next > 1 ? `${base}_${next}` : base
+      }
+
+      const buildParamSuffix = (args: any) => {
+        if (!args || typeof args !== 'object') return ''
+        const parts: string[] = []
+        const pushPart = (label: string, value: unknown) => {
+          if (value == null) return
+          const raw = Array.isArray(value) ? value.join(',') : String(value)
+          const trimmed = raw.trim()
+          if (!trimmed) return
+          const limited = trimmed.length > 40 ? trimmed.slice(0, 40) : trimmed
+          parts.push(`${label}-${limited}`)
+        }
+        pushPart('ns', args.namespace)
+        pushPart('type', args.resource_type)
+        pushPart('name', args.resource_name)
+        pushPart('pod', args.pod_name)
+        pushPart('svc', args.service_name)
+        pushPart('name', args.name)
+        pushPart('out', args.output)
+        pushPart('ctr', args.container)
+        if (parts.length === 0) return ''
+        const joined = parts.slice(0, 4).join('_')
+        const safe = sanitizeName(joined).slice(0, 60)
+        return safe ? `_${safe}` : ''
       }
 
       const downloadZip = async (content: Blob, filename: string) => {
@@ -939,6 +1022,7 @@ export default function AIChat() {
 
         const base = sanitizeName(functionName)
         const uniqueBase = getUniqueBase(base)
+        const paramSuffix = buildParamSuffix(args)
         let ext = 'txt'
         if (isLog) {
           ext = 'log'
@@ -948,7 +1032,7 @@ export default function AIChat() {
           ext = 'json'
         }
 
-        const filename = `${uniqueBase}_${timestamp}.${ext}`
+        const filename = `${uniqueBase}${paramSuffix}_${timestamp}.${ext}`
         zip.file(filename, content)
       }
 

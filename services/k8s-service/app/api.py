@@ -381,6 +381,18 @@ async def get_events(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/events")
+async def get_events_all(
+    resource_name: Optional[str] = Query(None, description="리소스 이름 필터")
+):
+    """전체 네임스페이스 이벤트 조회"""
+    try:
+        events = await k8s_service.get_events(None, resource_name)
+        return {"events": events}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/namespaces/{namespace}/deployments/{name}/yaml")
 async def get_deployment_yaml(namespace: str, name: str):
     """Deployment YAML 조회"""
@@ -538,6 +550,23 @@ async def get_endpointslices(namespace: str, force_refresh: bool = Query(False, 
     """EndpointSlice 목록 조회"""
     try:
         return await k8s_service.get_endpointslices(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/services/{service_name}/connectivity")
+async def check_service_connectivity(
+    namespace: str,
+    service_name: str,
+    port: Optional[str] = Query(None, description="서비스 포트 (이름 또는 번호)"),
+):
+    """Service/Endpoint 연결성 확인"""
+    try:
+        return await k8s_service.check_service_connectivity(
+            namespace=namespace,
+            service_name=service_name,
+            port=port,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
