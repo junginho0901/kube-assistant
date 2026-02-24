@@ -4377,6 +4377,27 @@ Remember: You're not just answering questions - you're **solving production prob
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "k8s_patch_resource",
+                    "description": "리소스 패치 (kubectl patch).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "resource_type": {"type": "string", "description": "리소스 타입"},
+                            "resource_name": {"type": "string", "description": "리소스 이름"},
+                            "namespace": {"type": "string", "description": "네임스페이스 (선택)"},
+                            "patch": {"type": "object", "description": "패치 JSON 객체 또는 문자열"},
+                            "patch_type": {
+                                "type": "string",
+                                "description": "패치 타입 (strategic, merge, json)",
+                            },
+                        },
+                        "required": ["resource_type", "resource_name", "patch"],
+                    },
+                },
+            },
         ]
     
     async def _execute_function_with_context(

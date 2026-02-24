@@ -212,6 +212,11 @@ func buildToolRegistry() map[string]ToolDefinition {
 		Description: "Delete a Kubernetes resource (kubectl delete)",
 		Handler:     handleDeleteResource,
 	})
+	register(ToolDefinition{
+		Name:        "k8s_patch_resource",
+		Description: "Patch a Kubernetes resource (kubectl patch)",
+		Handler:     handlePatchResource,
+	})
 
 	return registry
 }
@@ -556,6 +561,29 @@ func handleDeleteResource(ctx context.Context, args map[string]interface{}, head
 	}
 	if ignoreNotFound {
 		cmdArgs = append(cmdArgs, "--ignore-not-found=true")
+	}
+	return runKubectl(ctx, headers, cmdArgs...)
+}
+
+func handlePatchResource(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	resourceType := argString(args, "resource_type", "")
+	resourceName := argString(args, "resource_name", "")
+	if resourceType == "" || resourceName == "" {
+		return "", wrapBadRequest("resource_type and resource_name are required")
+	}
+	patchContent, err := patchFromArgs(args)
+	if err != nil {
+		return "", err
+	}
+	namespace := argString(args, "namespace", "")
+	patchType := argString(args, "patch_type", "")
+
+	cmdArgs := []string{"patch", resourceType, resourceName, "-p", patchContent}
+	if namespace != "" {
+		cmdArgs = append(cmdArgs, "-n", namespace)
+	}
+	if patchType != "" {
+		cmdArgs = append(cmdArgs, "--type", patchType)
 	}
 	return runKubectl(ctx, headers, cmdArgs...)
 }
