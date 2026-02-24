@@ -83,8 +83,8 @@ class AIService:
     def _role_allows_admin(self) -> bool:
         return self.user_role == "admin"
 
-    def _is_tool_allowed(self, function_name: str) -> bool:
-        write_tools = {
+    def _write_tools(self) -> set:
+        return {
             "k8s_apply_manifest",
             "k8s_create_resource",
             "k8s_create_resource_from_url",
@@ -98,6 +98,12 @@ class AIService:
             "k8s_rollout",
             "k8s_execute_command",
         }
+
+    def _is_write_tool(self, function_name: str) -> bool:
+        return function_name in self._write_tools()
+
+    def _is_tool_allowed(self, function_name: str) -> bool:
+        write_tools = self._write_tools()
         admin_only_tools = set()
 
         if function_name in admin_only_tools:
@@ -1044,7 +1050,16 @@ JSON 형식으로 응답해주세요:
             # Function calling이 있으면 실행
             if tool_calls:
                 messages.append(response_message)
-                
+
+                write_calls = [tc for tc in tool_calls if self._is_write_tool(tc.function.name)]
+                if write_calls:
+                    # write 도구가 포함되면 가장 첫 write만 실행하고 나머지는 생략
+                    tool_calls = [write_calls[0]]
+                    print(
+                        f"[DEBUG] Write tool detected; executing only {write_calls[0].function.name} and skipping {len(response_message.tool_calls) - 1} tool calls.",
+                        flush=True,
+                    )
+
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
                     function_args = eval(tool_call.function.arguments)
@@ -3520,6 +3535,7 @@ Draft (rules-based, keep numbers unchanged):
             iteration = 0
             assistant_content = ""
             tool_calls_log = []  # Tool call 정보 저장
+            write_tool_executed = False
             
             while iteration < max_iterations:
                 iteration += 1
@@ -3598,10 +3614,22 @@ Draft (rules-based, keep numbers unchanged):
                 
                 # Function calling이 있으면 실행
                 if response_message.tool_calls:
-                    print(f"[DEBUG] Tool calls detected: {len(response_message.tool_calls)}")
+                    tool_calls = list(response_message.tool_calls or [])
+                    print(f"[DEBUG] Tool calls detected: {len(tool_calls)}")
                     messages.append(response_message)
+
+                    write_calls = [tc for tc in tool_calls if self._is_write_tool(tc.function.name)]
+                    if write_calls:
+                        # write 도구가 포함되면 가장 첫 write만 실행하고 나머지는 생략
+                        skipped = len(tool_calls) - 1
+                        tool_calls = [write_calls[0]]
+                        if skipped > 0:
+                            print(
+                                f"[DEBUG] Write tool detected; executing only {write_calls[0].function.name} and skipping {skipped} tool calls.",
+                                flush=True,
+                            )
                     
-                    for tool_call in response_message.tool_calls:
+                    for tool_call in tool_calls:
                         function_name = tool_call.function.name
                         function_args = json.loads(tool_call.function.arguments)
                         
@@ -3616,6 +3644,8 @@ Draft (rules-based, keep numbers unchanged):
                             function_args,
                             tool_context
                         )
+                        if self._is_write_tool(function_name):
+                            write_tool_executed = True
                         
                         print(f"[DEBUG] Function response length: {len(str(function_response))}")
                         
@@ -3679,7 +3709,158 @@ Draft (rules-based, keep numbers unchanged):
                             "name": function_name,
                             "content": tool_message_content
                         })
-                    
+
+                    if write_tool_executed:
+                        # write 도구 실행 후에는 추가 tool 호출을 막고 결과 요약만 반환
+                        messages.append(
+                            {
+                                "role": "system",
+                                "content": (
+                                    "방금 write 도구가 실행되었습니다. 추가 도구 호출 없이 결과만 요약하고, "
+                                    "추가 조사가 필요하면 사용자에게 먼저 확인하세요."
+                                ),
+                            }
+                        )
+
+                        try:
+                            stream = await self.client.chat.completions.create(
+                                model=self.model,
+                                messages=messages,
+                                temperature=0.7,
+                                max_tokens=1200,
+                                stream=True,
+                                tool_choice="none",
+                                stream_options={"include_usage": True},
+                            )
+                        except TypeError:
+                            stream = await self.client.chat.completions.create(
+                                model=self.model,
+                                messages=messages,
+                                temperature=0.7,
+                                max_tokens=1200,
+                                stream=True,
+                                tool_choice="none",
+                            )
+
+                        last_finish_reason = None
+                        stream_usage = None
+                        async for chunk in stream:
+                            if getattr(chunk, "usage", None) is not None:
+                                stream_usage = chunk.usage
+                            if chunk.choices and getattr(chunk.choices[0], "delta", None):
+                                delta = chunk.choices[0].delta
+                                if delta.content:
+                                    assistant_content += delta.content
+                                    yield f"data: {json.dumps({'content': delta.content}, ensure_ascii=False)}\n\n"
+                            if chunk.choices and getattr(chunk.choices[0], "finish_reason", None):
+                                last_finish_reason = chunk.choices[0].finish_reason
+
+                        if stream_usage is not None:
+                            print(
+                                f"[TOKENS][session_chat final stream] prompt={stream_usage.prompt_tokens}, "
+                                f"completion={stream_usage.completion_tokens}, total={stream_usage.total_tokens}",
+                                flush=True,
+                            )
+                            yield (
+                                "data: "
+                                + json.dumps(
+                                    {
+                                        "usage_phase": "session_chat_final_stream",
+                                        "usage": {
+                                            "prompt_tokens": stream_usage.prompt_tokens,
+                                            "completion_tokens": stream_usage.completion_tokens,
+                                            "total_tokens": stream_usage.total_tokens,
+                                        },
+                                    },
+                                    ensure_ascii=False,
+                                )
+                                + "\n\n"
+                            )
+
+                        if assistant_content:
+                            messages.append({"role": "assistant", "content": assistant_content})
+
+                        # 길이 제한으로 잘렸다면 이어서 최대 3회까지 추가 스트리밍
+                        if last_finish_reason == "length":
+                            max_continuations = 3
+                            for continuation_index in range(1, max_continuations + 1):
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": (
+                                            "방금 답변이 길이 제한으로 중간에 끊겼습니다. "
+                                            "바로 이전 출력의 마지막 문장/항목 다음부터 자연스럽게 이어서 작성하세요. "
+                                            "이미 출력한 내용은 반복하지 마세요."
+                                        ),
+                                    }
+                                )
+
+                                try:
+                                    cont_stream = await self.client.chat.completions.create(
+                                        model=self.model,
+                                        messages=messages,
+                                        temperature=0.7,
+                                        max_tokens=1200,
+                                        stream=True,
+                                        tool_choice="none",
+                                        stream_options={"include_usage": True},
+                                    )
+                                except TypeError:
+                                    cont_stream = await self.client.chat.completions.create(
+                                        model=self.model,
+                                        messages=messages,
+                                        temperature=0.7,
+                                        max_tokens=1200,
+                                        stream=True,
+                                        tool_choice="none",
+                                    )
+                                cont_usage = None
+
+                                continuation_text = ""
+                                cont_finish_reason = None
+                                async for chunk in cont_stream:
+                                    if getattr(chunk, "usage", None) is not None:
+                                        cont_usage = chunk.usage
+                                    if chunk.choices and getattr(chunk.choices[0], "delta", None):
+                                        delta = chunk.choices[0].delta
+                                        if delta.content:
+                                            continuation_text += delta.content
+                                            assistant_content += delta.content
+                                            yield f"data: {json.dumps({'content': delta.content}, ensure_ascii=False)}\n\n"
+                                    if chunk.choices and getattr(chunk.choices[0], "finish_reason", None):
+                                        cont_finish_reason = chunk.choices[0].finish_reason
+
+                                if cont_usage is not None:
+                                    print(
+                                        f"[TOKENS][session_chat continuation {continuation_index}] prompt={cont_usage.prompt_tokens}, "
+                                        f"completion={cont_usage.completion_tokens}, total={cont_usage.total_tokens}",
+                                        flush=True,
+                                    )
+                                    yield (
+                                        "data: "
+                                        + json.dumps(
+                                            {
+                                                "usage_phase": f"session_chat_continuation_{continuation_index}",
+                                                "usage": {
+                                                    "prompt_tokens": cont_usage.prompt_tokens,
+                                                    "completion_tokens": cont_usage.completion_tokens,
+                                                    "total_tokens": cont_usage.total_tokens,
+                                                },
+                                            },
+                                            ensure_ascii=False,
+                                        )
+                                        + "\n\n"
+                                    )
+
+                                if continuation_text:
+                                    messages.append({"role": "assistant", "content": continuation_text})
+
+                                if cont_finish_reason != "length":
+                                    break
+
+                        # 최종 응답 완료, 루프 종료
+                        break
+
                     # 다음 iteration으로 계속
                     continue
                 
