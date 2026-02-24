@@ -4307,7 +4307,25 @@ Remember: You're not just answering questions - you're **solving production prob
 
     def _get_k8s_write_tool_definitions(self) -> List[Dict]:
         """kagent 스타일의 write k8s tool 정의"""
-        return []
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "k8s_apply_manifest",
+                    "description": "매니페스트 적용 (kubectl apply -f -).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "yaml_content": {"type": "string", "description": "YAML 매니페스트 문자열"},
+                            "resource_manifest": {
+                                "type": "object",
+                                "description": "매니페스트 JSON 객체 (선택)",
+                            },
+                        },
+                    },
+                },
+            },
+        ]
     
     async def _execute_function_with_context(
         self,

@@ -192,6 +192,11 @@ func buildToolRegistry() map[string]ToolDefinition {
 		Description: "Check Service/Endpoint connectivity",
 		Handler:     handleCheckServiceConnectivity,
 	})
+	register(ToolDefinition{
+		Name:        "k8s_apply_manifest",
+		Description: "Apply a Kubernetes manifest (kubectl apply -f -)",
+		Handler:     handleApplyManifest,
+	})
 
 	return registry
 }
@@ -470,6 +475,14 @@ func handleCheckServiceConnectivity(ctx context.Context, args map[string]interfa
 	}
 
 	return marshalJSON(result)
+}
+
+func handleApplyManifest(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	manifest, err := manifestFromArgs(args)
+	if err != nil {
+		return "", err
+	}
+	return runKubectlWithInput(ctx, headers, manifest, "apply", "-f", "-")
 }
 
 func runKubectl(ctx context.Context, headers http.Header, args ...string) (string, error) {
