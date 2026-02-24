@@ -3729,7 +3729,6 @@ Draft (rules-based, keep numbers unchanged):
                                 temperature=0.7,
                                 max_tokens=1200,
                                 stream=True,
-                                tool_choice="none",
                                 stream_options={"include_usage": True},
                             )
                         except TypeError:
@@ -3739,7 +3738,6 @@ Draft (rules-based, keep numbers unchanged):
                                 temperature=0.7,
                                 max_tokens=1200,
                                 stream=True,
-                                tool_choice="none",
                             )
 
                         last_finish_reason = None
@@ -3802,7 +3800,6 @@ Draft (rules-based, keep numbers unchanged):
                                         temperature=0.7,
                                         max_tokens=1200,
                                         stream=True,
-                                        tool_choice="none",
                                         stream_options={"include_usage": True},
                                     )
                                 except TypeError:
@@ -3812,7 +3809,6 @@ Draft (rules-based, keep numbers unchanged):
                                         temperature=0.7,
                                         max_tokens=1200,
                                         stream=True,
-                                        tool_choice="none",
                                     )
                                 cont_usage = None
 
