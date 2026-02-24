@@ -104,6 +104,20 @@ async def get_resources(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/resources")
+async def create_resource(payload: dict):
+    """리소스 생성 (kubectl create 유사)"""
+    try:
+        namespace = payload.get("namespace")
+        resource_manifest = payload.get("resource_manifest")
+        return await k8s_service.create_resource(
+            resource_manifest=resource_manifest,
+            namespace=namespace if isinstance(namespace, str) else None,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/resources/yaml")
 async def get_resource_yaml(
     resource_type: str = Query(..., description="리소스 타입"),

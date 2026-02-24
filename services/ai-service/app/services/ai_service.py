@@ -944,6 +944,11 @@ JSON 형식으로 응답해주세요:
     먼저 `k8s_get_resources`를 `all_namespaces=true`로 호출해 모든 네임스페이스에서 후보를 찾고
     그 결과의 `namespace`/`name`을 사용해 후속 도구(로그/describe 등)를 호출하세요.
     YAML 요청은 `k8s_get_resource_yaml`에서만 지원합니다. 그 외에는 JSON으로 조회하고 화면에는 kubectl 테이블로 표시합니다.
+
+    생성/수정 요청 처리:
+    - `k8s_create_resource` 호출 시 `resource_manifest`가 **필수**입니다.
+    - 요청이 모호하면 리소스 종류/이름/이미지/네임스페이스 등을 먼저 질문하세요.
+    - "nginx 파드 하나"처럼 구체적이면 최소 Pod manifest를 구성해 `k8s_create_resource`로 호출하세요.
     """
         
         # 메시지 변환
@@ -2295,6 +2300,12 @@ Draft (rules-based, keep numbers unchanged):
 - 사용자가 WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
 - YAML 요청은 `k8s_get_resource_yaml`에서만 지원합니다. 그 외에는 JSON으로 조회하고 화면에는 kubectl 테이블로 표시하세요.
 
+## 생성/수정 요청 처리 (중요)
+
+- `k8s_create_resource` 호출 시 `resource_manifest`가 **필수**입니다.
+- 사용자의 요청이 모호하면 **어떤 리소스를 만들지**(종류/이름/이미지/네임스페이스 등) 먼저 질문하세요.
+- 사용자가 "nginx 파드 하나"처럼 구체적으로 말하면, 최소 Pod manifest를 생성해 `k8s_create_resource`로 호출하세요.
+
 1. **항상 도구를 적극적으로 사용**: 
    - 사용자가 클러스터에 대해 질문하면, 관련 도구를 즉시 호출하세요
    - 일반적인 설명보다 실제 데이터를 우선시하세요
@@ -3233,6 +3244,23 @@ Draft (rules-based, keep numbers unchanged):
                 )
                 return json.dumps(result, ensure_ascii=False)
 
+            elif function_name == "k8s_create_resource":
+                resource_manifest = function_args.get("resource_manifest")
+                if not isinstance(resource_manifest, dict):
+                    return json.dumps(
+                        {
+                            "error": "resource_manifest가 필요합니다. 만들 리소스(kind), 이름, 이미지, 네임스페이스 등 구체 정보를 먼저 사용자에게 확인하세요. "
+                                     "예: 'nginx 파드 하나'처럼 구체적이면 최소 Pod manifest를 구성해 다시 호출하세요."
+                        },
+                        ensure_ascii=False,
+                    )
+                namespace = function_args.get("namespace")
+                result = await self.k8s_service.create_resource(
+                    resource_manifest=resource_manifest,
+                    namespace=namespace if isinstance(namespace, str) else None,
+                )
+                return json.dumps(result, ensure_ascii=False)
+
             elif function_name == "k8s_get_pod_logs":
                 namespace = function_args.get("namespace")
                 pod_name = function_args.get("pod_name", "")
@@ -3950,6 +3978,12 @@ Draft (rules-based, keep numbers unchanged):
 - 사용자가 WIDE/`kubectl get` 스타일을 요청하면 `k8s_get_resources`를 사용하고 `output`에 형식을 지정하세요.
 - YAML 요청은 `k8s_get_resource_yaml`에서만 지원합니다. 그 외에는 JSON으로 조회하고 화면에는 kubectl 테이블로 표시하세요.
 
+### 생성/수정 요청 처리 (중요)
+
+- `k8s_create_resource` 호출 시 `resource_manifest`가 **필수**입니다.
+- 사용자의 요청이 모호하면 **어떤 리소스를 만들지**(종류/이름/이미지/네임스페이스 등) 먼저 질문하세요.
+- 사용자가 "nginx 파드 하나"처럼 구체적으로 말하면, 최소 Pod manifest를 생성해 `k8s_create_resource`로 호출하세요.
+
 1. **항상 도구를 적극적으로 사용**: 
    - 사용자가 클러스터에 대해 질문하면, 관련 도구를 즉시 호출하세요
    - 일반적인 설명보다 실제 데이터를 우선시하세요
@@ -4283,6 +4317,22 @@ Remember: You're not just answering questions - you're **solving production prob
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "k8s_create_resource",
+                    "description": "리소스 생성 (kubectl create). resource_manifest는 필수이며, 요청이 모호하면 먼저 사용자에게 상세를 확인하세요. "
+                                   "예: 'nginx 파드'처럼 구체적이면 최소 Pod manifest를 생성해 호출하세요.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "namespace": {"type": "string", "description": "네임스페이스 (선택)"},
+                            "resource_manifest": {"type": "object", "description": "Kubernetes manifest (JSON object)"},
+                        },
+                        "required": ["resource_manifest"],
+                    },
+                },
+            },
         ]
     
     async def _execute_function_with_context(
@@ -4463,6 +4513,24 @@ Remember: You're not just answering questions - you're **solving production prob
                     "message": event["message"],
                     "count": event["count"]
                 } for event in events], ensure_ascii=False)
+
+            elif function_name == "k8s_create_resource":
+                resource_manifest = function_args.get("resource_manifest")
+                if not isinstance(resource_manifest, dict):
+                    result = json.dumps(
+                        {
+                            "error": "resource_manifest가 필요합니다. 만들 리소스(kind), 이름, 이미지, 네임스페이스 등 구체 정보를 먼저 사용자에게 확인하세요. "
+                                     "예: 'nginx 파드 하나'처럼 구체적이면 최소 Pod manifest를 구성해 다시 호출하세요."
+                        },
+                        ensure_ascii=False,
+                    )
+                else:
+                    namespace = function_args.get("namespace")
+                    created = await self.k8s_service.create_resource(
+                        resource_manifest=resource_manifest,
+                        namespace=namespace if isinstance(namespace, str) else None,
+                    )
+                    result = json.dumps(created, ensure_ascii=False)
 
             elif function_name == "k8s_get_resources":
                 resource_type = function_args.get("resource_type", "")
