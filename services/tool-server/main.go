@@ -500,6 +500,34 @@ func runKubectl(ctx context.Context, headers http.Header, args ...string) (strin
 	return string(output), nil
 }
 
+func runKubectlWithInput(ctx context.Context, headers http.Header, input string, args ...string) (string, error) {
+	token, err := tokenForKubectl(headers)
+	if err != nil {
+		return "", err
+	}
+
+	finalArgs := make([]string, 0, len(args)+4)
+	if kubeconfigPath != "" {
+		finalArgs = append(finalArgs, "--kubeconfig", kubeconfigPath)
+	}
+	if token != "" {
+		finalArgs = append(finalArgs, "--token", token)
+	}
+	finalArgs = append(finalArgs, args...)
+
+	cmd := exec.CommandContext(ctx, "kubectl", finalArgs...)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		errText := strings.TrimSpace(string(output))
+		if errText == "" {
+			errText = err.Error()
+		}
+		return "", fmt.Errorf("kubectl failed: %s", errText)
+	}
+	return string(output), nil
+}
+
 func tokenForKubectl(headers http.Header) (string, error) {
 	token := extractBearerToken(headers)
 	if tokenPassthrough && token == "" {
@@ -615,6 +643,135 @@ func argInt(args map[string]interface{}, key string, def int) int {
 	default:
 		return def
 	}
+}
+
+func argStringSlice(args map[string]interface{}, key string) []string {
+	if args == nil {
+		return nil
+	}
+	val, ok := args[key]
+	if !ok || val == nil {
+		return nil
+	}
+	switch v := val.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if item == nil {
+				continue
+			}
+			s := strings.TrimSpace(fmt.Sprint(item))
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		raw := strings.TrimSpace(v)
+		if raw == "" {
+			return nil
+		}
+		parts := strings.Split(raw, ",")
+		if len(parts) == 1 {
+			return strings.Fields(raw)
+		}
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			s := strings.TrimSpace(p)
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func argStringMap(args map[string]interface{}, key string) map[string]string {
+	if args == nil {
+		return nil
+	}
+	val, ok := args[key]
+	if !ok || val == nil {
+		return nil
+	}
+	switch v := val.(type) {
+	case map[string]string:
+		return v
+	case map[string]interface{}:
+		out := make(map[string]string, len(v))
+		for k, raw := range v {
+			if k == "" || raw == nil {
+				continue
+			}
+			out[k] = fmt.Sprint(raw)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func manifestFromArgs(args map[string]interface{}) (string, error) {
+	if args == nil {
+		return "", wrapBadRequest("resource_manifest or yaml_content is required")
+	}
+	if v, ok := args["yaml_content"]; ok && v != nil {
+		raw := strings.TrimSpace(fmt.Sprint(v))
+		if raw != "" {
+			return raw, nil
+		}
+	}
+	if v, ok := args["manifest"]; ok && v != nil {
+		raw := strings.TrimSpace(fmt.Sprint(v))
+		if raw != "" {
+			return raw, nil
+		}
+	}
+	if v, ok := args["resource_manifest"]; ok && v != nil {
+		switch typed := v.(type) {
+		case string:
+			raw := strings.TrimSpace(typed)
+			if raw != "" {
+				return raw, nil
+			}
+		default:
+			data, err := json.Marshal(typed)
+			if err != nil {
+				return "", err
+			}
+			return string(data), nil
+		}
+	}
+	return "", wrapBadRequest("resource_manifest or yaml_content is required")
+}
+
+func patchFromArgs(args map[string]interface{}) (string, error) {
+	if args == nil {
+		return "", wrapBadRequest("patch parameter is required")
+	}
+	for _, key := range []string{"patch", "patch_content", "patch_body"} {
+		if v, ok := args[key]; ok && v != nil {
+			switch typed := v.(type) {
+			case string:
+				raw := strings.TrimSpace(typed)
+				if raw == "" {
+					break
+				}
+				return raw, nil
+			default:
+				data, err := json.Marshal(typed)
+				if err != nil {
+					return "", err
+				}
+				return string(data), nil
+			}
+		}
+	}
+	return "", wrapBadRequest("patch parameter is required")
 }
 
 type listItems struct {
