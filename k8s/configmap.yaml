@@ -35,6 +35,7 @@ data:
   TOOL_SERVER_URL_WRITE: "http://tool-server-write:8086"
   TOOL_SERVER_URL_ADMIN: "http://tool-server-admin:8086"
   TOOL_SERVER_TOKEN_PASSTHROUGH: "true"
+  TOOL_SERVER_USE_INCLUSTER: "false"
 
   VITE_API_URL: "http://localhost:30080"
   VITE_WS_URL: "ws://localhost:30080"
