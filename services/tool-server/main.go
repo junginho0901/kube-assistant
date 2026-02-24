@@ -202,6 +202,11 @@ func buildToolRegistry() map[string]ToolDefinition {
 		Description: "Create a Kubernetes resource from manifest (kubectl create -f -)",
 		Handler:     handleCreateResource,
 	})
+	register(ToolDefinition{
+		Name:        "k8s_create_resource_from_url",
+		Description: "Create resources from manifest URL (kubectl create -f URL)",
+		Handler:     handleCreateResourceFromURL,
+	})
 
 	return registry
 }
@@ -496,6 +501,17 @@ func handleCreateResource(ctx context.Context, args map[string]interface{}, head
 		return "", err
 	}
 	return runKubectlWithInput(ctx, headers, manifest, "create", "-f", "-")
+}
+
+func handleCreateResourceFromURL(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	url := argString(args, "url", "")
+	if url == "" {
+		url = argString(args, "manifest_url", "")
+	}
+	if url == "" {
+		return "", wrapBadRequest("url parameter is required")
+	}
+	return runKubectl(ctx, headers, "create", "-f", url)
 }
 
 func runKubectl(ctx context.Context, headers http.Header, args ...string) (string, error) {

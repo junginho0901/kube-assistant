@@ -4342,6 +4342,20 @@ Remember: You're not just answering questions - you're **solving production prob
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "k8s_create_resource_from_url",
+                    "description": "URL 매니페스트로 리소스 생성 (kubectl create -f URL).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "url": {"type": "string", "description": "매니페스트 URL"},
+                        },
+                        "required": ["url"],
+                    },
+                },
+            },
         ]
     
     async def _execute_function_with_context(
