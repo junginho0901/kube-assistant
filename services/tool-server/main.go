@@ -112,6 +112,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, tools map[string]ToolDef
 		respondJSON(w, http.StatusNotFound, ToolCallResponse{Error: "unknown tool"})
 		return
 	}
+	log.Printf("tool call: %s", req.Name)
 
 	ctx, cancel := context.WithTimeout(r.Context(), defaultTimeout)
 	defer cancel()
@@ -170,6 +171,26 @@ func buildToolRegistry() map[string]ToolDefinition {
 		Name:        "k8s_get_cluster_configuration",
 		Description: "Get cluster configuration details",
 		Handler:     handleGetClusterConfiguration,
+	})
+	register(ToolDefinition{
+		Name:        "get_cluster_overview",
+		Description: "Get an overview of cluster health and resource counts",
+		Handler:     handleGetClusterOverview,
+	})
+	register(ToolDefinition{
+		Name:        "get_node_metrics",
+		Description: "Get node CPU/Memory usage (kubectl top nodes)",
+		Handler:     handleGetNodeMetrics,
+	})
+	register(ToolDefinition{
+		Name:        "get_pod_metrics",
+		Description: "Get pod CPU/Memory usage (kubectl top pods)",
+		Handler:     handleGetPodMetrics,
+	})
+	register(ToolDefinition{
+		Name:        "k8s_check_service_connectivity",
+		Description: "Check Service/Endpoint connectivity",
+		Handler:     handleCheckServiceConnectivity,
 	})
 
 	return registry
@@ -270,15 +291,185 @@ func handleGetEvents(ctx context.Context, args map[string]interface{}, headers h
 		cmdArgs = append(cmdArgs, "--all-namespaces")
 	}
 
-	return runKubectl(ctx, headers, cmdArgs...)
+	output, err := runKubectl(ctx, headers, cmdArgs...)
+	if err != nil {
+		return "", err
+	}
+	events := parseEvents(output)
+	return marshalJSON(events)
 }
 
 func handleGetAvailableAPIResources(ctx context.Context, _ map[string]interface{}, headers http.Header) (string, error) {
-	return runKubectl(ctx, headers, "api-resources")
+	output, err := runKubectl(ctx, headers, "api-resources")
+	if err != nil {
+		return "", err
+	}
+	resources := parseAPIResources(output)
+	return marshalJSON(resources)
 }
 
 func handleGetClusterConfiguration(ctx context.Context, _ map[string]interface{}, headers http.Header) (string, error) {
 	return runKubectl(ctx, headers, "config", "view", "-o", "json")
+}
+
+func handleGetClusterOverview(ctx context.Context, _ map[string]interface{}, headers http.Header) (string, error) {
+	namespaces, err := countKubectlItems(ctx, headers, "get", "namespaces", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	podsOutput, err := runKubectl(ctx, headers, "get", "pods", "--all-namespaces", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	podCounts, podTotal := summarizePodStatus(podsOutput)
+
+	services, err := countKubectlItems(ctx, headers, "get", "services", "--all-namespaces", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	deployments, err := countKubectlItems(ctx, headers, "get", "deployments", "--all-namespaces", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	pvcs, err := countKubectlItems(ctx, headers, "get", "pvc", "--all-namespaces", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	pvs, err := countKubectlItems(ctx, headers, "get", "pv", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	nodes, err := countKubectlItems(ctx, headers, "get", "nodes", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+
+	versionOutput, err := runKubectl(ctx, headers, "version", "-o", "json")
+	if err != nil {
+		return "", err
+	}
+	clusterVersion := parseClusterVersion(versionOutput)
+
+	result := map[string]interface{}{
+		"total_namespaces":  namespaces,
+		"total_pods":        podTotal,
+		"total_services":    services,
+		"total_deployments": deployments,
+		"total_pvcs":        pvcs,
+		"total_pvs":         pvs,
+		"pod_status":        podCounts,
+		"node_count":        nodes,
+		"cluster_version":   clusterVersion,
+	}
+	return marshalJSON(result)
+}
+
+func handleGetNodeMetrics(ctx context.Context, _ map[string]interface{}, headers http.Header) (string, error) {
+	output, err := runKubectl(ctx, headers, "top", "nodes", "--no-headers")
+	if err != nil {
+		return "", err
+	}
+	metrics := parseTopNodes(output)
+	return marshalJSON(metrics)
+}
+
+func handleGetPodMetrics(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	namespace := argString(args, "namespace", "")
+	cmdArgs := []string{"top", "pods", "--no-headers"}
+	allNamespaces := true
+	if namespace != "" {
+		cmdArgs = append(cmdArgs, "-n", namespace)
+		allNamespaces = false
+	} else {
+		cmdArgs = append(cmdArgs, "--all-namespaces")
+	}
+	output, err := runKubectl(ctx, headers, cmdArgs...)
+	if err != nil {
+		return "", err
+	}
+	metrics := parseTopPods(output, allNamespaces)
+	return marshalJSON(metrics)
+}
+
+func handleCheckServiceConnectivity(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	serviceName := argString(args, "service_name", "")
+	if serviceName == "" {
+		serviceName = argString(args, "name", "")
+	}
+	if serviceName == "" {
+		serviceName = argString(args, "service", "")
+	}
+	if serviceName == "" {
+		return "", wrapBadRequest("service_name parameter is required")
+	}
+
+	namespace := argString(args, "namespace", "")
+	if namespace == "" {
+		return "", wrapBadRequest("namespace parameter is required")
+	}
+	requestedPort := argString(args, "port", "")
+
+	svcOutput, err := runKubectl(ctx, headers, "get", "svc", serviceName, "-n", namespace, "-o", "json")
+	if err != nil {
+		result := map[string]interface{}{
+			"namespace": namespace,
+			"service":   serviceName,
+			"type":      "",
+			"ports":     []map[string]interface{}{},
+			"port_check": map[string]interface{}{},
+			"endpoints": map[string]interface{}{
+				"ready":     0,
+				"not_ready": 0,
+				"total":     0,
+			},
+			"status": "NotFound",
+			"error":  err.Error(),
+		}
+		if requestedPort != "" {
+			result["port_check"] = map[string]interface{}{"requested": requestedPort}
+		}
+		return marshalJSON(result)
+	}
+	serviceInfo, ports := parseServiceInfo(svcOutput)
+
+	endpointsOutput, err := runKubectl(ctx, headers, "get", "endpoints", serviceName, "-n", namespace, "-o", "json")
+	readyCount := 0
+	notReadyCount := 0
+	if err != nil {
+		readyCount = 0
+		notReadyCount = 0
+	} else {
+		readyCount, notReadyCount = parseEndpoints(endpointsOutput)
+	}
+
+	portCheck := map[string]interface{}{}
+	if requestedPort != "" {
+		portCheck["requested"] = requestedPort
+		if matched := findMatchingPort(ports, requestedPort); matched != nil {
+			portCheck["matched"] = matched
+		}
+	}
+
+	status := "NotReady"
+	if readyCount > 0 {
+		status = "Ready"
+	}
+
+	result := map[string]interface{}{
+		"namespace": namespace,
+		"service":   serviceName,
+		"type":      serviceInfo.Type,
+		"ports":     ports,
+		"port_check": portCheck,
+		"endpoints": map[string]interface{}{
+			"ready":     readyCount,
+			"not_ready": notReadyCount,
+			"total":     readyCount + notReadyCount,
+		},
+		"status": status,
+	}
+
+	return marshalJSON(result)
 }
 
 func runKubectl(ctx context.Context, headers http.Header, args ...string) (string, error) {
