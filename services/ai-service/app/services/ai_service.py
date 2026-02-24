@@ -4487,6 +4487,25 @@ Remember: You're not just answering questions - you're **solving production prob
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "k8s_rollout",
+                    "description": "롤아웃 작업 (restart/undo/pause/resume/status).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string", "description": "restart/undo/pause/resume/status"},
+                            "resource_type": {"type": "string", "description": "리소스 타입"},
+                            "resource_name": {"type": "string", "description": "리소스 이름"},
+                            "namespace": {"type": "string", "description": "네임스페이스 (선택)"},
+                            "revision": {"type": "integer", "description": "undo revision"},
+                            "timeout": {"type": "string", "description": "timeout (예: 60s)"},
+                        },
+                        "required": ["action", "resource_type", "resource_name"],
+                    },
+                },
+            },
         ]
     
     async def _execute_function_with_context(

@@ -242,6 +242,11 @@ func buildToolRegistry() map[string]ToolDefinition {
 		Description: "Scale a Kubernetes workload (kubectl scale)",
 		Handler:     handleScaleResource,
 	})
+	register(ToolDefinition{
+		Name:        "k8s_rollout",
+		Description: "Rollout operations (restart/undo/pause/resume/status)",
+		Handler:     handleRollout,
+	})
 
 	return registry
 }
@@ -732,6 +737,33 @@ func handleScaleResource(ctx context.Context, args map[string]interface{}, heade
 	cmdArgs := []string{"scale", resourceType, resourceName, "--replicas", strconv.Itoa(replicas)}
 	if namespace != "" {
 		cmdArgs = append(cmdArgs, "-n", namespace)
+	}
+	return runKubectl(ctx, headers, cmdArgs...)
+}
+
+func handleRollout(ctx context.Context, args map[string]interface{}, headers http.Header) (string, error) {
+	action := argString(args, "action", "")
+	if action == "" {
+		return "", wrapBadRequest("action parameter is required")
+	}
+	resourceType := argString(args, "resource_type", "")
+	resourceName := argString(args, "resource_name", "")
+	if resourceType == "" || resourceName == "" {
+		return "", wrapBadRequest("resource_type and resource_name are required")
+	}
+	namespace := argString(args, "namespace", "")
+	revision := argInt(args, "revision", 0)
+	timeout := argString(args, "timeout", "")
+
+	cmdArgs := []string{"rollout", action, fmt.Sprintf("%s/%s", resourceType, resourceName)}
+	if namespace != "" {
+		cmdArgs = append(cmdArgs, "-n", namespace)
+	}
+	if revision > 0 {
+		cmdArgs = append(cmdArgs, "--revision", strconv.Itoa(revision))
+	}
+	if timeout != "" {
+		cmdArgs = append(cmdArgs, "--timeout", timeout)
 	}
 	return runKubectl(ctx, headers, cmdArgs...)
 }
