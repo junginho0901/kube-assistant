@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 import httpx
 import re
 import json
+import os
 import sys
 from app.config import settings
 from datetime import datetime
@@ -61,7 +62,8 @@ class AIService:
         self.model = resolved_model
         self.user_role = self._resolve_user_role(authorization)
         self.k8s_service = K8sServiceClient(authorization=authorization)
-        self.tool_server = ToolServerClient(authorization=authorization)
+        tool_server_url = self._resolve_tool_server_url(self.user_role)
+        self.tool_server = ToolServerClient(authorization=authorization, base_url=tool_server_url)
         self.tool_contexts: Dict[str, ToolContext] = {}  # {session_id: ToolContext}
         print(f"[AI Service] 초기화 완료 - 사용 모델: {self.model}, role: {self.user_role}", flush=True)
 
@@ -78,6 +80,14 @@ class AIService:
         except Exception:
             pass
         return "read"
+
+    def _resolve_tool_server_url(self, role: str) -> Optional[str]:
+        role_key = (role or "").strip().lower()
+        if role_key == "admin":
+            return os.getenv("TOOL_SERVER_URL_ADMIN")
+        if role_key == "write":
+            return os.getenv("TOOL_SERVER_URL_WRITE")
+        return os.getenv("TOOL_SERVER_URL_READ")
 
     async def _call_tool_server(self, function_name: str, function_args: Dict) -> str:
         return await self.tool_server.call_tool(function_name, function_args)
