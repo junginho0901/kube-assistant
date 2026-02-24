@@ -4,6 +4,7 @@ Kubernetes 클러스터 리소스 API
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
+from kubernetes.client.rest import ApiException
 from app.services.k8s_service import K8sService
 from app.cluster import (
     NamespaceInfo,
@@ -114,6 +115,10 @@ async def create_resource(payload: dict):
             resource_manifest=resource_manifest,
             namespace=namespace if isinstance(namespace, str) else None,
         )
+    except ApiException as e:
+        detail = e.body or e.reason or str(e)
+        status = getattr(e, "status", None) or 500
+        raise HTTPException(status_code=status, detail=detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
