@@ -3551,8 +3551,12 @@ Draft (rules-based, keep numbers unchanged):
             iteration = 0
             assistant_content = ""
             tool_calls_log = []  # Tool call 정보 저장
+            skip_llm = self.user_role == "read" and self._detect_write_intent(message)
+            if skip_llm:
+                assistant_content = "이 요청은 write 전용 작업이라 read 권한으로는 실행할 수 없습니다. 관리자에게 권한을 요청하세요."
+                yield f"data: {json.dumps({'content': assistant_content}, ensure_ascii=False)}\n\n"
             
-            while iteration < max_iterations:
+            while iteration < max_iterations and not skip_llm:
                 iteration += 1
                 print(f"[DEBUG] Iteration {iteration}/{max_iterations}")
                 
