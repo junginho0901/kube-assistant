@@ -220,6 +220,21 @@ class K8sService:
             ready=ready,
         )
 
+    def _serialize_pod_info(self, info: PodInfo) -> Dict[str, Any]:
+        return {
+            "name": info.name,
+            "namespace": info.namespace,
+            "status": info.status,
+            "phase": info.phase,
+            "node_name": info.node_name,
+            "pod_ip": info.pod_ip,
+            "containers": info.containers,
+            "labels": info.labels,
+            "created_at": info.created_at.isoformat() if info.created_at else None,
+            "restart_count": info.restart_count,
+            "ready": info.ready,
+        }
+
     async def get_available_api_resources(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """kubectl api-resources와 유사한 목록을 반환한다."""
         # 캐시 (60초)
@@ -1321,9 +1336,10 @@ class K8sService:
             pod_obj = event.get("object")
             if pod_obj is None:
                 continue
+            pod_info = self._pod_to_info(pod_obj)
             yield {
                 "type": event.get("type"),
-                "pod": self._pod_to_info(pod_obj),
+                "pod": self._serialize_pod_info(pod_info),
                 "resource_version": getattr(pod_obj.metadata, "resource_version", None),
             }
     
