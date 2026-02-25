@@ -66,6 +66,8 @@ export default function ClusterView() {
   const abortControllerRef = useRef<AbortController | null>(null)
   const podWatchRef = useRef<EventSource | null>(null)
   const lastPodResourceVersionRef = useRef<string | undefined>(undefined)
+  const podWatchRetryRef = useRef<number>(0)
+  const podWatchRetryTimerRef = useRef<number | null>(null)
   const namespaceDropdownRef = useRef<HTMLDivElement>(null)
   const containerDropdownRef = useRef<HTMLDivElement>(null)
   const tailLinesDropdownRef = useRef<HTMLDivElement>(null)
@@ -273,30 +275,57 @@ export default function ClusterView() {
     }
     lastPodResourceVersionRef.current = undefined
 
+    let isStopped = false
     const namespace = selectedNamespace === 'all' ? undefined : selectedNamespace
-    const source = startPodWatch({
-      namespace,
-      resourceVersion: lastPodResourceVersionRef.current,
-      onEvent: (event) => {
-        if (!event?.pod) return
-        if (event.resource_version) {
-          lastPodResourceVersionRef.current = event.resource_version || undefined
-        }
-        queryClient.setQueryData(['all-pods', selectedNamespace], (prev?: PodInfo[]) =>
-          applyPodWatchEvent(prev, event)
-        )
-      },
-      onError: (err) => {
-        console.warn('Pod watch error', err)
-      },
-    })
 
-    podWatchRef.current = source
+    const scheduleReconnect = () => {
+      if (isStopped || podWatchRetryTimerRef.current) return
+      const delay = Math.min(1000 * Math.pow(2, podWatchRetryRef.current), 10000)
+      podWatchRetryRef.current += 1
+      podWatchRetryTimerRef.current = window.setTimeout(() => {
+        podWatchRetryTimerRef.current = null
+        startWatch()
+      }, delay)
+    }
+
+    const startWatch = () => {
+      if (isStopped) return
+      const source = startPodWatch({
+        namespace,
+        resourceVersion: lastPodResourceVersionRef.current,
+        onEvent: (event) => {
+          if (!event?.pod) return
+          if (event.resource_version) {
+            lastPodResourceVersionRef.current = event.resource_version || undefined
+          }
+          queryClient.setQueryData(['all-pods', selectedNamespace], (prev?: PodInfo[]) =>
+            applyPodWatchEvent(prev, event)
+          )
+        },
+        onError: (err) => {
+          console.warn('Pod watch error', err)
+          scheduleReconnect()
+        },
+      })
+
+      if (podWatchRef.current) {
+        podWatchRef.current.close()
+      }
+      podWatchRef.current = source
+    }
+
+    startWatch()
     return () => {
-      source.close()
-      if (podWatchRef.current === source) {
+      isStopped = true
+      if (podWatchRef.current) {
+        podWatchRef.current.close()
         podWatchRef.current = null
       }
+      if (podWatchRetryTimerRef.current) {
+        window.clearTimeout(podWatchRetryTimerRef.current)
+        podWatchRetryTimerRef.current = null
+      }
+      podWatchRetryRef.current = 0
     }
   }, [namespaces, queryClient, selectedNamespace])
 
