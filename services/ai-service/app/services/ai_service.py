@@ -111,9 +111,10 @@ class AIService:
             "k8s_remove_label",
             "k8s_scale",
             "k8s_rollout",
+        }
+        admin_only_tools = {
             "k8s_execute_command",
         }
-        admin_only_tools = set()
 
         if function_name in admin_only_tools:
             return self._role_allows_admin()
@@ -3378,6 +3379,45 @@ Draft (rules-based, keep numbers unchanged):
             return "json"
         return None
 
+    def _detect_write_intent(self, text: Optional[str]) -> bool:
+        if not isinstance(text, str):
+            return False
+        lowered = text.lower()
+        keywords = [
+            "create",
+            "apply",
+            "delete",
+            "patch",
+            "scale",
+            "rollout",
+            "restart",
+            "exec",
+            "annotate",
+            "label",
+            "kubectl apply",
+            "kubectl delete",
+            "manifest",
+            "deploy",
+            "배포",
+            "적용",
+            "생성",
+            "만들어",
+            "만들기",
+            "삭제",
+            "지워",
+            "패치",
+            "수정",
+            "스케일",
+            "롤아웃",
+            "재시작",
+            "실행",
+            "명령",
+            "어노테이션",
+            "라벨",
+            "레이블",
+        ]
+        return any(k in lowered for k in keywords)
+
     def _mentions_events(self, text: Optional[str]) -> bool:
         if not isinstance(text, str):
             return False
@@ -3511,8 +3551,18 @@ Draft (rules-based, keep numbers unchanged):
             iteration = 0
             assistant_content = ""
             tool_calls_log = []  # Tool call 정보 저장
+            is_write_intent = self._detect_write_intent(message)
+            skip_llm = False
+            if self.user_role == "read" and is_write_intent:
+                skip_llm = True
+                assistant_content = "이 요청은 write 전용 작업이라 read 권한으로는 실행할 수 없습니다. 관리자에게 권한을 요청하세요."
+                yield f"data: {json.dumps({'content': assistant_content}, ensure_ascii=False)}\n\n"
+            elif self.user_role == "write" and any(key in message for key in ["exec", "실행", "명령", "k8s_execute_command"]):
+                skip_llm = True
+                assistant_content = "이 요청은 admin 전용 작업이라 write 권한으로는 실행할 수 없습니다. 관리자에게 권한을 요청하세요."
+                yield f"data: {json.dumps({'content': assistant_content}, ensure_ascii=False)}\n\n"
             
-            while iteration < max_iterations:
+            while iteration < max_iterations and not skip_llm:
                 iteration += 1
                 print(f"[DEBUG] Iteration {iteration}/{max_iterations}")
                 
