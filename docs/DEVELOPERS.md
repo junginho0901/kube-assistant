@@ -19,3 +19,9 @@ go test ./internal/controller -v
 ```bash
 scripts/test-controller.sh
 ```
+
+## ClusterView Pod Watch (SSE)
+- UI는 `EventSource`로 Pod watch 스트림을 구독합니다.
+- 엔드포인트(네임스페이스): `/api/v1/cluster/namespaces/{namespace}/pods/watch`
+- 엔드포인트(전체): `/api/v1/cluster/pods/watch`
+- 인증은 로그인 시 발급되는 HttpOnly 쿠키(`kube-assistant.token`)를 사용합니다.

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
+import type { PodInfo } from '@/services/api'
 import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
+import { startPodWatch } from '@/services/podWatch'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { 
   Server, 
@@ -60,8 +62,13 @@ export default function ClusterView() {
   const [downloadTailLines, setDownloadTailLines] = useState<number>(1000)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [podWatchStatus, setPodWatchStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const logsEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const podWatchRef = useRef<EventSource | null>(null)
+  const lastPodResourceVersionRef = useRef<string | undefined>(undefined)
+  const podWatchRetryRef = useRef<number>(0)
+  const podWatchRetryTimerRef = useRef<number | null>(null)
   const namespaceDropdownRef = useRef<HTMLDivElement>(null)
   const containerDropdownRef = useRef<HTMLDivElement>(null)
   const tailLinesDropdownRef = useRef<HTMLDivElement>(null)
@@ -87,6 +94,24 @@ export default function ClusterView() {
       default:
         return reason
     }
+  }
+
+  const applyPodWatchEvent = (prev: PodInfo[] | undefined, event: { type: string; pod: PodInfo }) => {
+    const items = Array.isArray(prev) ? [...prev] : []
+    const key = `${event.pod.namespace}/${event.pod.name}`
+    const index = items.findIndex((p) => `${p.namespace}/${p.name}` === key)
+
+    if (event.type === 'DELETED') {
+      if (index >= 0) items.splice(index, 1)
+      return items
+    }
+
+    if (index >= 0) {
+      items[index] = event.pod
+    } else {
+      items.push(event.pod)
+    }
+    return items
   }
 
   const getBindingMatchPathText = (binding: any) => {
@@ -241,6 +266,74 @@ export default function ClusterView() {
     },
     enabled: !!namespaces,
   })
+
+  // Pod watch (SSE)
+  useEffect(() => {
+    if (!namespaces) return
+    if (podWatchRef.current) {
+      podWatchRef.current.close()
+      podWatchRef.current = null
+    }
+    lastPodResourceVersionRef.current = undefined
+
+    let isStopped = false
+    const namespace = selectedNamespace === 'all' ? undefined : selectedNamespace
+
+    const scheduleReconnect = () => {
+      if (isStopped || podWatchRetryTimerRef.current) return
+      setPodWatchStatus('error')
+      const delay = Math.min(1000 * Math.pow(2, podWatchRetryRef.current), 10000)
+      podWatchRetryRef.current += 1
+      podWatchRetryTimerRef.current = window.setTimeout(() => {
+        podWatchRetryTimerRef.current = null
+        setPodWatchStatus('connecting')
+        startWatch()
+      }, delay)
+    }
+
+    const startWatch = () => {
+      if (isStopped) return
+      const source = startPodWatch({
+        namespace,
+        resourceVersion: lastPodResourceVersionRef.current,
+        onOpen: () => setPodWatchStatus('connected'),
+        onEvent: (event) => {
+          if (!event?.pod) return
+          if (event.resource_version) {
+            lastPodResourceVersionRef.current = event.resource_version || undefined
+          }
+          queryClient.setQueryData(['all-pods', selectedNamespace], (prev?: PodInfo[]) =>
+            applyPodWatchEvent(prev, event)
+          )
+          setPodWatchStatus('connected')
+        },
+        onError: (err) => {
+          console.warn('Pod watch error', err)
+          scheduleReconnect()
+        },
+      })
+
+      if (podWatchRef.current) {
+        podWatchRef.current.close()
+      }
+      podWatchRef.current = source
+    }
+
+    startWatch()
+    return () => {
+      isStopped = true
+      setPodWatchStatus('connecting')
+      if (podWatchRef.current) {
+        podWatchRef.current.close()
+        podWatchRef.current = null
+      }
+      if (podWatchRetryTimerRef.current) {
+        window.clearTimeout(podWatchRetryTimerRef.current)
+        podWatchRetryTimerRef.current = null
+      }
+      podWatchRetryRef.current = 0
+    }
+  }, [namespaces, queryClient, selectedNamespace])
 
   // 노드 목록 (정렬용)
   const { data: nodes } = useQuery({
@@ -746,37 +839,39 @@ export default function ClusterView() {
               </div>
             )}
           </div>
-          <button
-            onClick={async () => {
-              setIsRefreshing(true)
-              try {
-                // force_refresh=true로 API 직접 호출
-                const [namespacesData, allPodsData] = await Promise.all([
-                  api.getNamespaces(true),
-                  selectedNamespace === 'all'
-                    ? Promise.all((namespaces || []).map(ns => api.getPods(ns.name, undefined, true))).then(pods => pods.flat())
-                    : api.getPods(selectedNamespace, undefined, true)
-                ])
-                
-                // 캐시 제거 후 새 데이터로 업데이트
-                queryClient.removeQueries({ queryKey: ['namespaces'] })
-                queryClient.removeQueries({ queryKey: ['all-pods', selectedNamespace] })
-                
-                queryClient.setQueryData(['namespaces'], namespacesData)
-                queryClient.setQueryData(['all-pods', selectedNamespace], allPodsData)
-              } catch (error) {
-                console.error('새로고침 실패:', error)
-              } finally {
-                setTimeout(() => setIsRefreshing(false), 500)
-              }
-            }}
-            disabled={isRefreshing}
-            title="새로고침 (강제 갱신)"
-            className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            새로고침
-          </button>
+          {podWatchStatus !== 'connected' && (
+            <button
+              onClick={async () => {
+                setIsRefreshing(true)
+                try {
+                  // force_refresh=true로 API 직접 호출
+                  const [namespacesData, allPodsData] = await Promise.all([
+                    api.getNamespaces(true),
+                    selectedNamespace === 'all'
+                      ? Promise.all((namespaces || []).map(ns => api.getPods(ns.name, undefined, true))).then(pods => pods.flat())
+                      : api.getPods(selectedNamespace, undefined, true)
+                  ])
+                  
+                  // 캐시 제거 후 새 데이터로 업데이트
+                  queryClient.removeQueries({ queryKey: ['namespaces'] })
+                  queryClient.removeQueries({ queryKey: ['all-pods', selectedNamespace] })
+                  
+                  queryClient.setQueryData(['namespaces'], namespacesData)
+                  queryClient.setQueryData(['all-pods', selectedNamespace], allPodsData)
+                } catch (error) {
+                  console.error('새로고침 실패:', error)
+                } finally {
+                  setTimeout(() => setIsRefreshing(false), 500)
+                }
+              }}
+              disabled={isRefreshing}
+              title="새로고침 (강제 갱신)"
+              className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              새로고침
+            </button>
+          )}
         </div>
       </div>
 

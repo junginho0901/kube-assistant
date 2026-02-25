@@ -53,15 +53,10 @@ async def auth_middleware(request, call_next):
 
     # 2) HttpOnly cookie (Argo CD style)
     if not token:
-        from http.cookies import SimpleCookie
+        from app.security import extract_token_from_cookie
 
         cookie_header = request.headers.get("Cookie") or ""
-        if cookie_header:
-            cookie = SimpleCookie()
-            cookie.load(cookie_header)
-            morsel = cookie.get(settings.AUTH_COOKIE_NAME)
-            if morsel and morsel.value:
-                token = morsel.value
+        token = extract_token_from_cookie(cookie_header, settings.AUTH_COOKIE_NAME)
 
     if not token:
         from starlette.responses import JSONResponse
