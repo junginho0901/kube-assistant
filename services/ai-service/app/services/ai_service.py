@@ -3551,9 +3551,15 @@ Draft (rules-based, keep numbers unchanged):
             iteration = 0
             assistant_content = ""
             tool_calls_log = []  # Tool call 정보 저장
-            skip_llm = self.user_role == "read" and self._detect_write_intent(message)
-            if skip_llm:
+            is_write_intent = self._detect_write_intent(message)
+            skip_llm = False
+            if self.user_role == "read" and is_write_intent:
+                skip_llm = True
                 assistant_content = "이 요청은 write 전용 작업이라 read 권한으로는 실행할 수 없습니다. 관리자에게 권한을 요청하세요."
+                yield f"data: {json.dumps({'content': assistant_content}, ensure_ascii=False)}\n\n"
+            elif self.user_role == "write" and any(key in message for key in ["exec", "실행", "명령", "k8s_execute_command"]):
+                skip_llm = True
+                assistant_content = "이 요청은 admin 전용 작업이라 write 권한으로는 실행할 수 없습니다. 관리자에게 권한을 요청하세요."
                 yield f"data: {json.dumps({'content': assistant_content}, ensure_ascii=False)}\n\n"
             
             while iteration < max_iterations and not skip_llm:
