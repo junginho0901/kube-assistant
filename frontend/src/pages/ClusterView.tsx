@@ -601,10 +601,18 @@ export default function ClusterView() {
   const getPodHealth = (pod: any) => {
     const phase = pod?.phase || pod?.status || 'Unknown'
     const containers = Array.isArray(pod?.containers) ? pod.containers : []
+    const initContainers = Array.isArray(pod?.init_containers) ? pod.init_containers : []
+    const statusReason = pod?.status_reason
     const waitingReasons = containers
       .map((c: any) => c?.state?.waiting?.reason)
       .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
     const terminatedReasons = containers
+      .map((c: any) => c?.state?.terminated?.reason)
+      .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
+    const initWaitingReasons = initContainers
+      .map((c: any) => c?.state?.waiting?.reason)
+      .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
+    const initTerminatedReasons = initContainers
       .map((c: any) => c?.state?.terminated?.reason)
       .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
 
@@ -631,7 +639,16 @@ export default function ClusterView() {
       'NotReady',
     ]
 
-    const errorReason = pickReason([...waitingReasons, ...terminatedReasons], errorPriority)
+    const errorReason = pickReason(
+      [
+        ...(statusReason ? [statusReason] : []),
+        ...initWaitingReasons,
+        ...initTerminatedReasons,
+        ...waitingReasons,
+        ...terminatedReasons,
+      ],
+      errorPriority
+    )
     if (errorReason || phase === 'Failed') {
       return { level: 'error' as const, reason: errorReason || 'Failed', phase }
     }
@@ -639,9 +656,15 @@ export default function ClusterView() {
     const readyCount = containers.filter((c: any) => c?.ready).length
     const totalCount = containers.length
     const notReady = totalCount > 0 && readyCount < totalCount
+    const initNotReady = initContainers.length > 0 && initContainers.some((c: any) => !c?.ready)
 
     if (phase === 'Pending' || phase === 'Unknown') {
       return { level: 'warn' as const, reason: phase, phase }
+    }
+
+    if (initNotReady) {
+      const initReason = pickReason(initWaitingReasons, warnPriority) || 'PodInitializing'
+      return { level: 'warn' as const, reason: initReason, phase }
     }
 
     if (notReady) {
@@ -661,7 +684,15 @@ export default function ClusterView() {
     return { level: 'ok' as const, reason: phase, phase }
   }
 
-  const getHealthIcon = (level: 'ok' | 'warn' | 'error') => {
+  const getHealthIcon = (level: 'ok' | 'warn' | 'error', reason?: string) => {
+    if (reason === 'PodInitializing' || reason === 'ContainerCreating') {
+      return (
+        <span
+          className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent"
+          aria-label="loading"
+        />
+      )
+    }
     if (level === 'ok') {
       return <CheckCircle className="w-5 h-5 text-green-400" />
     }
@@ -839,39 +870,7 @@ export default function ClusterView() {
               </div>
             )}
           </div>
-          {podWatchStatus !== 'connected' && (
-            <button
-              onClick={async () => {
-                setIsRefreshing(true)
-                try {
-                  // force_refresh=true로 API 직접 호출
-                  const [namespacesData, allPodsData] = await Promise.all([
-                    api.getNamespaces(true),
-                    selectedNamespace === 'all'
-                      ? Promise.all((namespaces || []).map(ns => api.getPods(ns.name, undefined, true))).then(pods => pods.flat())
-                      : api.getPods(selectedNamespace, undefined, true)
-                  ])
-                  
-                  // 캐시 제거 후 새 데이터로 업데이트
-                  queryClient.removeQueries({ queryKey: ['namespaces'] })
-                  queryClient.removeQueries({ queryKey: ['all-pods', selectedNamespace] })
-                  
-                  queryClient.setQueryData(['namespaces'], namespacesData)
-                  queryClient.setQueryData(['all-pods', selectedNamespace], allPodsData)
-                } catch (error) {
-                  console.error('새로고침 실패:', error)
-                } finally {
-                  setTimeout(() => setIsRefreshing(false), 500)
-                }
-              }}
-              disabled={isRefreshing}
-              title="새로고침 (강제 갱신)"
-              className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              새로고침
-            </button>
-          )}
+          {/* 새로고침 버튼 숨김 (watch 기반 실시간 갱신) */}
         </div>
       </div>
 
@@ -923,7 +922,7 @@ export default function ClusterView() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <Box className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                      {getHealthIcon(getPodHealth(pod).level)}
+                      {getHealthIcon(getPodHealth(pod).level, getPodHealth(pod).reason)}
                     </div>
                     <div className="text-sm font-medium text-white truncate" title={pod.name}>
                       {pod.name}
@@ -1217,7 +1216,7 @@ export default function ClusterView() {
                   <div>
                     <h3 className="text-lg font-bold text-white mb-3">Health</h3>
                     <div className="flex items-center gap-2">
-                      {getHealthIcon(getPodHealth(selectedPod).level)}
+                      {getHealthIcon(getPodHealth(selectedPod).level, getPodHealth(selectedPod).reason)}
                       <span className="text-white font-medium">
                         {getPodHealth(selectedPod).reason}
                       </span>
