@@ -44,6 +44,12 @@ interface PodDetail {
 
 export default function ClusterView() {
   const queryClient = useQueryClient()
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+    retry: false,
+    staleTime: 30000,
+  })
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [selectedPod, setSelectedPod] = useState<PodDetail | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<string>('')
