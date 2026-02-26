@@ -1022,6 +1022,7 @@ export default function ClusterView() {
           <div
             className="fixed z-50 bg-slate-700 border border-slate-600 rounded-lg shadow-lg py-1 min-w-[140px]"
             style={{ left: `${podContextMenu.x}px`, top: `${podContextMenu.y}px` }}
+            role="menu"
           >
             <button
               onClick={(event) => {
@@ -1030,6 +1031,7 @@ export default function ClusterView() {
                 handleClosePodContextMenu()
               }}
               className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-600 flex items-center gap-2"
+              role="menuitem"
             >
               <Trash2 className="w-4 h-4" />
               Delete
