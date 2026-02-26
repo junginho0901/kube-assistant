@@ -973,6 +973,7 @@ export default function ClusterView() {
                   <button
                     key={`${pod.namespace}-${pod.name}-${idx}`}
                     onClick={() => handlePodClick(pod)}
+                    onContextMenu={(event) => handlePodContextMenu(event, pod)}
                     className="p-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-left"
                   >
                     <div className="flex items-start justify-between mb-2">
