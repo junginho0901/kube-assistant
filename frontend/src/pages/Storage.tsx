@@ -662,7 +662,7 @@ export default function Storage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">스토리지</h1>
           <p className="mt-2 text-slate-400">PV/PVC/StorageClass/VolumeAttachment를 한 곳에서 확인하세요</p>
@@ -671,7 +671,7 @@ export default function Storage() {
           onClick={handleRefresh}
           disabled={isRefreshing}
           title="새로고침 (강제 갱신)"
-          className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           새로고침
