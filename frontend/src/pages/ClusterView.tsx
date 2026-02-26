@@ -258,6 +258,17 @@ export default function ClusterView() {
     }
   }, [selectedPod, podContextMenu, deleteTargetPod])
 
+  useEffect(() => {
+    if (!podContextMenu) return
+    const handleClose = () => setPodContextMenu(null)
+    window.addEventListener('resize', handleClose)
+    window.addEventListener('scroll', handleClose, true)
+    return () => {
+      window.removeEventListener('resize', handleClose)
+      window.removeEventListener('scroll', handleClose, true)
+    }
+  }, [podContextMenu])
+
   // 네임스페이스 목록
   const { data: namespaces } = useQuery({
     queryKey: ['namespaces'],
