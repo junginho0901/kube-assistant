@@ -800,7 +800,7 @@ export default function ClusterView() {
       if (selectedPod?.name === target.name && selectedPod?.namespace === target.namespace) {
         setSelectedPod(null)
       }
-      setDeleteTargetPod(null)
+      closeDeleteModal()
     } catch (error: any) {
       setDeleteError(error?.response?.data?.detail || error?.message || '삭제에 실패했습니다.')
     } finally {
