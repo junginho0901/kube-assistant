@@ -12,6 +12,7 @@ import {
   XCircle, 
   AlertCircle,
   RefreshCw,
+  Trash2,
   X,
   FileCode,
   Terminal,
@@ -1004,6 +1005,36 @@ export default function ClusterView() {
             )
           )}
         </div>
+      )}
+
+      {/* Pod 우클릭 컨텍스트 메뉴 */}
+      {podContextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={handleClosePodContextMenu}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              handleClosePodContextMenu()
+            }}
+          />
+          <div
+            className="fixed z-50 bg-slate-700 border border-slate-600 rounded-lg shadow-lg py-1 min-w-[140px]"
+            style={{ left: `${podContextMenu.x}px`, top: `${podContextMenu.y}px` }}
+          >
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                openDeleteModal(podContextMenu.pod)
+                handleClosePodContextMenu()
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-600 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          </div>
+        </>
       )}
 
       {/* Pod 상세 정보 모달 */}
