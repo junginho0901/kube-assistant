@@ -242,18 +242,19 @@ export default function ClusterView() {
     return { resourceItems, nonResourceItems }
   }
 
-  // ESC 키로 모달 닫기
+  // ESC 키로 모달/메뉴 닫기
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedPod) {
-        setSelectedPod(null)
-      }
+      if (e.key !== 'Escape') return
+      if (podContextMenu) setPodContextMenu(null)
+      if (deleteTargetPod) closeDeleteModal()
+      if (selectedPod) setSelectedPod(null)
     }
     document.addEventListener('keydown', handleEscape)
     return () => {
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [selectedPod])
+  }, [selectedPod, podContextMenu, deleteTargetPod])
 
   // 네임스페이스 목록
   const { data: namespaces } = useQuery({
@@ -762,6 +763,47 @@ export default function ClusterView() {
     // 기본값을 Logs 탭으로 설정
     setShowLogs(true)
     setShowManifest(false)
+  }
+
+  const handlePodContextMenu = (event: React.MouseEvent, pod: PodInfo) => {
+    if (!canDeletePod) return
+    event.preventDefault()
+    setPodContextMenu({ x: event.clientX, y: event.clientY, pod })
+  }
+
+  const handleClosePodContextMenu = () => {
+    setPodContextMenu(null)
+  }
+
+  const openDeleteModal = (pod: PodInfo) => {
+    setDeleteTargetPod(pod)
+    setDeleteForce(false)
+    setDeleteError(null)
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteTargetPod(null)
+    setDeleteForce(false)
+    setDeleteError(null)
+    setIsDeletingPod(false)
+  }
+
+  const handleDeletePod = async () => {
+    if (!deleteTargetPod || isDeletingPod) return
+    setIsDeletingPod(true)
+    setDeleteError(null)
+    const target = deleteTargetPod
+    try {
+      await api.deletePod(target.namespace, target.name, deleteForce)
+      if (selectedPod?.name === target.name && selectedPod?.namespace === target.namespace) {
+        setSelectedPod(null)
+      }
+      setDeleteTargetPod(null)
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.detail || error?.message || '삭제에 실패했습니다.')
+    } finally {
+      setIsDeletingPod(false)
+    }
   }
 
   const handleDownloadLogs = async () => {
