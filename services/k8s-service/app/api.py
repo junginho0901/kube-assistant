@@ -954,17 +954,50 @@ async def websocket_pod_logs(
         import aiohttp
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, ssl=ssl_context) as resp:
-                if resp.status != 200:
+            retry_attempts = 0
+            max_retries = 6
+            backoff_seconds = 1.0
+            waiting_notice_sent = False
+            retryable_markers = [
+                "waiting to start",
+                "podinitializing",
+                "containercreating",
+                "containerswithoutrdy",
+                "creating",
+            ]
+
+            while True:
+                async with session.get(url, params=params, headers=headers, ssl=ssl_context) as resp:
+                    if resp.status == 200:
+                        # 스트림 파이프라인 (Direct Copy)
+                        # K8s -> [aiohttp] -> [WebSocket]
+                        async for chunk in resp.content.iter_chunked(4096):
+                            await websocket.send_bytes(chunk)
+                        return
+
                     error_text = await resp.text()
                     print(f"[WebSocket] K8s API Error: {resp.status} - {error_text}")
+
+                    lower_text = (error_text or "").lower()
+                    should_retry = (
+                        resp.status == 400
+                        and any(marker in lower_text for marker in retryable_markers)
+                    )
+
+                    if should_retry and retry_attempts < max_retries:
+                        retry_attempts += 1
+                        if not waiting_notice_sent:
+                            waiting_notice_sent = True
+                            try:
+                                await websocket.send_text("Waiting for container to start...")
+                            except Exception:
+                                pass
+                        await asyncio.sleep(backoff_seconds)
+                        backoff_seconds = min(backoff_seconds * 2, 30.0)
+                        continue
+
                     await websocket.send_text(f"Error: K8s API returned {resp.status}")
                     return
-
-                # 스트림 파이프라인 (Direct Copy)
-                # K8s -> [aiohttp] -> [WebSocket]
-                async for chunk in resp.content.iter_chunked(4096):
-                    await websocket.send_bytes(chunk)
                     
     except asyncio.CancelledError:
         print(f"[WebSocket] Client disconnected (Cancelled): {pod_key}")
