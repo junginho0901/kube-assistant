@@ -625,23 +625,38 @@ export default function ClusterView() {
     return reasons[0] || ''
   }
 
+  const isCompletedReason = (reason?: string | null) => {
+    if (!reason) return false
+    return reason === 'Completed' || reason === 'Succeeded'
+  }
+
   const getPodHealth = (pod: any) => {
     const phase = pod?.phase || pod?.status || 'Unknown'
     const containers = Array.isArray(pod?.containers) ? pod.containers : []
     const initContainers = Array.isArray(pod?.init_containers) ? pod.init_containers : []
-    const statusReason = pod?.status_reason
+    const statusReason = isCompletedReason(pod?.status_reason) ? null : pod?.status_reason
     const waitingReasons = containers
       .map((c: any) => c?.state?.waiting?.reason)
       .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
     const terminatedReasons = containers
-      .map((c: any) => c?.state?.terminated?.reason)
-      .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
+      .map((c: any) => ({
+        reason: c?.state?.terminated?.reason,
+        exitCode: c?.state?.terminated?.exit_code,
+      }))
+      .filter((r: any) => typeof r?.reason === 'string' && r.reason.trim())
+      .filter((r: any) => !isCompletedReason(r.reason))
+      .map((r: any) => r.reason) as string[]
     const initWaitingReasons = initContainers
       .map((c: any) => c?.state?.waiting?.reason)
       .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
     const initTerminatedReasons = initContainers
-      .map((c: any) => c?.state?.terminated?.reason)
-      .filter((r: any) => typeof r === 'string' && r.trim()) as string[]
+      .map((c: any) => ({
+        reason: c?.state?.terminated?.reason,
+        exitCode: c?.state?.terminated?.exit_code,
+      }))
+      .filter((r: any) => typeof r?.reason === 'string' && r.reason.trim())
+      .filter((r: any) => !isCompletedReason(r.reason))
+      .map((r: any) => r.reason) as string[]
 
     const errorPriority = [
       'CrashLoopBackOff',
@@ -683,7 +698,16 @@ export default function ClusterView() {
     const readyCount = containers.filter((c: any) => c?.ready).length
     const totalCount = containers.length
     const notReady = totalCount > 0 && readyCount < totalCount
-    const initNotReady = initContainers.length > 0 && initContainers.some((c: any) => !c?.ready)
+    const initNotReady = initContainers.length > 0 && initContainers.some((c: any) => {
+      const state = c?.state || {}
+      if (state.waiting) return true
+      if (state.running) return true
+      if (state.terminated) {
+        const code = state.terminated.exit_code
+        return typeof code === 'number' ? code !== 0 : true
+      }
+      return false
+    })
 
     if (phase === 'Pending' || phase === 'Unknown') {
       return { level: 'warn' as const, reason: phase, phase }
@@ -1045,7 +1069,7 @@ export default function ClusterView() {
               role="menuitem"
             >
               <Trash2 className="w-4 h-4" />
-              Delete
+              삭제
             </button>
           </div>
         </>
@@ -2240,20 +2264,19 @@ export default function ClusterView() {
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="Delete pod"
+            aria-label="Pod 삭제"
           >
-            <h2 className="text-xl font-bold text-white mb-4">Delete pod</h2>
+            <h2 className="text-xl font-bold text-white mb-4">Pod 삭제</h2>
             <p className="text-slate-300 leading-relaxed">
-              Are you sure you want to delete <strong>Pod</strong>{' '}
+              <strong>Pod</strong>{' '}
               <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-100">
                 {deleteTargetPod.name}
               </kbd>
-              ?
+              를 삭제할까요?
             </p>
             <p className="text-slate-400 mt-3">
-              Deleting resources can be <strong>dangerous</strong>. Be sure you understand the effects
-              of deleting this resource before continuing. Consider asking someone to review the
-              change first.
+              리소스 삭제는 <strong>위험</strong>할 수 있습니다. 삭제 효과를 충분히 이해한 뒤 진행하세요.
+              가능하면 변경 전 다른 사람의 리뷰를 받는 것을 권장합니다.
             </p>
 
             <div className="mt-4 flex items-center gap-2">
@@ -2265,11 +2288,11 @@ export default function ClusterView() {
                 className="w-4 h-4 rounded border-slate-500 bg-slate-700"
               />
               <label htmlFor="force-delete-checkbox" className="text-sm text-slate-300">
-                Force delete
+                강제 삭제
               </label>
               <HelpCircle
                 className="w-4 h-4 text-slate-400"
-                title="If checked, ignore any configured grace period and delete the resource immediately"
+                title="체크 시 grace period를 무시하고 즉시 삭제합니다"
               />
             </div>
 
@@ -2284,7 +2307,7 @@ export default function ClusterView() {
                 onClick={closeDeleteModal}
                 disabled={isDeletingPod}
               >
-                Cancel
+                취소
               </button>
               <button
                 type="button"
@@ -2292,7 +2315,7 @@ export default function ClusterView() {
                 onClick={handleDeletePod}
                 disabled={isDeletingPod}
               >
-                OK
+                확인
               </button>
             </div>
           </div>
