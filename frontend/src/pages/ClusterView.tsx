@@ -2257,6 +2257,10 @@ export default function ClusterView() {
               />
             </div>
 
+            {deleteError && (
+              <div className="mt-4 text-sm text-red-400">{deleteError}</div>
+            )}
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
