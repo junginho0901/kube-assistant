@@ -12,6 +12,8 @@ import {
   XCircle, 
   AlertCircle,
   RefreshCw,
+  Trash2,
+  HelpCircle,
   X,
   FileCode,
   Terminal,
@@ -44,6 +46,12 @@ interface PodDetail {
 
 export default function ClusterView() {
   const queryClient = useQueryClient()
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+    retry: false,
+    staleTime: 30000,
+  })
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [selectedPod, setSelectedPod] = useState<PodDetail | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<string>('')
@@ -63,6 +71,11 @@ export default function ClusterView() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [podWatchStatus, setPodWatchStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
+  const [podContextMenu, setPodContextMenu] = useState<{ x: number; y: number; pod: PodInfo } | null>(null)
+  const [deleteTargetPod, setDeleteTargetPod] = useState<PodInfo | null>(null)
+  const [deleteForce, setDeleteForce] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeletingPod, setIsDeletingPod] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const podWatchRef = useRef<EventSource | null>(null)
@@ -231,18 +244,30 @@ export default function ClusterView() {
     return { resourceItems, nonResourceItems }
   }
 
-  // ESC 키로 모달 닫기
+  // ESC 키로 모달/메뉴 닫기
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedPod) {
-        setSelectedPod(null)
-      }
+      if (e.key !== 'Escape') return
+      if (podContextMenu) setPodContextMenu(null)
+      if (deleteTargetPod) closeDeleteModal()
+      if (selectedPod) setSelectedPod(null)
     }
     document.addEventListener('keydown', handleEscape)
     return () => {
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [selectedPod])
+  }, [selectedPod, podContextMenu, deleteTargetPod])
+
+  useEffect(() => {
+    if (!podContextMenu) return
+    const handleClose = () => setPodContextMenu(null)
+    window.addEventListener('resize', handleClose)
+    window.addEventListener('scroll', handleClose, true)
+    return () => {
+      window.removeEventListener('resize', handleClose)
+      window.removeEventListener('scroll', handleClose, true)
+    }
+  }, [podContextMenu])
 
   // 네임스페이스 목록
   const { data: namespaces } = useQuery({
@@ -591,6 +616,8 @@ export default function ClusterView() {
     return nodeA.localeCompare(nodeB)
   })
 
+  const canDeletePod = ['admin', 'write'].includes(String(me?.role || '').toLowerCase())
+
   const pickReason = (reasons: string[], priority: string[]) => {
     for (const p of priority) {
       if (reasons.includes(p)) return p
@@ -749,6 +776,47 @@ export default function ClusterView() {
     // 기본값을 Logs 탭으로 설정
     setShowLogs(true)
     setShowManifest(false)
+  }
+
+  const handlePodContextMenu = (event: React.MouseEvent, pod: PodInfo) => {
+    if (!canDeletePod) return
+    event.preventDefault()
+    setPodContextMenu({ x: event.clientX, y: event.clientY, pod })
+  }
+
+  const handleClosePodContextMenu = () => {
+    setPodContextMenu(null)
+  }
+
+  const openDeleteModal = (pod: PodInfo) => {
+    setDeleteTargetPod(pod)
+    setDeleteForce(false)
+    setDeleteError(null)
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteTargetPod(null)
+    setDeleteForce(false)
+    setDeleteError(null)
+    setIsDeletingPod(false)
+  }
+
+  const handleDeletePod = async () => {
+    if (!deleteTargetPod || isDeletingPod) return
+    setIsDeletingPod(true)
+    setDeleteError(null)
+    const target = deleteTargetPod
+    try {
+      await api.deletePod(target.namespace, target.name, deleteForce)
+      if (selectedPod?.name === target.name && selectedPod?.namespace === target.namespace) {
+        setSelectedPod(null)
+      }
+      closeDeleteModal()
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.detail || error?.message || '삭제에 실패했습니다.')
+    } finally {
+      setIsDeletingPod(false)
+    }
   }
 
   const handleDownloadLogs = async () => {
@@ -918,6 +986,7 @@ export default function ClusterView() {
                   <button
                     key={`${pod.namespace}-${pod.name}-${idx}`}
                     onClick={() => handlePodClick(pod)}
+                    onContextMenu={(event) => handlePodContextMenu(event, pod)}
                     className="p-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-left"
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -948,6 +1017,38 @@ export default function ClusterView() {
             )
           )}
         </div>
+      )}
+
+      {/* Pod 우클릭 컨텍스트 메뉴 */}
+      {podContextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={handleClosePodContextMenu}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              handleClosePodContextMenu()
+            }}
+          />
+          <div
+            className="fixed z-50 bg-slate-700 border border-slate-600 rounded-lg shadow-lg py-1 min-w-[140px]"
+            style={{ left: `${podContextMenu.x}px`, top: `${podContextMenu.y}px` }}
+            role="menu"
+          >
+            <button
+              onClick={(event) => {
+                event.stopPropagation()
+                openDeleteModal(podContextMenu.pod)
+                handleClosePodContextMenu()
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-600 flex items-center gap-2"
+              role="menuitem"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          </div>
+        </>
       )}
 
       {/* Pod 상세 정보 모달 */}
@@ -2127,6 +2228,72 @@ export default function ClusterView() {
                   <pre>{manifest || '로딩 중...'}</pre>
                 </div>
               )}
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {deleteTargetPod && (
+        <ModalOverlay onClose={closeDeleteModal}>
+          <div
+            className="bg-slate-800 rounded-lg w-full max-w-lg p-6"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Delete pod"
+          >
+            <h2 className="text-xl font-bold text-white mb-4">Delete pod</h2>
+            <p className="text-slate-300 leading-relaxed">
+              Are you sure you want to delete <strong>Pod</strong>{' '}
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-100">
+                {deleteTargetPod.name}
+              </kbd>
+              ?
+            </p>
+            <p className="text-slate-400 mt-3">
+              Deleting resources can be <strong>dangerous</strong>. Be sure you understand the effects
+              of deleting this resource before continuing. Consider asking someone to review the
+              change first.
+            </p>
+
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                id="force-delete-checkbox"
+                type="checkbox"
+                checked={deleteForce}
+                onChange={(event) => setDeleteForce(event.target.checked)}
+                className="w-4 h-4 rounded border-slate-500 bg-slate-700"
+              />
+              <label htmlFor="force-delete-checkbox" className="text-sm text-slate-300">
+                Force delete
+              </label>
+              <HelpCircle
+                className="w-4 h-4 text-slate-400"
+                title="If checked, ignore any configured grace period and delete the resource immediately"
+              />
+            </div>
+
+            {deleteError && (
+              <div className="mt-4 text-sm text-red-400">{deleteError}</div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeDeleteModal}
+                disabled={isDeletingPod}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                onClick={handleDeletePod}
+                disabled={isDeletingPod}
+              >
+                OK
+              </button>
             </div>
           </div>
         </ModalOverlay>
