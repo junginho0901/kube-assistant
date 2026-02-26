@@ -2218,6 +2218,48 @@ export default function ClusterView() {
           </div>
         </ModalOverlay>
       )}
+
+      {deleteTargetPod && (
+        <ModalOverlay onClose={closeDeleteModal}>
+          <div
+            className="bg-slate-800 rounded-lg w-full max-w-lg p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-xl font-bold text-white mb-4">Delete pod</h2>
+            <p className="text-slate-300 leading-relaxed">
+              Are you sure you want to delete <strong>Pod</strong>{' '}
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-100">
+                {deleteTargetPod.name}
+              </kbd>
+              ?
+            </p>
+            <p className="text-slate-400 mt-3">
+              Deleting resources can be <strong>dangerous</strong>. Be sure you understand the effects
+              of deleting this resource before continuing. Consider asking someone to review the
+              change first.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeDeleteModal}
+                disabled={isDeletingPod}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+                onClick={handleDeletePod}
+                disabled={isDeletingPod}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   )
 }
