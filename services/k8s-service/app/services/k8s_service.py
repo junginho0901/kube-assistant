@@ -1337,6 +1337,28 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get pod logs: {e}")
 
+    async def delete_pod(self, namespace: str, pod_name: str, force: bool = False) -> Dict[str, Any]:
+        """파드 삭제"""
+        try:
+            delete_options = client.V1DeleteOptions()
+            if force:
+                delete_options.grace_period_seconds = 0
+                delete_options.propagation_policy = "Background"
+            response = self.v1.delete_namespaced_pod(
+                name=pod_name,
+                namespace=namespace,
+                body=delete_options
+            )
+            return {
+                "status": "deleted",
+                "name": pod_name,
+                "namespace": namespace,
+                "force": force,
+                "details": response.to_dict() if hasattr(response, "to_dict") else response,
+            }
+        except ApiException as e:
+            raise Exception(f"Failed to delete pod: {e}")
+
     def iter_pod_watch_events(
         self,
         namespace: Optional[str],
