@@ -21,6 +21,7 @@ import {
   Server,
   Shield,
   Waypoints,
+  ChevronDown,
 } from 'lucide-react'
 import { api } from '@/services/api'
 import { clearAccessToken } from '@/services/auth'
