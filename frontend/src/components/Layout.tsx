@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect, type ComponentType } from 'react'
+import { useMemo, useState, useEffect, type ComponentType } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -87,6 +87,7 @@ export default function Layout() {
 
   const isAdmin = me?.role === 'admin'
   const searchParams = new URLSearchParams(location.search)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Core: true })
 
   const storageTabMatch = (tab: string) => {
     if (!location.pathname.startsWith('/storage')) return false
@@ -215,6 +216,30 @@ export default function Layout() {
     },
   ]
 
+  const activeGroup = useMemo(() => {
+    for (const group of navGroups) {
+      if (group.adminOnly && !isAdmin) continue
+      for (const item of group.items) {
+        const isActive = item.match
+          ? item.match(location.pathname, location.search)
+          : item.exact
+            ? location.pathname === item.href
+            : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
+        if (isActive) return group.label
+      }
+    }
+    return null
+  }, [isAdmin, location.pathname, location.search, navGroups])
+
+  useEffect(() => {
+    if (!activeGroup) return
+    setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }))
+  }, [activeGroup])
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
+
   return (
     <div className="min-h-screen bg-slate-900">
       <div className="fixed inset-y-0 left-0 w-64 bg-slate-800 border-r border-slate-700">
@@ -227,37 +252,46 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-6 space-y-6">
+          <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
             {navGroups
               .filter((group) => (group.adminOnly ? isAdmin : true))
               .map((group) => (
                 <div key={group.label} className="space-y-2">
-                  <div className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {group.label}
-                  </div>
-                  <div className="space-y-1">
-                    {group.items.map((item) => {
-                      const isActive = item.match
-                        ? item.match(location.pathname, location.search)
-                        : item.exact
-                          ? location.pathname === item.href
-                          : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
-                      const Icon = item.icon
-                      return (
-                        <Link
-                          key={item.href}
-                          to={item.href}
-                          className={`
-                            flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors
-                            ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
-                          `}
-                        >
-                          {Icon && <Icon className="w-4 h-4" />}
-                          <span className="font-medium">{item.name}</span>
-                        </Link>
-                      )
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.label)}
+                    className="w-full flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:text-slate-300"
+                  >
+                    <span>{group.label}</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${openGroups[group.label] ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {openGroups[group.label] && (
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        const isActive = item.match
+                          ? item.match(location.pathname, location.search)
+                          : item.exact
+                            ? location.pathname === item.href
+                            : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
+                        const Icon = item.icon
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            className={`
+                              flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors
+                              ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
+                            `}
+                          >
+                            {Icon && <Icon className="w-4 h-4" />}
+                            <span className="font-medium">{item.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
           </nav>
