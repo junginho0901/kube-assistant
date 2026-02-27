@@ -665,7 +665,6 @@ export default function Storage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">스토리지</h1>
-          <p className="mt-2 text-slate-400">PV/PVC/StorageClass/VolumeAttachment를 한 곳에서 확인하세요</p>
         </div>
         <button
           onClick={handleRefresh}
