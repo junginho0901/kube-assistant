@@ -3,12 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { CheckCircle, ChevronDown, RefreshCw, Search } from 'lucide-react'
 
-type LabelPair = { key: string; value: string }
-
 export default function Pods() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
-  const [labelSelector, setLabelSelector] = useState('')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -20,12 +17,12 @@ export default function Pods() {
   })
 
   const { data: pods } = useQuery({
-    queryKey: ['workloads', 'pods', selectedNamespace, labelSelector],
+    queryKey: ['workloads', 'pods', selectedNamespace],
     queryFn: () => {
       if (selectedNamespace === 'all') {
         return api.getAllPods(false)
       }
-      return api.getPods(selectedNamespace, labelSelector || undefined, false)
+      return api.getPods(selectedNamespace, undefined, false)
     },
   })
 
@@ -42,31 +39,6 @@ export default function Pods() {
     }
   }, [isNamespaceDropdownOpen])
 
-  const parseLabelSelector = useCallback((value: string): LabelPair[] => {
-    if (!value.trim()) return []
-    return value
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const idx = part.indexOf('=')
-        if (idx <= 0) return null
-        const key = part.slice(0, idx).trim()
-        const val = part.slice(idx + 1).trim()
-        if (!key || !val) return null
-        return { key, value: val }
-      })
-      .filter((pair): pair is LabelPair => Boolean(pair))
-  }, [])
-
-  const labelPairs = useMemo(() => parseLabelSelector(labelSelector), [labelSelector, parseLabelSelector])
-
-  const matchesLabelSelector = useCallback((pod: any) => {
-    if (labelPairs.length === 0) return true
-    const labels = pod?.labels || {}
-    return labelPairs.every((pair) => labels?.[pair.key] === pair.value)
-  }, [labelPairs])
-
   const filterBySearch = (items: any[] | undefined | null) => {
     if (!Array.isArray(items)) return []
     if (!searchQuery.trim()) return items
@@ -76,10 +48,7 @@ export default function Pods() {
     )
   }
 
-  const filteredPods = useMemo(() => {
-    const list = filterBySearch(pods)
-    return list.filter(matchesLabelSelector)
-  }, [pods, matchesLabelSelector, searchQuery])
+  const filteredPods = useMemo(() => filterBySearch(pods), [pods, searchQuery])
 
   const formatAge = (iso?: string | null) => {
     if (!iso) return '-'
@@ -203,10 +172,10 @@ export default function Pods() {
       if (selectedNamespace === 'all') {
         data = await api.getAllPods(true)
       } else {
-        data = await api.getPods(selectedNamespace, labelSelector || undefined, true)
+        data = await api.getPods(selectedNamespace, undefined, true)
       }
-      queryClient.removeQueries({ queryKey: ['workloads', 'pods', selectedNamespace, labelSelector] })
-      queryClient.setQueryData(['workloads', 'pods', selectedNamespace, labelSelector], data)
+      queryClient.removeQueries({ queryKey: ['workloads', 'pods', selectedNamespace] })
+      queryClient.setQueryData(['workloads', 'pods', selectedNamespace], data)
     } catch (error) {
       console.error('Pods refresh failed:', error)
     }
@@ -296,32 +265,13 @@ export default function Pods() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <div className="xl:col-span-2">
-          <input
-            type="text"
-            placeholder="Label selector (e.g. app=frontend,team=devops)"
-            value={labelSelector}
-            onChange={(e) => setLabelSelector(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-        </div>
-        <div className="text-xs text-slate-400 flex items-center">
-          {labelSelector ? (
-            <span className="font-mono break-words">selector: {labelSelector}</span>
-          ) : (
-            <span>Optional label filter</span>
-          )}
-        </div>
-      </div>
-
       {searchQuery && (
         <p className="text-sm text-slate-400">
           {filteredPods.length} pod{filteredPods.length === 1 ? '' : 's'} match.
         </p>
       )}
 
-      {podTopSummary.total > 0 && (labelSelector || searchQuery) && (
+      {podTopSummary.total > 0 && searchQuery && (
         <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-white font-semibold">Top reason summary</div>
