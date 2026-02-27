@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { Database, HardDrive, RefreshCw, Search, X, ExternalLink, ArrowDown, ArrowUp, Info } from 'lucide-react'
+import { RefreshCw, Search, X, ExternalLink, ArrowDown, ArrowUp, Info } from 'lucide-react'
 
 type StorageTab = 'pvcs' | 'pvs' | 'storageclasses' | 'volumeattachments'
 type PvcSortKey =
@@ -647,19 +647,6 @@ export default function Storage() {
     }
   }
 
-  const tabs: Array<{ id: StorageTab; name: string; icon: any }> = [
-    { id: 'pvcs', name: 'PVC', icon: Database },
-    { id: 'pvs', name: 'PV', icon: HardDrive },
-    { id: 'storageclasses', name: 'StorageClass', icon: Database },
-    { id: 'volumeattachments', name: 'VolumeAttachment', icon: HardDrive },
-  ]
-
-  const handleTabClick = (tabId: StorageTab) => {
-    if (tabId === activeTab) return
-    setSearchQuery('')
-    setActiveTab(tabId)
-  }
-
   const searchPlaceholder: Record<StorageTab, string> = {
     pvcs: 'PVC 이름 검색...',
     pvs: 'PV 이름 검색...',
@@ -689,26 +676,6 @@ export default function Storage() {
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           새로고침
         </button>
-      </div>
-
-      <div className="flex gap-2 border-b border-slate-700">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabClick(tab.id)}
-            className={`
-              flex items-center gap-2 px-4 py-3 font-medium transition-colors
-              border-b-2 -mb-px
-              ${activeTab === tab.id
-                ? 'border-primary-500 text-white'
-                : 'border-transparent text-slate-400 hover:text-white'
-              }
-            `}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.name}
-          </button>
-        ))}
       </div>
 
 	      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
