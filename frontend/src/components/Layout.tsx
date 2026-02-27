@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMemo, useState, useEffect, type ComponentType } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   Activity,
   ArrowRight,
@@ -35,6 +36,7 @@ type NavItem = {
 }
 
 type NavGroup = {
+  id: string
   label: string
   items: NavItem[]
   adminOnly?: boolean
@@ -86,9 +88,10 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const { t } = useTranslation()
   const isAdmin = me?.role === 'admin'
   const searchParams = new URLSearchParams(location.search)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Core: true })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ core: true })
 
   const storageTabMatch = (tab: string) => {
     if (!location.pathname.startsWith('/storage')) return false
@@ -96,59 +99,63 @@ export default function Layout() {
     return current === tab
   }
 
-  const navGroups: NavGroup[] = [
+  const navGroups: NavGroup[] = useMemo(() => [
     {
-      label: 'Core',
+      id: 'core',
+      label: t('nav.core'),
       items: [
-        { name: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true },
-        { name: 'Cluster View', href: '/cluster-view', icon: Layers },
-        { name: 'Monitoring', href: '/monitoring', icon: Activity },
-        { name: 'AI Chat', href: '/ai-chat', icon: MessageSquare },
+        { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard, exact: true },
+        { name: t('nav.clusterView'), href: '/cluster-view', icon: Layers },
+        { name: t('nav.monitoring'), href: '/monitoring', icon: Activity },
+        { name: t('nav.aiChat'), href: '/ai-chat', icon: MessageSquare },
       ],
     },
     {
-      label: 'Cluster',
+      id: 'cluster',
+      label: t('nav.cluster'),
       items: [
-        { name: 'Namespaces', href: '/cluster/namespaces', icon: Boxes },
-        { name: 'Nodes', href: '/cluster/nodes', icon: Server },
-        { name: 'Advanced Search (Beta)', href: '/cluster/search', icon: Search },
+        { name: t('nav.namespaces'), href: '/cluster/namespaces', icon: Boxes },
+        { name: t('nav.nodes'), href: '/cluster/nodes', icon: Server },
+        { name: t('nav.advancedSearch'), href: '/cluster/search', icon: Search },
       ],
     },
     {
-      label: 'Workloads',
+      id: 'workloads',
+      label: t('nav.workloads'),
       items: [
-        { name: 'Pods', href: '/workloads/pods', icon: Box },
-        { name: 'Deployments', href: '/workloads/deployments', icon: Layers },
-        { name: 'Stateful Sets', href: '/workloads/statefulsets', icon: Database },
-        { name: 'Daemon Sets', href: '/workloads/daemonsets', icon: Server },
-        { name: 'Replica Sets', href: '/workloads/replicasets', icon: Boxes },
-        { name: 'Jobs', href: '/workloads/jobs', icon: FileBox },
-        { name: 'CronJobs', href: '/workloads/cronjobs', icon: Clock },
+        { name: t('nav.pods'), href: '/workloads/pods', icon: Box },
+        { name: t('nav.deployments'), href: '/workloads/deployments', icon: Layers },
+        { name: t('nav.statefulSets'), href: '/workloads/statefulsets', icon: Database },
+        { name: t('nav.daemonSets'), href: '/workloads/daemonsets', icon: Server },
+        { name: t('nav.replicaSets'), href: '/workloads/replicasets', icon: Boxes },
+        { name: t('nav.jobs'), href: '/workloads/jobs', icon: FileBox },
+        { name: t('nav.cronJobs'), href: '/workloads/cronjobs', icon: Clock },
       ],
     },
     {
-      label: 'Storage',
+      id: 'storage',
+      label: t('nav.storage'),
       items: [
         {
-          name: 'Persistent Volume Claims',
+          name: t('nav.pvcs'),
           href: '/storage?tab=pvcs',
           icon: Database,
           match: () => storageTabMatch('pvcs'),
         },
         {
-          name: 'Persistent Volumes',
+          name: t('nav.pvs'),
           href: '/storage?tab=pvs',
           icon: HardDrive,
           match: () => storageTabMatch('pvs'),
         },
         {
-          name: 'Storage Classes',
+          name: t('nav.storageClasses'),
           href: '/storage?tab=storageclasses',
           icon: Layers,
           match: () => storageTabMatch('storageclasses'),
         },
         {
-          name: 'Volume Attachments',
+          name: t('nav.volumeAttachments'),
           href: '/storage?tab=volumeattachments',
           icon: Waypoints,
           match: () => storageTabMatch('volumeattachments'),
@@ -156,66 +163,72 @@ export default function Layout() {
       ],
     },
     {
-      label: 'Network',
+      id: 'network',
+      label: t('nav.network'),
       items: [
-        { name: 'Services', href: '/network/services', icon: Network },
-        { name: 'Endpoints', href: '/network/endpoints', icon: Server },
-        { name: 'Endpoint Slices', href: '/network/endpointslices', icon: Waypoints },
-        { name: 'Ingresses', href: '/network/ingresses', icon: ArrowRight },
-        { name: 'Ingress Classes', href: '/network/ingressclasses', icon: FileCode },
-        { name: 'Network Policies', href: '/network/networkpolicies', icon: Shield },
+        { name: t('nav.services'), href: '/network/services', icon: Network },
+        { name: t('nav.endpoints'), href: '/network/endpoints', icon: Server },
+        { name: t('nav.endpointSlices'), href: '/network/endpointslices', icon: Waypoints },
+        { name: t('nav.ingresses'), href: '/network/ingresses', icon: ArrowRight },
+        { name: t('nav.ingressClasses'), href: '/network/ingressclasses', icon: FileCode },
+        { name: t('nav.networkPolicies'), href: '/network/networkpolicies', icon: Shield },
       ],
     },
     {
-      label: 'Gateway (Beta)',
+      id: 'gateway',
+      label: t('nav.gateway'),
       items: [
-        { name: 'Gateways', href: '/gateway/gateways', icon: Waypoints },
-        { name: 'Gateway Classes', href: '/gateway/gatewayclasses', icon: FileCode },
-        { name: 'HTTP Routes', href: '/gateway/httproutes', icon: ArrowRight },
-        { name: 'GRPC Routes', href: '/gateway/grpcroutes', icon: ArrowRight },
-        { name: 'Reference Grants', href: '/gateway/referencegrants', icon: Key },
-        { name: 'Backend TLS Policies', href: '/gateway/backendtlspolicies', icon: Shield },
-        { name: 'Backend Traffic Policies', href: '/gateway/backendtrafficpolicies', icon: Network },
+        { name: t('nav.gateways'), href: '/gateway/gateways', icon: Waypoints },
+        { name: t('nav.gatewayClasses'), href: '/gateway/gatewayclasses', icon: FileCode },
+        { name: t('nav.httpRoutes'), href: '/gateway/httproutes', icon: ArrowRight },
+        { name: t('nav.grpcRoutes'), href: '/gateway/grpcroutes', icon: ArrowRight },
+        { name: t('nav.referenceGrants'), href: '/gateway/referencegrants', icon: Key },
+        { name: t('nav.backendTlsPolicies'), href: '/gateway/backendtlspolicies', icon: Shield },
+        { name: t('nav.backendTrafficPolicies'), href: '/gateway/backendtrafficpolicies', icon: Network },
       ],
     },
     {
-      label: 'Security',
+      id: 'security',
+      label: t('nav.security'),
       items: [
-        { name: 'Service Accounts', href: '/security/serviceaccounts', icon: Key },
-        { name: 'Roles', href: '/security/roles', icon: Shield },
-        { name: 'Role Bindings', href: '/security/rolebindings', icon: Shield },
+        { name: t('nav.serviceAccounts'), href: '/security/serviceaccounts', icon: Key },
+        { name: t('nav.roles'), href: '/security/roles', icon: Shield },
+        { name: t('nav.roleBindings'), href: '/security/rolebindings', icon: Shield },
       ],
     },
     {
-      label: 'Configuration',
+      id: 'configuration',
+      label: t('nav.configuration'),
       items: [
-        { name: 'Config Maps', href: '/configuration/configmaps', icon: FileCode },
-        { name: 'Secrets', href: '/configuration/secrets', icon: Key },
-        { name: 'HPAs', href: '/configuration/hpas', icon: Activity },
-        { name: 'VPAs', href: '/configuration/vpas', icon: Activity },
-        { name: 'Pod Disruption Budgets', href: '/configuration/pdbs', icon: Shield },
-        { name: 'Resource Quotas', href: '/configuration/resourcequotas', icon: Database },
-        { name: 'Limit Ranges', href: '/configuration/limitranges', icon: Layers },
-        { name: 'Priority Classes', href: '/configuration/priorityclasses', icon: Activity },
-        { name: 'Runtime Classes', href: '/configuration/runtimeclasses', icon: Server },
-        { name: 'Leases', href: '/configuration/leases', icon: Clock },
-        { name: 'Mutating Webhook Configurations', href: '/configuration/mutatingwebhookconfigurations', icon: FileCode },
-        { name: 'Validating Webhook Configurations', href: '/configuration/validatingwebhookconfigurations', icon: FileCode },
+        { name: t('nav.configMaps'), href: '/configuration/configmaps', icon: FileCode },
+        { name: t('nav.secrets'), href: '/configuration/secrets', icon: Key },
+        { name: t('nav.hpas'), href: '/configuration/hpas', icon: Activity },
+        { name: t('nav.vpas'), href: '/configuration/vpas', icon: Activity },
+        { name: t('nav.pdbs'), href: '/configuration/pdbs', icon: Shield },
+        { name: t('nav.resourceQuotas'), href: '/configuration/resourcequotas', icon: Database },
+        { name: t('nav.limitRanges'), href: '/configuration/limitranges', icon: Layers },
+        { name: t('nav.priorityClasses'), href: '/configuration/priorityclasses', icon: Activity },
+        { name: t('nav.runtimeClasses'), href: '/configuration/runtimeclasses', icon: Server },
+        { name: t('nav.leases'), href: '/configuration/leases', icon: Clock },
+        { name: t('nav.mutatingWebhooks'), href: '/configuration/mutatingwebhookconfigurations', icon: FileCode },
+        { name: t('nav.validatingWebhooks'), href: '/configuration/validatingwebhookconfigurations', icon: FileCode },
       ],
     },
     {
-      label: 'Custom Resources',
+      id: 'customResources',
+      label: t('nav.customResources'),
       items: [
-        { name: 'Instances', href: '/custom-resources/instances', icon: FileBox },
-        { name: 'CRD Groups', href: '/custom-resources/groups', icon: FileCode },
+        { name: t('nav.customInstances'), href: '/custom-resources/instances', icon: FileBox },
+        { name: t('nav.customGroups'), href: '/custom-resources/groups', icon: FileCode },
       ],
     },
     {
-      label: 'Admin',
+      id: 'admin',
+      label: t('nav.admin'),
       adminOnly: true,
-      items: [{ name: 'User Management', href: '/admin/users', icon: Shield }],
+      items: [{ name: t('nav.userManagement'), href: '/admin/users', icon: Shield }],
     },
-  ]
+  ], [t])
 
   const activeGroup = useMemo(() => {
     for (const group of navGroups) {
@@ -226,7 +239,7 @@ export default function Layout() {
           : item.exact
             ? location.pathname === item.href
             : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
-        if (isActive) return group.label
+        if (isActive) return group.id
       }
     }
     return null
@@ -237,8 +250,8 @@ export default function Layout() {
     setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }))
   }, [activeGroup])
 
-  const toggleGroup = (label: string) => {
-    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }))
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }))
   }
 
   return (
@@ -260,15 +273,15 @@ export default function Layout() {
                 <div key={group.label} className="space-y-2">
                   <button
                     type="button"
-                    onClick={() => toggleGroup(group.label)}
+                    onClick={() => toggleGroup(group.id)}
                     className="w-full flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:text-slate-300"
                   >
                     <span>{group.label}</span>
                     <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${openGroups[group.label] ? 'rotate-180' : ''}`}
+                      className={`h-3.5 w-3.5 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`}
                     />
                   </button>
-                  {openGroups[group.label] && (
+                  {openGroups[group.id] && (
                     <div className="space-y-1">
                       {group.items.map((item) => {
                         const isActive = item.match
@@ -301,9 +314,9 @@ export default function Layout() {
             <Link
               to="/account"
               className="block rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 hover:bg-slate-700/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-600"
-              title="내 정보 / 비밀번호 변경"
+              title={t('layout.accountTitle')}
             >
-              <div className="text-[11px] text-slate-400">계정</div>
+              <div className="text-[11px] text-slate-400">{t('layout.account')}</div>
               <div className="mt-0.5 truncate text-sm text-white">{me?.name ?? '...'}</div>
               <div className="truncate text-xs text-slate-400">{me?.email ?? ''}</div>
             </Link>
@@ -314,7 +327,7 @@ export default function Layout() {
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700/40"
             >
               <LogOut className="w-4 h-4" />
-              로그아웃
+              {t('layout.logout')}
             </button>
 
             <div className="-mx-6 mt-4 border-t border-slate-700" />
@@ -322,17 +335,17 @@ export default function Layout() {
               {clusterStatus === 'checking' ? (
                 <>
                   <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <span>연결 확인 중...</span>
+                  <span>{t('layout.clusterChecking')}</span>
                 </>
               ) : clusterStatus === 'connected' ? (
                 <>
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>클러스터 연결됨</span>
+                  <span>{t('layout.clusterConnected')}</span>
                 </>
               ) : (
                 <>
                   <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span>클러스터 연결 안 됨</span>
+                  <span>{t('layout.clusterDisconnected')}</span>
                 </>
               )}
             </div>

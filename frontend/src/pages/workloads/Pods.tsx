@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import { CheckCircle, ChevronDown, RefreshCw, Search } from 'lucide-react'
 
 export default function Pods() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
@@ -188,17 +190,17 @@ export default function Pods() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Pods</h1>
-          <p className="mt-2 text-slate-400">Inspect pod health and placement across namespaces.</p>
+          <h1 className="text-3xl font-bold text-white">{t('pods.title')}</h1>
+          <p className="mt-2 text-slate-400">{t('pods.subtitle')}</p>
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
-          title="Force refresh"
+          title={t('pods.forceRefreshTitle')}
           className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('pods.refresh')}
         </button>
       </div>
 
@@ -208,7 +210,7 @@ export default function Pods() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search pods by name..."
+              placeholder={t('pods.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -223,7 +225,7 @@ export default function Pods() {
             className="w-full py-3 px-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent flex items-center justify-between gap-2"
           >
             <span className="text-sm font-medium">
-              {selectedNamespace === 'all' ? 'All namespaces' : selectedNamespace}
+              {selectedNamespace === 'all' ? t('pods.allNamespaces') : selectedNamespace}
             </span>
             <ChevronDown
               className={`w-4 h-4 text-slate-400 transition-transform ${isNamespaceDropdownOpen ? 'rotate-180' : ''}`}
@@ -242,7 +244,7 @@ export default function Pods() {
                 {selectedNamespace === 'all' && (
                   <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                 )}
-                <span className={selectedNamespace === 'all' ? 'font-medium' : ''}>All namespaces</span>
+                <span className={selectedNamespace === 'all' ? 'font-medium' : ''}>{t('pods.allNamespaces')}</span>
               </button>
               {(namespaces || []).map((ns) => (
                 <button
@@ -267,15 +269,15 @@ export default function Pods() {
 
       {searchQuery && (
         <p className="text-sm text-slate-400">
-          {filteredPods.length} pod{filteredPods.length === 1 ? '' : 's'} match.
+          {t('pods.matchCount', { count: filteredPods.length, suffix: filteredPods.length === 1 ? '' : 's' })}
         </p>
       )}
 
       {podTopSummary.total > 0 && searchQuery && (
         <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-sm text-white font-semibold">Top reason summary</div>
-            <div className="text-xs text-slate-400">pods: {podTopSummary.total}</div>
+            <div className="text-sm text-white font-semibold">{t('pods.topReasonTitle')}</div>
+            <div className="text-xs text-slate-400">{t('pods.podsCount', { count: podTopSummary.total })}</div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {podTopSummary.topReasons.map(([reason, count]) => (
@@ -300,14 +302,14 @@ export default function Pods() {
         <table className="w-full text-sm min-w-[980px]">
           <thead className="text-slate-400">
             <tr>
-              {showNamespaceColumn && <th className="text-left py-3 px-4">Namespace</th>}
-              <th className="text-left py-3 px-4">Name</th>
-              <th className="text-left py-3 px-4">Ready</th>
-              <th className="text-left py-3 px-4">Status</th>
-              <th className="text-left py-3 px-4">Restarts</th>
-              <th className="text-left py-3 px-4">Age</th>
-              <th className="text-left py-3 px-4">Node</th>
-              <th className="text-left py-3 px-4">Pod IP</th>
+              {showNamespaceColumn && <th className="text-left py-3 px-4">{t('pods.table.namespace')}</th>}
+              <th className="text-left py-3 px-4">{t('pods.table.name')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.ready')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.status')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.restarts')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.age')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.node')}</th>
+              <th className="text-left py-3 px-4">{t('pods.table.podIp')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
@@ -332,7 +334,7 @@ export default function Pods() {
             {filteredPods.length === 0 && (
               <tr>
                 <td colSpan={showNamespaceColumn ? 8 : 7} className="py-6 px-4 text-slate-400">
-                  No pods found.
+                  {t('pods.noResults')}
                 </td>
               </tr>
             )}
