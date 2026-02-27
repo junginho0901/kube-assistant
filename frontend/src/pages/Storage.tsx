@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import { Database, HardDrive, RefreshCw, Search, X, ExternalLink, ArrowDown, ArrowUp, Info } from 'lucide-react'
+import { RefreshCw, Search, X, ExternalLink, ArrowDown, ArrowUp, Info, ChevronDown, CheckCircle } from 'lucide-react'
 
 type StorageTab = 'pvcs' | 'pvs' | 'storageclasses' | 'volumeattachments'
 type PvcSortKey =
@@ -41,12 +42,15 @@ type StorageClassSortKey =
 type VolumeAttachmentSortKey = 'name' | 'attached' | 'persistent_volume_name' | 'node_name' | 'attacher' | 'error'
 
 export default function Storage() {
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<StorageTab>('pvcs')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [selectedPvc, setSelectedPvc] = useState<any | null>(null)
+  const [isNamespaceDropdownOpen, setIsNamespaceDropdownOpen] = useState(false)
+  const namespaceDropdownRef = useRef<HTMLDivElement>(null)
   const [pvcSort, setPvcSort] = useState<{ key: PvcSortKey; dir: 'asc' | 'desc' }>({
     key: 'namespace',
     dir: 'asc',
@@ -118,8 +122,38 @@ export default function Storage() {
   }, [])
 
   useEffect(() => {
+    const param = (searchParams.get('tab') || '').toLowerCase()
+    const allowed: StorageTab[] = ['pvcs', 'pvs', 'storageclasses', 'volumeattachments']
+    if (allowed.includes(param as StorageTab) && param !== activeTab) {
+      setActiveTab(param as StorageTab)
+    }
+    if (!param && activeTab !== 'pvcs') {
+      setActiveTab('pvcs')
+    }
+  }, [searchParams, activeTab])
+
+  useEffect(() => {
     if (activeTab !== 'pvcs') setSelectedPvc(null)
   }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'pvcs') {
+      setIsNamespaceDropdownOpen(false)
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    if (!isNamespaceDropdownOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (namespaceDropdownRef.current && !namespaceDropdownRef.current.contains(event.target as Node)) {
+        setIsNamespaceDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isNamespaceDropdownOpen])
 
   useEffect(() => {
     // 과거 버전에서 사용하던 단건 PV/StorageClass 쿼리 키가 남아있으면(react-query 캐시),
@@ -634,19 +668,6 @@ export default function Storage() {
     }
   }
 
-  const tabs: Array<{ id: StorageTab; name: string; icon: any }> = [
-    { id: 'pvcs', name: 'PVC', icon: Database },
-    { id: 'pvs', name: 'PV', icon: HardDrive },
-    { id: 'storageclasses', name: 'StorageClass', icon: Database },
-    { id: 'volumeattachments', name: 'VolumeAttachment', icon: HardDrive },
-  ]
-
-  const handleTabClick = (tabId: StorageTab) => {
-    if (tabId === activeTab) return
-    setSearchQuery('')
-    setActiveTab(tabId)
-  }
-
   const searchPlaceholder: Record<StorageTab, string> = {
     pvcs: 'PVC 이름 검색...',
     pvs: 'PV 이름 검색...',
@@ -665,7 +686,6 @@ export default function Storage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">스토리지</h1>
-          <p className="mt-2 text-slate-400">PV/PVC/StorageClass/VolumeAttachment를 한 곳에서 확인하세요</p>
         </div>
         <button
           onClick={handleRefresh}
@@ -678,64 +698,71 @@ export default function Storage() {
         </button>
       </div>
 
-      <div className="flex gap-2 border-b border-slate-700">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabClick(tab.id)}
-            className={`
-              flex items-center gap-2 px-4 py-3 font-medium transition-colors
-              border-b-2 -mb-px
-              ${activeTab === tab.id
-                ? 'border-primary-500 text-white'
-                : 'border-transparent text-slate-400 hover:text-white'
-              }
-            `}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.name}
-          </button>
-        ))}
-      </div>
-
 	      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 	        <div className="md:col-span-2">
 	          <div className="relative">
 	            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-	            <input
-	              type="text"
-	              placeholder={searchPlaceholder[activeTab]}
-	              value={searchQuery}
-	              onChange={(e) => setSearchQuery(e.target.value)}
-	              className={`w-full pl-10 ${activeTab === 'volumeattachments' ? 'pr-10' : 'pr-4'} py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
-	            />
-	            {activeTab === 'volumeattachments' && (
-	              <button
-	                type="button"
-	                title="VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다. (예: NFS 계열은 생성되지 않을 수 있음)"
-	                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200"
-	              >
-	                <Info className="w-5 h-5" />
-	                <span className="sr-only">VolumeAttachment 도움말</span>
-	              </button>
-	            )}
-	          </div>
-	        </div>
+            <input
+              type="text"
+              placeholder={searchPlaceholder[activeTab]}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+        </div>
 
         {activeTab === 'pvcs' ? (
-          <div>
-            <select
-              value={selectedNamespace}
-              onChange={(e) => setSelectedNamespace(e.target.value)}
-              className="w-full py-3 px-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          <div className="relative" ref={namespaceDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsNamespaceDropdownOpen(!isNamespaceDropdownOpen)}
+              className="w-full py-3 px-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent flex items-center justify-between gap-2"
             >
-              <option value="all">전체 네임스페이스</option>
-              {(namespaces || []).map((ns) => (
-                <option key={ns.name} value={ns.name}>
-                  {ns.name}
-                </option>
-              ))}
-            </select>
+              <span className="text-sm font-medium">
+                {selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace}
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 transition-transform ${isNamespaceDropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {isNamespaceDropdownOpen && (
+              <div className="absolute top-full left-0 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-[100] max-h-[220px] overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedNamespace('all')
+                    setIsNamespaceDropdownOpen(false)
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg"
+                >
+                  {selectedNamespace === 'all' && (
+                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  )}
+                  <span className={selectedNamespace === 'all' ? 'font-medium' : ''}>
+                    전체 네임스페이스
+                  </span>
+                </button>
+                {(namespaces || []).map((ns) => (
+                  <button
+                    key={ns.name}
+                    type="button"
+                    onClick={() => {
+                      setSelectedNamespace(ns.name)
+                      setIsNamespaceDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 last:rounded-b-lg"
+                  >
+                    {selectedNamespace === ns.name && (
+                      <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    )}
+                    <span className={selectedNamespace === ns.name ? 'font-medium' : ''}>
+                      {ns.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeTab === 'pvs' ? (
           <div className="flex items-center justify-end">
@@ -788,10 +815,16 @@ export default function Storage() {
 	            </div>
 	          </div>
 	        ) : activeTab === 'volumeattachments' ? (
-	          <div className="hidden md:flex items-center justify-end text-xs text-slate-400 leading-snug text-right">
-	            VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다.
-	            <br />
-	            (예: NFS 계열은 생성되지 않을 수 있음)
+	          <div className="hidden md:flex items-start justify-end gap-2 text-xs text-slate-400 leading-snug text-right">
+              <Info
+                className="mt-0.5 h-4 w-4 text-slate-400"
+                title="VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다. (예: NFS 계열은 생성되지 않을 수 있음)"
+              />
+              <div>
+                VolumeAttachment는 attach/detach가 필요한 CSI 볼륨에서 생성됩니다.
+                <br />
+                (예: NFS 계열은 생성되지 않을 수 있음)
+              </div>
 	          </div>
 	        ) : (
 	          <div />
