@@ -64,6 +64,15 @@ export default function Layout() {
     ? [...navigation, { name: '유저 관리', href: '/admin/users', icon: Shield }]
     : navigation
 
+  const storageTabs = [
+    { name: 'PVC', tab: 'pvcs' },
+    { name: 'PV', tab: 'pvs' },
+    { name: 'StorageClass', tab: 'storageclasses' },
+    { name: 'VolumeAttachment', tab: 'volumeattachments' },
+  ]
+  const isStorageRoute = location.pathname.startsWith('/storage')
+  const storageTabParam = new URLSearchParams(location.search).get('tab') || 'pvcs'
+
   return (
     <div className="min-h-screen bg-slate-900">
       <div className="fixed inset-y-0 left-0 w-64 bg-slate-800 border-r border-slate-700">
@@ -78,6 +87,43 @@ export default function Layout() {
 
           <nav className="flex-1 px-4 py-6 space-y-2">
             {navItems.map((item) => {
+              if (item.href === '/storage') {
+                const isActive = isStorageRoute
+                return (
+                  <div key={item.name} className="space-y-2">
+                    <Link
+                      to={item.href}
+                      className={`
+                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
+                        ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
+                      `}
+                    >
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                    {isStorageRoute && (
+                      <div className="ml-8 space-y-1">
+                        {storageTabs.map((tab) => {
+                          const isTabActive = isStorageRoute && storageTabParam === tab.tab
+                          return (
+                            <Link
+                              key={tab.tab}
+                              to={`/storage?tab=${tab.tab}`}
+                              className={`
+                                block rounded-md px-3 py-2 text-sm transition-colors
+                                ${isTabActive ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'}
+                              `}
+                            >
+                              {tab.name}
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
               const isActive = location.pathname === item.href
               return (
                 <Link
