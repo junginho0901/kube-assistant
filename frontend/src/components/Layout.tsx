@@ -1,18 +1,43 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ComponentType } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { LayoutDashboard, Boxes, MessageSquare, Activity, Layers, LogOut, Shield, HardDrive, Database } from 'lucide-react'
+import {
+  Activity,
+  ArrowRight,
+  Box,
+  Boxes,
+  Clock,
+  Database,
+  FileBox,
+  FileCode,
+  HardDrive,
+  Key,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Network,
+  Search,
+  Server,
+  Shield,
+  Waypoints,
+} from 'lucide-react'
 import { api } from '@/services/api'
 import { clearAccessToken } from '@/services/auth'
 
-const navigation = [
-  { name: '대시보드', href: '/', icon: LayoutDashboard },
-  { name: '네임스페이스', href: '/namespaces', icon: Boxes },
-  { name: '스토리지', href: '/storage', icon: HardDrive },
-  { name: '리소스 모니터링', href: '/monitoring', icon: Activity },
-  { name: '클러스터 뷰', href: '/cluster-view', icon: Layers },
-  { name: 'AI 챗', href: '/ai-chat', icon: MessageSquare },
-]
+type NavItem = {
+  name: string
+  href: string
+  icon?: ComponentType<{ className?: string }>
+  exact?: boolean
+  match?: (pathname: string, search: string) => boolean
+}
+
+type NavGroup = {
+  label: string
+  items: NavItem[]
+  adminOnly?: boolean
+}
 
 export default function Layout() {
   const location = useLocation()
@@ -60,18 +85,135 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const navItems = me?.role === 'admin'
-    ? [...navigation, { name: '유저 관리', href: '/admin/users', icon: Shield }]
-    : navigation
+  const isAdmin = me?.role === 'admin'
+  const searchParams = new URLSearchParams(location.search)
 
-  const storageTabs = [
-    { name: 'PVC', tab: 'pvcs', icon: Database },
-    { name: 'PV', tab: 'pvs', icon: HardDrive },
-    { name: 'StorageClass', tab: 'storageclasses', icon: Database },
-    { name: 'VolumeAttachment', tab: 'volumeattachments', icon: HardDrive },
+  const storageTabMatch = (tab: string) => {
+    if (!location.pathname.startsWith('/storage')) return false
+    const current = searchParams.get('tab') || 'pvcs'
+    return current === tab
+  }
+
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Core',
+      items: [
+        { name: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true },
+        { name: 'Cluster View', href: '/cluster-view', icon: Layers },
+        { name: 'Monitoring', href: '/monitoring', icon: Activity },
+        { name: 'AI Chat', href: '/ai-chat', icon: MessageSquare },
+      ],
+    },
+    {
+      label: 'Cluster',
+      items: [
+        { name: 'Namespaces', href: '/cluster/namespaces', icon: Boxes },
+        { name: 'Nodes', href: '/cluster/nodes', icon: Server },
+        { name: 'Advanced Search (Beta)', href: '/cluster/search', icon: Search },
+      ],
+    },
+    {
+      label: 'Workloads',
+      items: [
+        { name: 'Pods', href: '/workloads/pods', icon: Box },
+        { name: 'Deployments', href: '/workloads/deployments', icon: Layers },
+        { name: 'Stateful Sets', href: '/workloads/statefulsets', icon: Database },
+        { name: 'Daemon Sets', href: '/workloads/daemonsets', icon: Server },
+        { name: 'Replica Sets', href: '/workloads/replicasets', icon: Boxes },
+        { name: 'Jobs', href: '/workloads/jobs', icon: FileBox },
+        { name: 'CronJobs', href: '/workloads/cronjobs', icon: Clock },
+      ],
+    },
+    {
+      label: 'Storage',
+      items: [
+        {
+          name: 'Persistent Volume Claims',
+          href: '/storage?tab=pvcs',
+          icon: Database,
+          match: () => storageTabMatch('pvcs'),
+        },
+        {
+          name: 'Persistent Volumes',
+          href: '/storage?tab=pvs',
+          icon: HardDrive,
+          match: () => storageTabMatch('pvs'),
+        },
+        {
+          name: 'Storage Classes',
+          href: '/storage?tab=storageclasses',
+          icon: Layers,
+          match: () => storageTabMatch('storageclasses'),
+        },
+        {
+          name: 'Volume Attachments',
+          href: '/storage?tab=volumeattachments',
+          icon: Waypoints,
+          match: () => storageTabMatch('volumeattachments'),
+        },
+      ],
+    },
+    {
+      label: 'Network',
+      items: [
+        { name: 'Services', href: '/network/services', icon: Network },
+        { name: 'Endpoints', href: '/network/endpoints', icon: Server },
+        { name: 'Endpoint Slices', href: '/network/endpointslices', icon: Waypoints },
+        { name: 'Ingresses', href: '/network/ingresses', icon: ArrowRight },
+        { name: 'Ingress Classes', href: '/network/ingressclasses', icon: FileCode },
+        { name: 'Network Policies', href: '/network/networkpolicies', icon: Shield },
+      ],
+    },
+    {
+      label: 'Gateway (Beta)',
+      items: [
+        { name: 'Gateways', href: '/gateway/gateways', icon: Waypoints },
+        { name: 'Gateway Classes', href: '/gateway/gatewayclasses', icon: FileCode },
+        { name: 'HTTP Routes', href: '/gateway/httproutes', icon: ArrowRight },
+        { name: 'GRPC Routes', href: '/gateway/grpcroutes', icon: ArrowRight },
+        { name: 'Reference Grants', href: '/gateway/referencegrants', icon: Key },
+        { name: 'Backend TLS Policies', href: '/gateway/backendtlspolicies', icon: Shield },
+        { name: 'Backend Traffic Policies', href: '/gateway/backendtrafficpolicies', icon: Network },
+      ],
+    },
+    {
+      label: 'Security',
+      items: [
+        { name: 'Service Accounts', href: '/security/serviceaccounts', icon: Key },
+        { name: 'Roles', href: '/security/roles', icon: Shield },
+        { name: 'Role Bindings', href: '/security/rolebindings', icon: Shield },
+      ],
+    },
+    {
+      label: 'Configuration',
+      items: [
+        { name: 'Config Maps', href: '/configuration/configmaps', icon: FileCode },
+        { name: 'Secrets', href: '/configuration/secrets', icon: Key },
+        { name: 'HPAs', href: '/configuration/hpas', icon: Activity },
+        { name: 'VPAs', href: '/configuration/vpas', icon: Activity },
+        { name: 'Pod Disruption Budgets', href: '/configuration/pdbs', icon: Shield },
+        { name: 'Resource Quotas', href: '/configuration/resourcequotas', icon: Database },
+        { name: 'Limit Ranges', href: '/configuration/limitranges', icon: Layers },
+        { name: 'Priority Classes', href: '/configuration/priorityclasses', icon: Activity },
+        { name: 'Runtime Classes', href: '/configuration/runtimeclasses', icon: Server },
+        { name: 'Leases', href: '/configuration/leases', icon: Clock },
+        { name: 'Mutating Webhook Configurations', href: '/configuration/mutatingwebhookconfigurations', icon: FileCode },
+        { name: 'Validating Webhook Configurations', href: '/configuration/validatingwebhookconfigurations', icon: FileCode },
+      ],
+    },
+    {
+      label: 'Custom Resources',
+      items: [
+        { name: 'Instances', href: '/custom-resources/instances', icon: FileBox },
+        { name: 'CRD Groups', href: '/custom-resources/groups', icon: FileCode },
+      ],
+    },
+    {
+      label: 'Admin',
+      adminOnly: true,
+      items: [{ name: 'User Management', href: '/admin/users', icon: Shield }],
+    },
   ]
-  const isStorageRoute = location.pathname.startsWith('/storage')
-  const storageTabParam = new URLSearchParams(location.search).get('tab') || 'pvcs'
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -85,61 +227,39 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {navItems.map((item) => {
-              if (item.href === '/storage') {
-                const isActive = isStorageRoute
-                return (
-                  <div key={item.name} className="space-y-2">
-                    <Link
-                      to={item.href}
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                        ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
-                      `}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.name}</span>
-                    </Link>
-                    {isStorageRoute && (
-                      <div className="ml-8 space-y-1">
-                        {storageTabs.map((tab) => {
-                          const isTabActive = isStorageRoute && storageTabParam === tab.tab
-                          return (
-                            <Link
-                              key={tab.tab}
-                              to={`/storage?tab=${tab.tab}`}
-                              className={`
-                                flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors
-                                ${isTabActive ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'}
-                              `}
-                            >
-                              <tab.icon className="h-4 w-4 text-slate-400" />
-                              {tab.name}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    )}
+          <nav className="flex-1 px-4 py-6 space-y-6">
+            {navGroups
+              .filter((group) => (group.adminOnly ? isAdmin : true))
+              .map((group) => (
+                <div key={group.label} className="space-y-2">
+                  <div className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {group.label}
                   </div>
-                )
-              }
-
-              const isActive = location.pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                    ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
-                  `}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
-                </Link>
-              )
-            })}
+                  <div className="space-y-1">
+                    {group.items.map((item) => {
+                      const isActive = item.match
+                        ? item.match(location.pathname, location.search)
+                        : item.exact
+                          ? location.pathname === item.href
+                          : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
+                      const Icon = item.icon
+                      return (
+                        <Link
+                          key={item.href}
+                          to={item.href}
+                          className={`
+                            flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors
+                            ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
+                          `}
+                        >
+                          {Icon && <Icon className="w-4 h-4" />}
+                          <span className="font-medium">{item.name}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
           </nav>
 
           <div className="px-6 py-4">
