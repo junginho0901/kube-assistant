@@ -1,18 +1,46 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, type ComponentType } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { LayoutDashboard, Boxes, MessageSquare, Activity, Layers, LogOut, Shield, HardDrive, Database } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import {
+  Activity,
+  ArrowRight,
+  Box,
+  Boxes,
+  Clock,
+  Database,
+  FileBox,
+  FileCode,
+  HardDrive,
+  Key,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Network,
+  Search,
+  Server,
+  Shield,
+  Waypoints,
+  ChevronDown,
+} from 'lucide-react'
 import { api } from '@/services/api'
 import { clearAccessToken } from '@/services/auth'
 
-const navigation = [
-  { name: '대시보드', href: '/', icon: LayoutDashboard },
-  { name: '네임스페이스', href: '/namespaces', icon: Boxes },
-  { name: '스토리지', href: '/storage', icon: HardDrive },
-  { name: '리소스 모니터링', href: '/monitoring', icon: Activity },
-  { name: '클러스터 뷰', href: '/cluster-view', icon: Layers },
-  { name: 'AI 챗', href: '/ai-chat', icon: MessageSquare },
-]
+type NavItem = {
+  name: string
+  href: string
+  icon?: ComponentType<{ className?: string }>
+  exact?: boolean
+  match?: (pathname: string, search: string) => boolean
+}
+
+type NavGroup = {
+  id: string
+  label: string
+  items: NavItem[]
+  adminOnly?: boolean
+}
 
 export default function Layout() {
   const location = useLocation()
@@ -60,18 +88,179 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const navItems = me?.role === 'admin'
-    ? [...navigation, { name: '유저 관리', href: '/admin/users', icon: Shield }]
-    : navigation
+  const { t } = useTranslation()
+  const isAdmin = me?.role === 'admin'
+  const searchParams = new URLSearchParams(location.search)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ core: true })
 
-  const storageTabs = [
-    { name: 'PVC', tab: 'pvcs', icon: Database },
-    { name: 'PV', tab: 'pvs', icon: HardDrive },
-    { name: 'StorageClass', tab: 'storageclasses', icon: Database },
-    { name: 'VolumeAttachment', tab: 'volumeattachments', icon: HardDrive },
-  ]
-  const isStorageRoute = location.pathname.startsWith('/storage')
-  const storageTabParam = new URLSearchParams(location.search).get('tab') || 'pvcs'
+  const storageTabMatch = (tab: string) => {
+    if (!location.pathname.startsWith('/storage')) return false
+    const current = searchParams.get('tab') || 'pvcs'
+    return current === tab
+  }
+
+  const navGroups: NavGroup[] = useMemo(() => [
+    {
+      id: 'core',
+      label: t('nav.core'),
+      items: [
+        { name: t('nav.dashboard'), href: '/', icon: LayoutDashboard, exact: true },
+        { name: t('nav.clusterView'), href: '/cluster-view', icon: Layers },
+        { name: t('nav.monitoring'), href: '/monitoring', icon: Activity },
+        { name: t('nav.aiChat'), href: '/ai-chat', icon: MessageSquare },
+      ],
+    },
+    {
+      id: 'cluster',
+      label: t('nav.cluster'),
+      items: [
+        { name: t('nav.namespaces'), href: '/cluster/namespaces', icon: Boxes },
+        { name: t('nav.nodes'), href: '/cluster/nodes', icon: Server },
+        { name: t('nav.advancedSearch'), href: '/cluster/search', icon: Search },
+      ],
+    },
+    {
+      id: 'workloads',
+      label: t('nav.workloads'),
+      items: [
+        { name: t('nav.pods'), href: '/workloads/pods', icon: Box },
+        { name: t('nav.deployments'), href: '/workloads/deployments', icon: Layers },
+        { name: t('nav.statefulSets'), href: '/workloads/statefulsets', icon: Database },
+        { name: t('nav.daemonSets'), href: '/workloads/daemonsets', icon: Server },
+        { name: t('nav.replicaSets'), href: '/workloads/replicasets', icon: Boxes },
+        { name: t('nav.jobs'), href: '/workloads/jobs', icon: FileBox },
+        { name: t('nav.cronJobs'), href: '/workloads/cronjobs', icon: Clock },
+      ],
+    },
+    {
+      id: 'storage',
+      label: t('nav.storage'),
+      items: [
+        {
+          name: t('nav.pvcs'),
+          href: '/storage?tab=pvcs',
+          icon: Database,
+          match: () => storageTabMatch('pvcs'),
+        },
+        {
+          name: t('nav.pvs'),
+          href: '/storage?tab=pvs',
+          icon: HardDrive,
+          match: () => storageTabMatch('pvs'),
+        },
+        {
+          name: t('nav.storageClasses'),
+          href: '/storage?tab=storageclasses',
+          icon: Layers,
+          match: () => storageTabMatch('storageclasses'),
+        },
+        {
+          name: t('nav.volumeAttachments'),
+          href: '/storage?tab=volumeattachments',
+          icon: Waypoints,
+          match: () => storageTabMatch('volumeattachments'),
+        },
+      ],
+    },
+    {
+      id: 'network',
+      label: t('nav.network'),
+      items: [
+        { name: t('nav.services'), href: '/network/services', icon: Network },
+        { name: t('nav.endpoints'), href: '/network/endpoints', icon: Server },
+        { name: t('nav.endpointSlices'), href: '/network/endpointslices', icon: Waypoints },
+        { name: t('nav.ingresses'), href: '/network/ingresses', icon: ArrowRight },
+        { name: t('nav.ingressClasses'), href: '/network/ingressclasses', icon: FileCode },
+        { name: t('nav.networkPolicies'), href: '/network/networkpolicies', icon: Shield },
+      ],
+    },
+    {
+      id: 'gateway',
+      label: t('nav.gateway'),
+      items: [
+        { name: t('nav.gateways'), href: '/gateway/gateways', icon: Waypoints },
+        { name: t('nav.gatewayClasses'), href: '/gateway/gatewayclasses', icon: FileCode },
+        { name: t('nav.httpRoutes'), href: '/gateway/httproutes', icon: ArrowRight },
+        { name: t('nav.grpcRoutes'), href: '/gateway/grpcroutes', icon: ArrowRight },
+        { name: t('nav.referenceGrants'), href: '/gateway/referencegrants', icon: Key },
+        { name: t('nav.backendTlsPolicies'), href: '/gateway/backendtlspolicies', icon: Shield },
+        { name: t('nav.backendTrafficPolicies'), href: '/gateway/backendtrafficpolicies', icon: Network },
+      ],
+    },
+    {
+      id: 'security',
+      label: t('nav.security'),
+      items: [
+        { name: t('nav.serviceAccounts'), href: '/security/serviceaccounts', icon: Key },
+        { name: t('nav.roles'), href: '/security/roles', icon: Shield },
+        { name: t('nav.roleBindings'), href: '/security/rolebindings', icon: Shield },
+      ],
+    },
+    {
+      id: 'configuration',
+      label: t('nav.configuration'),
+      items: [
+        { name: t('nav.configMaps'), href: '/configuration/configmaps', icon: FileCode },
+        { name: t('nav.secrets'), href: '/configuration/secrets', icon: Key },
+        { name: t('nav.hpas'), href: '/configuration/hpas', icon: Activity },
+        { name: t('nav.vpas'), href: '/configuration/vpas', icon: Activity },
+        { name: t('nav.pdbs'), href: '/configuration/pdbs', icon: Shield },
+        { name: t('nav.resourceQuotas'), href: '/configuration/resourcequotas', icon: Database },
+        { name: t('nav.limitRanges'), href: '/configuration/limitranges', icon: Layers },
+        { name: t('nav.priorityClasses'), href: '/configuration/priorityclasses', icon: Activity },
+        { name: t('nav.runtimeClasses'), href: '/configuration/runtimeclasses', icon: Server },
+        { name: t('nav.leases'), href: '/configuration/leases', icon: Clock },
+        { name: t('nav.mutatingWebhooks'), href: '/configuration/mutatingwebhookconfigurations', icon: FileCode },
+        { name: t('nav.validatingWebhooks'), href: '/configuration/validatingwebhookconfigurations', icon: FileCode },
+      ],
+    },
+    {
+      id: 'customResources',
+      label: t('nav.customResources'),
+      items: [
+        { name: t('nav.customInstances'), href: '/custom-resources/instances', icon: FileBox },
+        { name: t('nav.customGroups'), href: '/custom-resources/groups', icon: FileCode },
+      ],
+    },
+    {
+      id: 'admin',
+      label: t('nav.admin'),
+      adminOnly: true,
+      items: [{ name: t('nav.userManagement'), href: '/admin/users', icon: Shield }],
+    },
+  ], [t])
+
+  const activeGroup = useMemo(() => {
+    for (const group of navGroups) {
+      if (group.adminOnly && !isAdmin) continue
+      for (const item of group.items) {
+        const isActive = item.match
+          ? item.match(location.pathname, location.search)
+          : item.exact
+            ? location.pathname === item.href
+            : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
+        if (isActive) return group.id
+      }
+    }
+    return null
+  }, [isAdmin, location.pathname, location.search, navGroups])
+
+  useEffect(() => {
+    if (!activeGroup) return
+    setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }))
+  }, [activeGroup])
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) => {
+      const next: Record<string, boolean> = {}
+      const willOpen = !prev[groupId]
+      for (const key of Object.keys(prev)) {
+        next[key] = false
+      }
+      next[groupId] = willOpen
+      return next
+    })
+  }
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -85,70 +274,57 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {navItems.map((item) => {
-              if (item.href === '/storage') {
-                const isActive = isStorageRoute
-                return (
-                  <div key={item.name} className="space-y-2">
-                    <Link
-                      to={item.href}
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                        ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
-                      `}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.name}</span>
-                    </Link>
-                    {isStorageRoute && (
-                      <div className="ml-8 space-y-1">
-                        {storageTabs.map((tab) => {
-                          const isTabActive = isStorageRoute && storageTabParam === tab.tab
-                          return (
-                            <Link
-                              key={tab.tab}
-                              to={`/storage?tab=${tab.tab}`}
-                              className={`
-                                flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors
-                                ${isTabActive ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'}
-                              `}
-                            >
-                              <tab.icon className="h-4 w-4 text-slate-400" />
-                              {tab.name}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )
-              }
-
-              const isActive = location.pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                    ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
-                  `}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
-                </Link>
-              )
-            })}
+          <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+            {navGroups
+              .filter((group) => (group.adminOnly ? isAdmin : true))
+              .map((group) => (
+                <div key={group.label} className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    className="w-full flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:text-slate-300"
+                  >
+                    <span>{group.label}</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {openGroups[group.id] && (
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        const isActive = item.match
+                          ? item.match(location.pathname, location.search)
+                          : item.exact
+                            ? location.pathname === item.href
+                            : location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)
+                        const Icon = item.icon
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            className={`
+                              flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors
+                              ${isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}
+                            `}
+                          >
+                            {Icon && <Icon className="w-4 h-4" />}
+                            <span className="font-medium">{item.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
           </nav>
 
           <div className="px-6 py-4">
             <Link
               to="/account"
               className="block rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 hover:bg-slate-700/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-600"
-              title="내 정보 / 비밀번호 변경"
+              title={t('layout.accountTitle')}
             >
-              <div className="text-[11px] text-slate-400">계정</div>
+              <div className="text-[11px] text-slate-400">{t('layout.account')}</div>
               <div className="mt-0.5 truncate text-sm text-white">{me?.name ?? '...'}</div>
               <div className="truncate text-xs text-slate-400">{me?.email ?? ''}</div>
             </Link>
@@ -159,7 +335,7 @@ export default function Layout() {
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700/40"
             >
               <LogOut className="w-4 h-4" />
-              로그아웃
+              {t('layout.logout')}
             </button>
 
             <div className="-mx-6 mt-4 border-t border-slate-700" />
@@ -167,17 +343,17 @@ export default function Layout() {
               {clusterStatus === 'checking' ? (
                 <>
                   <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                  <span>연결 확인 중...</span>
+                  <span>{t('layout.clusterChecking')}</span>
                 </>
               ) : clusterStatus === 'connected' ? (
                 <>
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>클러스터 연결됨</span>
+                  <span>{t('layout.clusterConnected')}</span>
                 </>
               ) : (
                 <>
                   <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span>클러스터 연결 안 됨</span>
+                  <span>{t('layout.clusterDisconnected')}</span>
                 </>
               )}
             </div>
