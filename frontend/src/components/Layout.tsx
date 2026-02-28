@@ -22,7 +22,6 @@ import {
   Server,
   Shield,
   Waypoints,
-  ChevronDown,
 } from 'lucide-react'
 import { api } from '@/services/api'
 import { clearAccessToken } from '@/services/auth'
@@ -274,23 +273,27 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+          <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">
             {navGroups
               .filter((group) => (group.adminOnly ? isAdmin : true))
               .map((group) => (
-                <div key={group.label} className="space-y-2">
+                <div key={group.label} className="space-y-1">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:text-slate-300"
+                    className={`w-full flex items-center px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] transition-colors ${
+                      openGroups[group.id] ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <span>{group.label}</span>
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`}
-                    />
                   </button>
-                  {openGroups[group.id] && (
-                    <div className="space-y-1">
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                      openGroups[group.id] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="space-y-1">
                       {group.items.map((item) => {
                         const isActive = item.match
                           ? item.match(location.pathname, location.search)
@@ -312,8 +315,9 @@ export default function Layout() {
                           </Link>
                         )
                       })}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               ))}
           </nav>
