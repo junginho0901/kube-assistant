@@ -143,48 +143,68 @@ export default function ClusterNodes() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder={tr('nodes.searchPlaceholder', 'Search nodes by name...')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type="text"
+          placeholder={tr('nodes.searchPlaceholder', 'Search nodes by name...')}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        />
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-white">
+            {tr('nodes.top.title', 'Top nodes by resource usage')}
+          </h2>
+          <Server className="w-4 h-4 text-slate-400" />
         </div>
-        <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white">
-              {tr('nodes.top.title', 'Top nodes by resource usage')}
-            </h2>
-            <Server className="w-4 h-4 text-slate-400" />
-          </div>
-          {isLoadingMetrics ? (
-            <p className="text-sm text-slate-400">{tr('nodes.top.loading', 'Loading metrics...')}</p>
-          ) : isMetricsError ? (
-            <p className="text-sm text-slate-400">{tr('nodes.top.error', 'Metrics unavailable')}</p>
-          ) : topNodes.length > 0 ? (
-            <div className="space-y-3">
-              {topNodes.map((node, index) => (
-                <div key={node.name} className="rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2">
+        {isLoadingMetrics ? (
+          <p className="text-sm text-slate-400">{tr('nodes.top.loading', 'Loading metrics...')}</p>
+        ) : isMetricsError ? (
+          <p className="text-sm text-slate-400">{tr('nodes.top.error', 'Metrics unavailable')}</p>
+        ) : topNodes.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {topNodes.map((node, index) => {
+              const cpuPercent = parseFloat(node.cpu_percent)
+              const memPercent = parseFloat(node.memory_percent)
+              return (
+                <div key={node.name} className="rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-3">
                   <div className="flex items-center justify-between text-sm text-white">
                     <span className="font-medium">#{index + 1} {node.name}</span>
                     <span className="text-xs text-slate-400">{node.cpu} / {node.memory}</span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-400">
-                    CPU {node.cpu_percent} · MEM {node.memory_percent}
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-slate-400 flex items-center justify-between">
+                      <span>CPU</span>
+                      <span className="font-medium text-emerald-300">{node.cpu_percent}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${cpuPercent >= 80 ? 'bg-red-500' : cpuPercent >= 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(cpuPercent, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-slate-400 flex items-center justify-between">
+                      <span>MEM</span>
+                      <span className="font-medium text-blue-300">{node.memory_percent}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${memPercent >= 80 ? 'bg-red-500' : memPercent >= 60 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                        style={{ width: `${Math.min(memPercent, 100)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-400">{tr('nodes.top.empty', 'No metrics available')}</p>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400">{tr('nodes.top.empty', 'No metrics available')}</p>
+        )}
       </div>
 
       <div className="card overflow-x-auto">
