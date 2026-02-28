@@ -289,8 +289,13 @@ export default function Layout() {
                       className={`h-3.5 w-3.5 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`}
                     />
                   </button>
-                  {openGroups[group.id] && (
-                    <div className="space-y-1">
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                      openGroups[group.id] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="space-y-1">
                       {group.items.map((item) => {
                         const isActive = item.match
                           ? item.match(location.pathname, location.search)
@@ -312,8 +317,9 @@ export default function Layout() {
                           </Link>
                         )
                       })}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               ))}
           </nav>
