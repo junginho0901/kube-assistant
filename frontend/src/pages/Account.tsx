@@ -76,7 +76,7 @@ export default function Account() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6">
         <div className="card">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
