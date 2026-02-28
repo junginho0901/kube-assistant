@@ -273,18 +273,17 @@ export default function Layout() {
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-6 space-y-6 overflow-y-auto">
+          <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">
             {navGroups
               .filter((group) => (group.adminOnly ? isAdmin : true))
               .map((group) => (
-                <div key={group.label} className="space-y-2">
+                <div key={group.label} className="space-y-1">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className={`
-                      w-full flex items-center justify-between px-4 py-2 rounded-lg text-[12px] font-semibold tracking-[0.14em]
-                      ${openGroups[group.id] ? 'bg-slate-900/60 text-slate-100' : 'bg-slate-900/30 text-slate-300 hover:text-white hover:bg-slate-800/60'}
-                    `}
+                    className={`w-full flex items-center px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] transition-colors ${
+                      openGroups[group.id] ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
                     <span>{group.label}</span>
                   </button>
