@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -27,6 +28,11 @@ type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' 
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  const tr = (key: string, fallback: string, options?: Record<string, any>) => t(key, { defaultValue: fallback, ...options })
+  const na = tr('common.notAvailable', 'N/A')
+  const none = tr('common.none', 'None')
+  const emptyValue = tr('common.empty', '-')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedResourceType, setSelectedResourceType] = useState<ResourceType | null>(null)
   const [modalSearchQuery, setModalSearchQuery] = useState<string>('')
@@ -515,7 +521,10 @@ export default function Dashboard() {
         },
         onDone: () => {
           if (!optimizationMetaReceivedRef.current) {
-            setOptimizationStreamError((prev) => prev || '서버가 meta(종료 사유)를 보내지 않았습니다. ai-service가 재빌드/재시작되지 않았을 수 있어요.')
+            setOptimizationStreamError((prev) => prev || tr(
+              'dashboard.optimization.missingMeta',
+              'Server did not send meta (finish reason). ai-service may not be rebuilt/restarted.',
+            ))
           }
           optimizationStreamDoneRef.current = true
           if (!optimizationStreamRafRef.current) {
@@ -666,15 +675,7 @@ export default function Dashboard() {
 
   // 선택된 리소스 타입에 해당하는 stat 정보 가져오기
   const getSelectedStat = () => {
-    const resourceTypeMap: Record<string, ResourceType> = {
-      '네임스페이스': 'namespaces',
-      'Pods': 'pods',
-      'Services': 'services',
-      'Deployments': 'deployments',
-      'PVCs': 'pvcs',
-      'Nodes': 'nodes',
-    }
-    return stats.find(s => resourceTypeMap[s.name] === selectedResourceType)
+    return stats.find((s) => s.resourceType === selectedResourceType)
   }
 
   // 리소스 개수 가져오기
@@ -782,7 +783,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
         <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
-        <p className="text-slate-400">데이터를 불러오는 중...</p>
+        <p className="text-slate-400">{tr('dashboard.loading', 'Loading data...')}</p>
       </div>
     )
   }
@@ -794,42 +795,48 @@ export default function Dashboard() {
 
   const stats = [
     {
-      name: '네임스페이스',
+      name: tr('dashboard.stats.namespaces', 'Namespaces'),
+      resourceType: 'namespaces' as ResourceType,
       value: overview?.total_namespaces || 0,
       icon: Server,
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/10',
     },
     {
-      name: 'Pods',
+      name: tr('dashboard.stats.pods', 'Pods'),
+      resourceType: 'pods' as ResourceType,
       value: overview?.total_pods || 0,
       icon: Box,
       color: 'text-green-400',
       bgColor: 'bg-green-500/10',
     },
     {
-      name: 'Services',
+      name: tr('dashboard.stats.services', 'Services'),
+      resourceType: 'services' as ResourceType,
       value: overview?.total_services || 0,
       icon: Database,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10',
     },
     {
-      name: 'Deployments',
+      name: tr('dashboard.stats.deployments', 'Deployments'),
+      resourceType: 'deployments' as ResourceType,
       value: overview?.total_deployments || 0,
       icon: TrendingUp,
       color: 'text-yellow-400',
       bgColor: 'bg-yellow-500/10',
     },
     {
-      name: 'PVCs',
+      name: tr('dashboard.stats.pvcs', 'PVCs'),
+      resourceType: 'pvcs' as ResourceType,
       value: overview?.total_pvcs || 0,
       icon: HardDrive,
       color: 'text-pink-400',
       bgColor: 'bg-pink-500/10',
     },
     {
-      name: 'Nodes',
+      name: tr('dashboard.stats.nodes', 'Nodes'),
+      resourceType: 'nodes' as ResourceType,
       value: overview?.node_count || 0,
       icon: Server,
       color: 'text-cyan-400',
@@ -1100,8 +1107,8 @@ export default function Dashboard() {
         id: 'metrics:pod_error',
         kind: 'Metrics',
         severity: 'info',
-        title: 'Pod 메트릭 수집 실패',
-        subtitle: 'metrics-server 상태를 확인해주세요',
+        title: tr('dashboard.issues.metricsPodTitle', 'Pod metrics collection failed'),
+        subtitle: tr('dashboard.metricsServerHint', 'Check metrics-server status'),
       })
     }
     if (topResources?.node_error) {
@@ -1109,8 +1116,8 @@ export default function Dashboard() {
         id: 'metrics:node_error',
         kind: 'Metrics',
         severity: 'info',
-        title: 'Node 메트릭 수집 실패',
-        subtitle: 'metrics-server 상태를 확인해주세요',
+        title: tr('dashboard.issues.metricsNodeTitle', 'Node metrics collection failed'),
+        subtitle: tr('dashboard.metricsServerHint', 'Check metrics-server status'),
       })
     }
     return items
@@ -1167,6 +1174,20 @@ export default function Dashboard() {
     },
     { total: 0, critical: 0, warning: 0, info: 0 } as { total: number; critical: number; warning: number; info: number }
   )
+
+  const issueKindLabels: Record<IssueKind, string> = {
+    Node: tr('dashboard.issues.kind.node', 'Node'),
+    Deployment: tr('dashboard.issues.kind.deployment', 'Deployment'),
+    PVC: tr('dashboard.issues.kind.pvc', 'PVC'),
+    Pod: tr('dashboard.issues.kind.pod', 'Pod'),
+    Metrics: tr('dashboard.issues.kind.metrics', 'Metrics'),
+  }
+
+  const issueSeverityLabels: Record<IssueSeverity, string> = {
+    critical: tr('dashboard.issues.severity.critical', 'CRITICAL'),
+    warning: tr('dashboard.issues.severity.warning', 'WARNING'),
+    info: tr('dashboard.issues.severity.info', 'INFO'),
+  }
 
   const isIssuesLoading =
     isIssuesModalOpen &&
@@ -1274,39 +1295,31 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">클러스터 대시보드</h1>
+          <h1 className="text-3xl font-bold text-white">{tr('dashboard.title', 'Cluster Dashboard')}</h1>
           <p className="mt-2 text-slate-400">
-            Kubernetes 클러스터 전체 현황을 한눈에 확인하세요
+            {tr('dashboard.subtitle', 'Get a quick overview of your Kubernetes cluster.')}
           </p>
           {overview?.cluster_version && (
             <p className="mt-1 text-sm text-slate-500">
-              클러스터 버전: {overview.cluster_version}
+              {tr('dashboard.clusterVersion', 'Cluster version: {{version}}', { version: overview.cluster_version })}
             </p>
           )}
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
-          title="새로고침 (강제 갱신)"
+          title={tr('dashboard.refreshTitle', 'Force refresh')}
           className="btn btn-secondary flex items-center gap-2"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          새로고침
+          {tr('dashboard.refresh', 'Refresh')}
         </button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => {
-          const resourceTypeMap: Record<string, ResourceType> = {
-            '네임스페이스': 'namespaces',
-            'Pods': 'pods',
-            'Services': 'services',
-            'Deployments': 'deployments',
-            'PVCs': 'pvcs',
-            'Nodes': 'nodes',
-          }
-          const resourceType = resourceTypeMap[stat.name]
+          const resourceType = stat.resourceType
 
           return (
             <button
@@ -1333,8 +1346,10 @@ export default function Dashboard() {
         {/* Pod Status Chart */}
         {podStatusData.length > 0 && (
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Pod 상태</h2>
-            <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 Pod 목록 보기</p>
+            <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.podStatus.title', 'Pod status')}</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              {tr('dashboard.podStatus.subtitle', 'Click to view pods in each status')}
+            </p>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={podStatusData}
@@ -1384,8 +1399,10 @@ export default function Dashboard() {
         {/* Node Status Chart */}
         {nodeStatusChartData.length > 0 && (
           <div className="card">
-            <h2 className="text-xl font-bold text-white mb-4">Node 상태</h2>
-            <p className="text-sm text-slate-400 mb-4">클릭하여 해당 상태의 Node 목록 보기</p>
+            <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.nodeStatus.title', 'Node status')}</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              {tr('dashboard.nodeStatus.subtitle', 'Click to view nodes in each status')}
+            </p>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={nodeStatusChartData}
@@ -1438,8 +1455,10 @@ export default function Dashboard() {
         {/* Top 파드 */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">리소스 사용 Top 5 Pod</h2>
-            <p className="text-xs text-slate-400">5초마다 자동 갱신</p>
+            <h2 className="text-xl font-bold text-white">
+              {tr('dashboard.topPods.title', 'Top 5 pods by resource usage')}
+            </h2>
+            <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
           </div>
           {isLoadingTopResources && !topResources ? (
             // 초기 로딩: 스켈레톤 표시
@@ -1465,7 +1484,7 @@ export default function Dashboard() {
             <div className="text-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <AlertCircle className="w-8 h-8 text-red-400" />
-                <p className="text-slate-400">데이터를 가져오는데 실패했습니다</p>
+                <p className="text-slate-400">{tr('dashboard.topResources.error', 'Failed to fetch data')}</p>
               </div>
             </div>
           ) : topResources?.top_pods && topResources.top_pods.length > 0 ? (
@@ -1486,11 +1505,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center justify-end gap-6 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400">CPU:</span>
+                      <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}:</span>
                       <span className="text-green-400 font-mono font-medium">{pod.cpu}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400">Memory:</span>
+                      <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}:</span>
                       <span className="text-blue-400 font-mono font-medium">{pod.memory}</span>
                     </div>
                   </div>
@@ -1502,14 +1521,14 @@ export default function Dashboard() {
             <div className="text-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <AlertCircle className="w-8 h-8 text-yellow-400" />
-                <p className="text-slate-400">Pod 메트릭을 가져오는 데 실패했습니다</p>
-                <p className="text-xs text-slate-500">metrics-server 상태를 확인해주세요</p>
+                <p className="text-slate-400">{tr('dashboard.topPods.metricsError', 'Failed to fetch pod metrics')}</p>
+                <p className="text-xs text-slate-500">{tr('dashboard.metricsServerHint', 'Check metrics-server status')}</p>
               </div>
             </div>
           ) : (
             // 데이터가 없을 때
             <div className="text-center py-12">
-              <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              <p className="text-slate-400">{tr('dashboard.topResources.empty', 'No resource usage data')}</p>
             </div>
           )}
         </div>
@@ -1517,8 +1536,10 @@ export default function Dashboard() {
         {/* Top Node */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">리소스 사용 Top 3 Node</h2>
-            <p className="text-xs text-slate-400">5초마다 자동 갱신</p>
+            <h2 className="text-xl font-bold text-white">
+              {tr('dashboard.topNodes.title', 'Top 3 nodes by resource usage')}
+            </h2>
+            <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
           </div>
           {isLoadingTopResources && !topResources ? (
             // 초기 로딩: 스켈레톤 표시
@@ -1558,7 +1579,7 @@ export default function Dashboard() {
             <div className="text-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <AlertCircle className="w-8 h-8 text-red-400" />
-                <p className="text-slate-400">데이터를 가져오는데 실패했습니다</p>
+                <p className="text-slate-400">{tr('dashboard.topResources.error', 'Failed to fetch data')}</p>
               </div>
             </div>
           ) : topResources?.top_nodes && topResources.top_nodes.length > 0 ? (
@@ -1577,8 +1598,8 @@ export default function Dashboard() {
                       <div className="flex-1">
                         <h3 className="font-medium text-white">{node.name}</h3>
                         <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                          <span>CPU: {node.cpu}</span>
-                          <span>Memory: {node.memory}</span>
+                          <span>{tr('dashboard.cpu', 'CPU')}: {node.cpu}</span>
+                          <span>{tr('dashboard.memory', 'Memory')}: {node.memory}</span>
                         </div>
                       </div>
                     </div>
@@ -1586,7 +1607,7 @@ export default function Dashboard() {
                     {/* CPU 사용량 막대 */}
                     <div className="space-y-1 pl-11">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">CPU</span>
+                        <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}</span>
                         <span className={`font-medium ${cpuPercent >= 80 ? 'text-red-400' :
                             cpuPercent >= 60 ? 'text-yellow-400' :
                               'text-green-400'
@@ -1610,7 +1631,7 @@ export default function Dashboard() {
                     {/* Memory 사용량 막대 */}
                     <div className="space-y-1 pl-11">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Memory</span>
+                        <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}</span>
                         <span className={`font-medium ${memoryPercent >= 80 ? 'text-red-400' :
                             memoryPercent >= 60 ? 'text-yellow-400' :
                               'text-blue-400'
@@ -1639,14 +1660,14 @@ export default function Dashboard() {
             <div className="text-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <AlertCircle className="w-8 h-8 text-yellow-400" />
-                <p className="text-slate-400">Node 메트릭을 가져오는 데 실패했습니다</p>
-                <p className="text-xs text-slate-500">metrics-server 상태를 확인해주세요</p>
+                <p className="text-slate-400">{tr('dashboard.topNodes.metricsError', 'Failed to fetch node metrics')}</p>
+                <p className="text-xs text-slate-500">{tr('dashboard.metricsServerHint', 'Check metrics-server status')}</p>
               </div>
             </div>
           ) : (
             // 데이터가 없을 때
             <div className="text-center py-12">
-              <p className="text-slate-400">리소스 사용 데이터가 없습니다</p>
+              <p className="text-slate-400">{tr('dashboard.topResources.empty', 'No resource usage data')}</p>
             </div>
           )}
         </div>
@@ -1655,7 +1676,7 @@ export default function Dashboard() {
       {/* Node 상세 정보 - 별도 카드 */}
       {nodes && Array.isArray(nodes) && nodes.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">Node 목록</h2>
+          <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.nodes.title', 'Nodes')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto">
             {nodes.map((node) => (
               <button
@@ -1678,16 +1699,16 @@ export default function Dashboard() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-400">
-                    <span className="font-medium">Version:</span> {node.version || 'N/A'}
+                    <span className="font-medium">{tr('dashboard.nodeCard.versionLabel', 'Version')}:</span> {node.version || na}
                   </p>
                   {node.roles && node.roles.length > 0 && (
                     <p className="text-xs text-slate-400">
-                      <span className="font-medium">Roles:</span> {node.roles.join(', ')}
+                      <span className="font-medium">{tr('dashboard.nodeCard.rolesLabel', 'Roles')}:</span> {node.roles.join(', ')}
                     </p>
                   )}
                   {node.internal_ip && (
                     <p className="text-xs text-slate-400">
-                      <span className="font-medium">IP:</span> {node.internal_ip}
+                      <span className="font-medium">{tr('dashboard.nodeCard.ipLabel', 'IP')}:</span> {node.internal_ip}
                     </p>
                   )}
                 </div>
@@ -1705,14 +1726,16 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="card">
-        <h2 className="text-xl font-bold text-white mb-4">빠른 작업</h2>
+        <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.quickActions.title', 'Quick actions')}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <button className="btn btn-secondary text-left" onClick={handleOpenIssuesModal}>
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-yellow-400" />
               <div>
-                <div className="font-medium">이슈 확인</div>
-                <div className="text-xs text-slate-400">문제가 있는 리소스 찾기</div>
+                <div className="font-medium">{tr('dashboard.quickActions.issues.title', 'Check issues')}</div>
+                <div className="text-xs text-slate-400">
+                  {tr('dashboard.quickActions.issues.subtitle', 'Find resources with problems')}
+                </div>
               </div>
             </div>
           </button>
@@ -1720,8 +1743,10 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-green-400" />
               <div>
-                <div className="font-medium">최적화 제안</div>
-                <div className="text-xs text-slate-400">AI 기반 리소스 최적화</div>
+                <div className="font-medium">{tr('dashboard.quickActions.optimization.title', 'Optimization suggestions')}</div>
+                <div className="text-xs text-slate-400">
+                  {tr('dashboard.quickActions.optimization.subtitle', 'AI-powered resource optimization')}
+                </div>
               </div>
             </div>
           </button>
@@ -1729,8 +1754,10 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <Database className="w-5 h-5 text-blue-400" />
               <div>
-                <div className="font-medium">스토리지 분석</div>
-                <div className="text-xs text-slate-400">PV/PVC 사용 현황</div>
+                <div className="font-medium">{tr('dashboard.quickActions.storage.title', 'Storage analysis')}</div>
+                <div className="text-xs text-slate-400">
+                  {tr('dashboard.quickActions.storage.subtitle', 'PV/PVC usage status')}
+                </div>
               </div>
             </div>
           </button>
@@ -1747,9 +1774,14 @@ export default function Dashboard() {
               <div className="p-4 border-b border-slate-700">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="text-lg font-bold text-white">최적화 제안</h2>
+                    <h2 className="text-lg font-bold text-white">
+                      {tr('dashboard.optimization.title', 'Optimization suggestions')}
+                    </h2>
                     <p className="text-xs text-slate-400">
-                      선택한 네임스페이스의 Deployment/Pod 정보를 바탕으로 AI가 최적화 방안을 제안합니다
+                      {tr(
+                        'dashboard.optimization.subtitle',
+                        'AI suggests optimizations based on Deployment/Pod data in the selected namespace.',
+                      )}
                     </p>
                   </div>
                 <button
@@ -1765,11 +1797,13 @@ export default function Dashboard() {
                     <button
                       onClick={() => setIsOptimizationNamespaceDropdownOpen(!isOptimizationNamespaceDropdownOpen)}
                       className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[240px] justify-between disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="네임스페이스 선택"
+                      title={tr('dashboard.optimization.selectNamespaceTitle', 'Select namespace')}
                       disabled={isLoadingAllNamespaces}
                     >
                       <span className="text-xs font-medium truncate">
-                        {optimizationNamespace || (isLoadingAllNamespaces ? 'Loading...' : 'Select namespace')}
+                        {optimizationNamespace || (isLoadingAllNamespaces
+                          ? tr('dashboard.loading', 'Loading...')
+                          : tr('dashboard.optimization.selectNamespace', 'Select namespace'))}
                       </span>
                       <ChevronDown
                         className={`w-4 h-4 text-slate-400 transition-transform ${isOptimizationNamespaceDropdownOpen ? 'rotate-180' : ''}`}
@@ -1779,7 +1813,9 @@ export default function Dashboard() {
                     {isOptimizationNamespaceDropdownOpen && (
                       <div className="absolute top-full left-0 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 max-h-[340px] overflow-y-auto">
                         {optimizationNamespaces.length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-slate-200">표시할 네임스페이스가 없습니다</div>
+                          <div className="px-4 py-3 text-sm text-slate-200">
+                            {tr('dashboard.optimization.noNamespaces', 'No namespaces to display')}
+                          </div>
                         ) : (
                           optimizationNamespaces.map((ns) => (
                             <button
@@ -1806,22 +1842,24 @@ export default function Dashboard() {
                         onClick={handleRunOptimizationSuggestions}
                         disabled={!optimizationNamespace || isOptimizationStreaming}
                         className="h-9 px-3 rounded-lg text-xs font-medium transition-colors bg-primary-600 hover:bg-primary-500 text-white disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-2"
-                        title="AI 제안 생성"
+                        title={tr('dashboard.optimization.runTitle', 'Generate AI suggestion')}
                       >
                       {isOptimizationStreaming && (
                         <RefreshCw className="w-4 h-4 animate-spin" />
                       )}
-                      {isOptimizationStreaming ? '생성 중...' : '제안 생성'}
+                      {isOptimizationStreaming
+                        ? tr('dashboard.optimization.running', 'Generating...')
+                        : tr('dashboard.optimization.run', 'Generate')}
                     </button>
 
                   {isOptimizationStreaming && (
                     <button
                       onClick={handleStopOptimizationSuggestions}
                       className="h-10 px-4 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center gap-2"
-                      title="중단"
+                      title={tr('dashboard.optimization.stopTitle', 'Stop')}
                     >
                       <StopCircle className="w-4 h-4" />
-                      중단
+                      {tr('dashboard.optimization.stop', 'Stop')}
                     </button>
                   )}
 
@@ -1829,33 +1867,47 @@ export default function Dashboard() {
                       onClick={handleCopyOptimizationSuggestions}
                       disabled={!optimizationMarkdown}
                       className="h-9 px-3 rounded-lg text-xs font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                      title="결과 복사"
+                      title={tr('dashboard.optimization.copyTitle', 'Copy result')}
                     >
                     <Copy className="w-4 h-4" />
-                    {optimizationCopied ? '복사됨' : '복사'}
+                    {optimizationCopied
+                      ? tr('dashboard.optimization.copied', 'Copied')
+                      : tr('dashboard.optimization.copy', 'Copy')}
                   </button>
                 </div>
               </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="badge badge-info">Namespace {optimizationNamespace || 'N/A'}</span>
+                  <span className="badge badge-info">
+                    {tr('dashboard.optimization.namespaceBadge', 'Namespace {{namespace}}', {
+                      namespace: optimizationNamespace || na,
+                    })}
+                  </span>
                 {!!optimizationUsage && (
                   <span className="badge badge-info">
-                    Tokens {optimizationUsage.completion_tokens}
-                    {optimizationMeta?.max_tokens ? `/${optimizationMeta.max_tokens}` : ''}
+                    {tr('dashboard.optimization.tokensBadge', 'Tokens {{used}}{{max}}', {
+                      used: optimizationUsage.completion_tokens,
+                      max: optimizationMeta?.max_tokens ? `/${optimizationMeta.max_tokens}` : '',
+                    })}
                   </span>
                 )}
                 {!!optimizationMeta?.finish_reason && optimizationMeta.finish_reason !== 'stop' && (
                   <span className={`text-xs ${optimizationMeta.finish_reason === 'length' ? 'text-yellow-300' : 'text-yellow-200'}`}>
-                    응답이 정상 종료(stop)가 아니어서 일부가 잘렸을 수 있어요 ({optimizationMeta.finish_reason})
+                    {tr(
+                      'dashboard.optimization.finishReason',
+                      'The response did not end with stop and may be truncated ({{reason}})',
+                      { reason: optimizationMeta.finish_reason },
+                    )}
                   </span>
                 )}
                 {!!optimizationStreamError && (
                   <span className="text-xs text-red-300 break-words">
-                    스트림 오류: {optimizationStreamError}
+                    {tr('dashboard.optimization.streamError', 'Stream error')}: {optimizationStreamError}
                   </span>
                 )}
-                  <span className="text-[11px] text-slate-500">모델 호출에 최대 1분 정도 걸릴 수 있어요</span>
+                  <span className="text-[11px] text-slate-500">
+                    {tr('dashboard.optimization.modelLatency', 'Model calls can take up to ~1 minute')}
+                  </span>
                 </div>
               </div>
   
@@ -1863,22 +1915,28 @@ export default function Dashboard() {
               {isOptimizationStreaming && !optimizationMarkdown ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
                   <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">최적화 제안을 생성하는 중...</p>
-                  <p className="text-xs text-slate-500 mt-1">OpenAI 응답을 기다리고 있습니다</p>
+                  <p className="text-slate-400">
+                    {tr('dashboard.optimization.generating', 'Generating optimization suggestions...')}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {tr('dashboard.optimization.waiting', 'Waiting for OpenAI response')}
+                  </p>
                 </div>
               ) : optimizationStreamError && !optimizationMarkdown ? (
                 <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-100">제안 생성에 실패했습니다</p>
+                      <p className="text-sm font-medium text-slate-100">
+                        {tr('dashboard.optimization.failed', 'Failed to generate suggestions')}
+                      </p>
                       <p className="text-xs text-slate-400 mt-1 break-words">{optimizationStreamError}</p>
                       <div className="mt-3 flex items-center gap-2">
                         <button
                           onClick={handleRunOptimizationSuggestions}
                           className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200"
                         >
-                          다시 시도
+                          {tr('dashboard.optimization.retry', 'Retry')}
                         </button>
                       </div>
                     </div>
@@ -1886,9 +1944,14 @@ export default function Dashboard() {
                 </div>
               ) : !optimizationMarkdown ? (
                 <div className="text-center py-12">
-                  <p className="text-slate-400">네임스페이스를 선택한 뒤 “제안 생성”을 눌러주세요</p>
+                  <p className="text-slate-400">
+                    {tr('dashboard.optimization.selectPrompt', 'Select a namespace then click “Generate”.')}
+                  </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    (현재 API는 Deployment/Pod 목록을 요약해 AI에게 최적화 아이디어를 요청합니다)
+                    {tr(
+                      'dashboard.optimization.promptNote',
+                      '(The API summarizes Deployment/Pod lists and asks AI for optimization ideas.)',
+                    )}
                   </p>
                 </div>
                 ) : (
@@ -1896,7 +1959,7 @@ export default function Dashboard() {
                       {!!optimizationObservedMarkdown && (
                         <details className="rounded-lg border border-slate-700 bg-slate-900/20 p-3">
                           <summary className="cursor-pointer select-none text-xs font-medium text-slate-200">
-                            관측 데이터(표)
+                            {tr('dashboard.optimization.observedData', 'Observed data (table)')}
                           </summary>
                           <div className="mt-2 prose prose-invert prose-sm max-w-none leading-snug overflow-x-auto [&_table]:min-w-full [&_table]:w-max [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_pre]:text-xs">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationObservedMarkdown}</ReactMarkdown>
@@ -1909,7 +1972,9 @@ export default function Dashboard() {
                           <div className="prose prose-invert prose-sm max-w-none leading-snug overflow-x-auto [&_table]:min-w-full [&_table]:w-max [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_pre]:text-xs">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdownForStreaming}</ReactMarkdown>
                             {!optimizationAnswerContent && (
-                              <p className="text-[11px] text-slate-500">AI가 제안을 작성 중입니다…</p>
+                              <p className="text-[11px] text-slate-500">
+                                {tr('dashboard.optimization.writing', 'AI is drafting suggestions…')}
+                              </p>
                             )}
                           </div>
                         ) : (
@@ -1935,9 +2000,12 @@ export default function Dashboard() {
             <div className="p-6 border-b border-slate-700">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-white">이슈 확인</h2>
+                  <h2 className="text-xl font-bold text-white">{tr('dashboard.issues.title', 'Issues')}</h2>
                   <p className="text-sm text-slate-400">
-                    Pod/Node/Deployment/PVC 상태를 기반으로 문제 리소스를 모아 보여줍니다
+                    {tr(
+                      'dashboard.issues.subtitle',
+                      'Aggregates problematic resources based on Pod/Node/Deployment/PVC status.',
+                    )}
                   </p>
                 </div>
                 <button
@@ -1949,18 +2017,23 @@ export default function Dashboard() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="text-xs text-slate-400">총</span>
-                <span className="badge badge-info">{issuesSummary.total}개</span>
-                <span className="badge badge-error">Critical {issuesSummary.critical}</span>
-                <span className="badge badge-warning">Warning {issuesSummary.warning}</span>
-                <span className="badge badge-info">Info {issuesSummary.info}</span>
+                <span className="text-xs text-slate-400">{tr('dashboard.issues.totalLabel', 'Total')}</span>
+                <span className="badge badge-info">{tr('dashboard.issues.totalCount', '{{count}}', { count: issuesSummary.total })}</span>
+                <span className="badge badge-error">{tr('dashboard.issues.criticalLabel', 'Critical')} {issuesSummary.critical}</span>
+                <span className="badge badge-warning">{tr('dashboard.issues.warningLabel', 'Warning')} {issuesSummary.warning}</span>
+                <span className="badge badge-info">{tr('dashboard.issues.infoLabel', 'Info')} {issuesSummary.info}</span>
               </div>
 
               <label className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg border border-slate-700 bg-slate-900/20">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-200">재시작 이력 포함</p>
+                  <p className="text-sm font-medium text-slate-200">
+                    {tr('dashboard.issues.includeRestarts', 'Include restart history')}
+                  </p>
                   <p className="text-xs text-slate-400 truncate">
-                    현재는 정상(Running/Ready)인 Pod의 과거 재시작도 Info로 표시
+                    {tr(
+                      'dashboard.issues.includeRestartsHint',
+                      'Include past restarts for currently healthy (Running/Ready) pods as Info.',
+                    )}
                   </p>
                 </div>
                 <input
@@ -1975,7 +2048,7 @@ export default function Dashboard() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="이슈 검색 (이름/네임스페이스/메시지)..."
+                  placeholder={tr('dashboard.issues.searchPlaceholder', 'Search issues (name/namespace/message)...')}
                   value={issuesSearchQuery}
                   onChange={(e) => setIssuesSearchQuery(e.target.value)}
                   className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
@@ -1995,13 +2068,15 @@ export default function Dashboard() {
               {isIssuesLoading ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
                   <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">이슈를 수집하는 중...</p>
+                  <p className="text-slate-400">{tr('dashboard.issues.loading', 'Collecting issues...')}</p>
                 </div>
               ) : sortedIssues.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
                   <CheckCircle className="w-9 h-9 text-green-400 mb-3" />
-                  <p className="text-slate-300 font-medium">문제가 감지되지 않았습니다</p>
-                  <p className="text-sm text-slate-400 mt-1">필터 조건(검색)을 확인해보세요</p>
+                  <p className="text-slate-300 font-medium">{tr('dashboard.issues.none', 'No issues detected')}</p>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {tr('dashboard.issues.noneHint', 'Check your filters/search terms')}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -2011,8 +2086,10 @@ export default function Dashboard() {
                     return (
                       <div key={kind} className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-slate-200">{kind}</h3>
-                          <span className="text-xs text-slate-400">{items.length}개</span>
+                          <h3 className="text-sm font-semibold text-slate-200">{issueKindLabels[kind] || kind}</h3>
+                          <span className="text-xs text-slate-400">
+                            {tr('dashboard.issues.count', '{{count}}', { count: items.length })}
+                          </span>
                         </div>
                         <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
                           {items.map((issue) => (
@@ -2028,7 +2105,7 @@ export default function Dashboard() {
                                             : 'badge-info'
                                         }`}
                                     >
-                                      {issue.severity.toUpperCase()}
+                                      {issueSeverityLabels[issue.severity] || issue.severity.toUpperCase()}
                                     </span>
                                     <p className="text-sm font-medium text-white truncate">
                                       {issue.title}
@@ -2037,7 +2114,7 @@ export default function Dashboard() {
                                   <div className="mt-1 space-y-0.5">
                                     {issue.namespace && (
                                       <p className="text-xs text-slate-400">
-                                        <span className="font-medium">ns:</span> {issue.namespace}
+                                        <span className="font-medium">{tr('dashboard.labels.namespaceShort', 'ns:')}</span> {issue.namespace}
                                       </p>
                                     )}
                                     {issue.subtitle && (
@@ -2069,8 +2146,12 @@ export default function Dashboard() {
             <div className="p-6 border-b border-slate-700">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-white">스토리지 분석</h2>
-                  <p className="text-sm text-slate-400">PV/PVC 상태 및 바인딩 현황을 확인합니다</p>
+                  <h2 className="text-xl font-bold text-white">
+                    {tr('dashboard.storage.title', 'Storage analysis')}
+                  </h2>
+                  <p className="text-sm text-slate-400">
+                    {tr('dashboard.storage.subtitle', 'Review PV/PVC status and binding state')}
+                  </p>
                 </div>
                 <button
                   onClick={handleCloseStorageModal}
@@ -2081,24 +2162,28 @@ export default function Dashboard() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="badge badge-info">PVC {sortedPVCsForStorage.length}개</span>
-                <span className="badge badge-info">PV {sortedPVsForStorage.length}개</span>
+                <span className="badge badge-info">
+                  {tr('dashboard.storage.pvcCount', 'PVC {{count}}', { count: sortedPVCsForStorage.length })}
+                </span>
+                <span className="badge badge-info">
+                  {tr('dashboard.storage.pvCount', 'PV {{count}}', { count: sortedPVsForStorage.length })}
+                </span>
                 {Object.entries(pvcStatusCounts).slice(0, 4).map(([status, count]) => (
                   <span
                     key={`pvc-${status}`}
                     className={`badge ${status === 'Bound' ? 'badge-success' : status === 'Pending' ? 'badge-warning' : status === 'Lost' ? 'badge-error' : 'badge-info'}`}
-                    title="PVC Status"
+                    title={tr('dashboard.storage.pvcStatusTitle', 'PVC Status')}
                   >
-                    PVC {status} {count}
+                    {tr('dashboard.storage.pvcStatusCount', 'PVC {{status}} {{count}}', { status, count })}
                   </span>
                 ))}
                 {Object.entries(pvStatusCounts).slice(0, 4).map(([status, count]) => (
                   <span
                     key={`pv-${status}`}
                     className={`badge ${status === 'Bound' ? 'badge-success' : status === 'Available' ? 'badge-info' : status === 'Released' ? 'badge-warning' : status === 'Failed' ? 'badge-error' : 'badge-info'}`}
-                    title="PV Status"
+                    title={tr('dashboard.storage.pvStatusTitle', 'PV Status')}
                   >
-                    PV {status} {count}
+                    {tr('dashboard.storage.pvStatusCount', 'PV {{status}} {{count}}', { status, count })}
                   </span>
                 ))}
               </div>
@@ -2109,19 +2194,19 @@ export default function Dashboard() {
                     onClick={() => setStorageActiveTab('pvcs')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'pvcs' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
                   >
-                    PVC
+                    {tr('dashboard.storage.tabs.pvcs', 'PVC')}
                   </button>
                   <button
                     onClick={() => setStorageActiveTab('pvs')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'pvs' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
                   >
-                    PV
+                    {tr('dashboard.storage.tabs.pvs', 'PV')}
                   </button>
                   <button
                     onClick={() => setStorageActiveTab('topology')}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'topology' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
                   >
-                    Topology
+                    {tr('dashboard.storage.tabs.topology', 'Topology')}
                   </button>
                 </div>
 
@@ -2129,10 +2214,12 @@ export default function Dashboard() {
                   <button
                     onClick={() => setIsStorageNamespaceDropdownOpen(!isStorageNamespaceDropdownOpen)}
                     className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[200px] justify-between"
-                    title="네임스페이스 필터"
+                    title={tr('dashboard.storage.namespaceFilter', 'Namespace filter')}
                   >
                     <span className="text-sm font-medium">
-                      {storageNamespaceFilter === 'all' ? 'All namespaces' : storageNamespaceFilter}
+                      {storageNamespaceFilter === 'all'
+                        ? tr('dashboard.storage.allNamespaces', 'All namespaces')
+                        : storageNamespaceFilter}
                     </span>
                     <ChevronDown
                       className={`w-4 h-4 text-slate-400 transition-transform ${isStorageNamespaceDropdownOpen ? 'rotate-180' : ''}`}
@@ -2151,7 +2238,9 @@ export default function Dashboard() {
                         {storageNamespaceFilter === 'all' && (
                           <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                         )}
-                        <span className={storageNamespaceFilter === 'all' ? 'font-medium' : ''}>All namespaces</span>
+                        <span className={storageNamespaceFilter === 'all' ? 'font-medium' : ''}>
+                          {tr('dashboard.storage.allNamespaces', 'All namespaces')}
+                        </span>
                       </button>
                       {storageNamespaces.map((ns) => (
                         <button
@@ -2177,7 +2266,7 @@ export default function Dashboard() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="검색 (이름/상태/StorageClass/Claim 등)..."
+                  placeholder={tr('dashboard.storage.searchPlaceholder', 'Search (name/status/StorageClass/Claim)...')}
                   value={storageSearchQuery}
                   onChange={(e) => setStorageSearchQuery(e.target.value)}
                   className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
@@ -2197,12 +2286,14 @@ export default function Dashboard() {
               {isStorageLoading ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
                   <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">스토리지 데이터를 불러오는 중...</p>
+                  <p className="text-slate-400">
+                    {tr('dashboard.storage.loading', 'Loading storage data...')}
+                  </p>
                 </div>
               ) : storageActiveTab === 'pvcs' ? (
                 sortedPVCsForStorage.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-slate-400">표시할 PVC가 없습니다</p>
+                    <p className="text-slate-400">{tr('dashboard.storage.noPVC', 'No PVCs to display')}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
@@ -2227,10 +2318,10 @@ export default function Dashboard() {
                               </div>
                               <div className="mt-1 space-y-0.5">
                                 <p className="text-xs text-slate-400">
-                                  <span className="font-medium">ns:</span> {pvc.namespace}
+                                  <span className="font-medium">{tr('dashboard.labels.namespaceShort', 'ns:')}</span> {pvc.namespace}
                                 </p>
                                 <p className="text-xs text-slate-400">
-                                  {pvc.capacity || 'N/A'} · {pvc.storage_class || 'N/A'} · PV: {pvc.volume_name || 'N/A'}
+                                  {pvc.capacity || na} · {pvc.storage_class || na} · {tr('dashboard.storage.pvLabel', 'PV')}: {pvc.volume_name || na}
                                 </p>
                               </div>
                             </div>
@@ -2243,7 +2334,7 @@ export default function Dashboard() {
               ) : storageActiveTab === 'pvs' ? (
                 sortedPVsForStorage.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-slate-400">표시할 PV가 없습니다</p>
+                    <p className="text-slate-400">{tr('dashboard.storage.noPV', 'No PVs to display')}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
@@ -2274,10 +2365,10 @@ export default function Dashboard() {
                               </div>
                               <div className="mt-1 space-y-0.5">
                                 <p className="text-xs text-slate-400">
-                                  {pv.capacity || 'N/A'} · {pv.storage_class || 'N/A'} · Reclaim: {pv.reclaim_policy || 'N/A'}
+                                  {pv.capacity || na} · {pv.storage_class || na} · {tr('dashboard.storage.reclaimLabel', 'Reclaim')}: {pv.reclaim_policy || na}
                                 </p>
                                 <p className="text-xs text-slate-400">
-                                  <span className="font-medium">Claim:</span> {claim}
+                                  <span className="font-medium">{tr('dashboard.storage.claimLabel', 'Claim')}:</span> {claim}
                                 </p>
                               </div>
                             </div>
@@ -2292,9 +2383,14 @@ export default function Dashboard() {
                   {storageTopology ? (
                     <div className="space-y-3">
                       <div className="p-4 rounded-lg border border-slate-700 bg-slate-900/20">
-                        <p className="text-sm text-slate-200 font-medium">Storage Topology</p>
+                        <p className="text-sm text-slate-200 font-medium">
+                          {tr('dashboard.storage.topologyTitle', 'Storage Topology')}
+                        </p>
                         <p className="text-xs text-slate-400 mt-1">
-                          Nodes: {storageTopology.nodes?.length ?? 0} · Edges: {storageTopology.edges?.length ?? 0}
+                          {tr('dashboard.storage.topologySummary', 'Nodes: {{nodes}} · Edges: {{edges}}', {
+                            nodes: storageTopology.nodes?.length ?? 0,
+                            edges: storageTopology.edges?.length ?? 0,
+                          })}
                         </p>
                       </div>
                       {Array.isArray(storageTopology.edges) && storageTopology.edges.length > 0 ? (
@@ -2310,28 +2406,34 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <div className="text-center py-12">
-                          <p className="text-slate-400">표시할 토폴로지 연결이 없습니다</p>
+                          <p className="text-slate-400">
+                            {tr('dashboard.storage.noTopologyEdges', 'No topology edges to display')}
+                          </p>
                         </div>
                       )}
                       {Array.isArray(storageTopology.edges) && storageTopology.edges.length > 50 && (
-                        <p className="text-xs text-slate-500">표시는 최대 50개 edge까지만 합니다</p>
+                        <p className="text-xs text-slate-500">
+                          {tr('dashboard.storage.topologyLimit', 'Showing up to 50 edges')}
+                        </p>
                       )}
                     </div>
                   ) : isLoadingStorageTopology ? (
                     <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
                       <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                      <p className="text-slate-400">토폴로지 로딩 중...</p>
+                      <p className="text-slate-400">{tr('dashboard.storage.topologyLoading', 'Loading topology...')}</p>
                     </div>
                   ) : isStorageTopologyError ? (
                     <div className="text-center py-12">
-                      <p className="text-slate-400">토폴로지 조회 실패</p>
+                      <p className="text-slate-400">{tr('dashboard.storage.topologyError', 'Failed to load topology')}</p>
                       <p className="text-xs text-slate-500 mt-2">
-                        {(storageTopologyError as any)?.message || '알 수 없는 오류'}
+                        {(storageTopologyError as any)?.message || tr('dashboard.unknownError', 'Unknown error')}
                       </p>
                     </div>
                   ) : (
                     <div className="text-center py-12">
-                      <p className="text-slate-400">토폴로지 데이터를 가져오지 못했습니다</p>
+                      <p className="text-slate-400">
+                        {tr('dashboard.storage.topologyUnavailable', 'Topology data is unavailable')}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2366,7 +2468,9 @@ export default function Dashboard() {
                           {selectedStat?.name || selectedResourceType}
                         </h2>
                         <p className="text-sm text-slate-400">
-                          {isLoadingResource() ? '로딩 중...' : `총 ${getResourceCount()}개`}
+                          {isLoadingResource()
+                            ? tr('dashboard.resourceModal.loading', 'Loading...')
+                            : tr('dashboard.resourceModal.total', 'Total {{count}}', { count: getResourceCount() })}
                         </p>
                       </div>
                     </div>
@@ -2382,7 +2486,7 @@ export default function Dashboard() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="검색..."
+                      placeholder={tr('dashboard.resourceModal.searchPlaceholder', 'Search...')}
                       value={modalSearchQuery}
                       onChange={(e) => setModalSearchQuery(e.target.value)}
                       className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
@@ -2405,7 +2509,7 @@ export default function Dashboard() {
               {isLoadingResource() ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
                   <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
-                  <p className="text-slate-400">데이터를 불러오는 중...</p>
+                  <p className="text-slate-400">{tr('dashboard.loading', 'Loading data...')}</p>
                 </div>
               ) : (
                 <>
@@ -2418,9 +2522,11 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{ns.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  Pods: {ns.resource_count?.pods || 0} |
-                                  Services: {ns.resource_count?.services || 0} |
-                                  Deployments: {ns.resource_count?.deployments || 0}
+                                  {tr('dashboard.resourceModal.namespaceSummary', 'Pods: {{pods}} | Services: {{services}} | Deployments: {{deployments}}', {
+                                    pods: ns.resource_count?.pods || 0,
+                                    services: ns.resource_count?.services || 0,
+                                    deployments: ns.resource_count?.deployments || 0,
+                                  })}
                                 </p>
                               </div>
                               <span className={`badge ${ns.status === 'Active' ? 'badge-success' : 'badge-warning'
@@ -2433,7 +2539,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : '네임스페이스가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noNamespaces', 'No namespaces')}
                           </p>
                         </div>
                       )}
@@ -2472,7 +2580,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : 'Pod가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noPods', 'No pods')}
                           </p>
                         </div>
                       )}
@@ -2488,7 +2598,7 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{svc.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  {svc.namespace} | Type: {svc.type} | Cluster IP: {svc.cluster_ip || 'None'}
+                                  {svc.namespace} | {tr('dashboard.resourceModal.typeLabel', 'Type')}: {svc.type} | {tr('dashboard.resourceModal.clusterIpLabel', 'Cluster IP')}: {svc.cluster_ip || none}
                                 </p>
                               </div>
                               <span className="badge badge-info">{svc.type}</span>
@@ -2498,7 +2608,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : 'Service가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noServices', 'No services')}
                           </p>
                         </div>
                       )}
@@ -2514,7 +2626,7 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{deploy.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  {deploy.namespace} | Replicas: {deploy.ready_replicas}/{deploy.replicas}
+                                  {deploy.namespace} | {tr('dashboard.resourceModal.replicasLabel', 'Replicas')}: {deploy.ready_replicas}/{deploy.replicas}
                                 </p>
                               </div>
                               <span className={`badge ${deploy.ready_replicas === deploy.replicas ? 'badge-success' : 'badge-warning'
@@ -2527,7 +2639,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : 'Deployment가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noDeployments', 'No deployments')}
                           </p>
                         </div>
                       )}
@@ -2543,7 +2657,7 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{pvc.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  {pvc.namespace} | {pvc.capacity || 'N/A'} | {pvc.storage_class || 'N/A'}
+                                  {pvc.namespace} | {pvc.capacity || na} | {pvc.storage_class || na}
                                 </p>
                               </div>
                               <span className={`badge ${pvc.status === 'Bound' ? 'badge-success' : 'badge-warning'
@@ -2556,7 +2670,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : 'PVC가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noPVCs', 'No PVCs')}
                           </p>
                         </div>
                       )}
@@ -2572,9 +2688,9 @@ export default function Dashboard() {
                               <div>
                                 <h3 className="font-medium text-white">{node.name}</h3>
                                 <p className="text-sm text-slate-400 mt-1">
-                                  Version: {node.version || 'N/A'} |
-                                  Internal IP: {node.internal_ip || 'N/A'}
-                                  {node.roles && node.roles.length > 0 && ` | Roles: ${node.roles.join(', ')}`}
+                                  {tr('dashboard.resourceModal.versionLabel', 'Version')}: {node.version || na} |
+                                  {tr('dashboard.resourceModal.internalIpLabel', 'Internal IP')}: {node.internal_ip || na}
+                                  {node.roles && node.roles.length > 0 && ` | ${tr('dashboard.resourceModal.rolesLabel', 'Roles')}: ${node.roles.join(', ')}`}
                                 </p>
                               </div>
                               <span className={`badge ${node.status === 'Ready' ? 'badge-success' : 'badge-error'
@@ -2587,7 +2703,9 @@ export default function Dashboard() {
                       ) : (
                         <div className="text-center py-12">
                           <p className="text-slate-400">
-                            {modalSearchQuery ? '검색 결과가 없습니다' : 'Node가 없습니다'}
+                            {modalSearchQuery
+                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
+                              : tr('dashboard.resourceModal.noNodes', 'No nodes')}
                           </p>
                         </div>
                       )}
@@ -2616,7 +2734,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-white">{selectedNode.name}</h2>
-                    <p className="text-sm text-slate-400">Node 상세 정보</p>
+                    <p className="text-sm text-slate-400">{tr('dashboard.nodeModal.title', 'Node details')}</p>
                   </div>
                 </div>
                 <button
@@ -2633,22 +2751,32 @@ export default function Dashboard() {
               {isLoadingNodeDetail || isLoadingComponents ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
                   <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
-                  <p className="text-slate-400">데이터를 불러오는 중...</p>
+                  <p className="text-slate-400">{tr('dashboard.loading', 'Loading data...')}</p>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* 컴포넌트 상태 */}
                   {componentStatuses && componentStatuses.length > 0 && (
                     <div className="card">
-                      <h3 className="text-lg font-bold text-white mb-4">Component Status</h3>
+                      <h3 className="text-lg font-bold text-white mb-4">
+                        {tr('dashboard.nodeModal.componentStatus', 'Component Status')}
+                      </h3>
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-slate-700">
-                              <th className="text-left py-2 px-3 text-slate-400 font-medium">NAME</th>
-                              <th className="text-left py-2 px-3 text-slate-400 font-medium">STATUS</th>
-                              <th className="text-left py-2 px-3 text-slate-400 font-medium">MESSAGE</th>
-                              <th className="text-left py-2 px-3 text-slate-400 font-medium">ERROR</th>
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                {tr('dashboard.nodeModal.componentTable.name', 'NAME')}
+                              </th>
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                {tr('dashboard.nodeModal.componentTable.status', 'STATUS')}
+                              </th>
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                {tr('dashboard.nodeModal.componentTable.message', 'MESSAGE')}
+                              </th>
+                              <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                {tr('dashboard.nodeModal.componentTable.error', 'ERROR')}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2662,8 +2790,8 @@ export default function Dashboard() {
                                     {comp.status}
                                   </span>
                                 </td>
-                                <td className="py-3 px-3 text-slate-300 text-sm">{comp.message || '-'}</td>
-                                <td className="py-3 px-3 text-slate-300 text-sm">{comp.error || '-'}</td>
+                                <td className="py-3 px-3 text-slate-300 text-sm">{comp.message || emptyValue}</td>
+                                <td className="py-3 px-3 text-slate-300 text-sm">{comp.error || emptyValue}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2677,32 +2805,46 @@ export default function Dashboard() {
                     <>
                       {/* 기본 정보 */}
                       <div className="card">
-                        <h3 className="text-lg font-bold text-white mb-4">기본 정보</h3>
+                        <h3 className="text-lg font-bold text-white mb-4">
+                          {tr('dashboard.nodeModal.basicInfo', 'Basic information')}
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <p className="text-sm text-slate-400 mb-1">이름</p>
+                            <p className="text-sm text-slate-400 mb-1">
+                              {tr('dashboard.nodeModal.name', 'Name')}
+                            </p>
                             <p className="text-white font-mono">{nodeDetail.name}</p>
                           </div>
                           {nodeDetail.system_info && (
                             <>
                               <div>
-                                <p className="text-sm text-slate-400 mb-1">OS Image</p>
+                                <p className="text-sm text-slate-400 mb-1">
+                                  {tr('dashboard.nodeModal.osImage', 'OS Image')}
+                                </p>
                                 <p className="text-white">{nodeDetail.system_info.os_image}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-slate-400 mb-1">Kernel Version</p>
+                                <p className="text-sm text-slate-400 mb-1">
+                                  {tr('dashboard.nodeModal.kernelVersion', 'Kernel Version')}
+                                </p>
                                 <p className="text-white font-mono">{nodeDetail.system_info.kernel_version}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-slate-400 mb-1">Container Runtime</p>
+                                <p className="text-sm text-slate-400 mb-1">
+                                  {tr('dashboard.nodeModal.containerRuntime', 'Container Runtime')}
+                                </p>
                                 <p className="text-white font-mono">{nodeDetail.system_info.container_runtime}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-slate-400 mb-1">Kubelet Version</p>
+                                <p className="text-sm text-slate-400 mb-1">
+                                  {tr('dashboard.nodeModal.kubeletVersion', 'Kubelet Version')}
+                                </p>
                                 <p className="text-white font-mono">{nodeDetail.system_info.kubelet_version}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-slate-400 mb-1">Kube-Proxy Version</p>
+                                <p className="text-sm text-slate-400 mb-1">
+                                  {tr('dashboard.nodeModal.kubeProxyVersion', 'Kube-Proxy Version')}
+                                </p>
                                 <p className="text-white font-mono">{nodeDetail.system_info.kube_proxy_version}</p>
                               </div>
                             </>
@@ -2713,7 +2855,9 @@ export default function Dashboard() {
                       {/* 주소 */}
                       {nodeDetail.addresses && nodeDetail.addresses.length > 0 && (
                         <div className="card">
-                          <h3 className="text-lg font-bold text-white mb-4">Addresses</h3>
+                          <h3 className="text-lg font-bold text-white mb-4">
+                            {tr('dashboard.nodeModal.addresses', 'Addresses')}
+                          </h3>
                           <div className="space-y-2">
                             {nodeDetail.addresses.map((addr: any, idx: number) => (
                               <div key={idx} className="flex items-center gap-3 p-2 bg-slate-700 rounded">
@@ -2728,15 +2872,25 @@ export default function Dashboard() {
                       {/* Conditions */}
                       {nodeDetail.conditions && nodeDetail.conditions.length > 0 && (
                         <div className="card">
-                          <h3 className="text-lg font-bold text-white mb-4">Conditions</h3>
+                          <h3 className="text-lg font-bold text-white mb-4">
+                            {tr('dashboard.nodeModal.conditions', 'Conditions')}
+                          </h3>
                           <div className="overflow-x-auto">
                             <table className="w-full">
                               <thead>
                                 <tr className="border-b border-slate-700">
-                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Type</th>
-                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Status</th>
-                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Reason</th>
-                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Message</th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                    {tr('dashboard.nodeModal.conditionsTable.type', 'Type')}
+                                  </th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                    {tr('dashboard.nodeModal.conditionsTable.status', 'Status')}
+                                  </th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                    {tr('dashboard.nodeModal.conditionsTable.reason', 'Reason')}
+                                  </th>
+                                  <th className="text-left py-2 px-3 text-slate-400 font-medium">
+                                    {tr('dashboard.nodeModal.conditionsTable.message', 'Message')}
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2750,8 +2904,8 @@ export default function Dashboard() {
                                         {condition.status}
                                       </span>
                                     </td>
-                                    <td className="py-3 px-3 text-slate-300 text-sm">{condition.reason || '-'}</td>
-                                    <td className="py-3 px-3 text-slate-300 text-sm">{condition.message || '-'}</td>
+                                    <td className="py-3 px-3 text-slate-300 text-sm">{condition.reason || emptyValue}</td>
+                                    <td className="py-3 px-3 text-slate-300 text-sm">{condition.message || emptyValue}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -2763,7 +2917,9 @@ export default function Dashboard() {
                       {/* Labels */}
                       {nodeDetail.labels && Object.keys(nodeDetail.labels).length > 0 && (
                         <div className="card">
-                          <h3 className="text-lg font-bold text-white mb-4">Labels</h3>
+                          <h3 className="text-lg font-bold text-white mb-4">
+                            {tr('dashboard.nodeModal.labels', 'Labels')}
+                          </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                             {Object.entries(nodeDetail.labels).map(([key, value]) => (
                               <div key={key} className="p-2 bg-slate-700 rounded text-xs">
@@ -2778,7 +2934,9 @@ export default function Dashboard() {
                       {/* Annotations */}
                       {nodeDetail.annotations && Object.keys(nodeDetail.annotations).length > 0 && (
                         <div className="card">
-                          <h3 className="text-lg font-bold text-white mb-4">Annotations</h3>
+                          <h3 className="text-lg font-bold text-white mb-4">
+                            {tr('dashboard.nodeModal.annotations', 'Annotations')}
+                          </h3>
                           <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
                             {Object.entries(nodeDetail.annotations).map(([key, value]) => (
                               <div key={key} className="p-2 bg-slate-700 rounded text-xs">
