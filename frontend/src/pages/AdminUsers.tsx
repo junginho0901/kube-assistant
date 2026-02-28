@@ -5,10 +5,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAccessToken } from '@/services/auth'
 import { ModalOverlay } from '@/components/ModalOverlay'
+import { useTranslation } from 'react-i18next'
 
 export default function AdminUsers() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  const tr = (key: string, fallback: string, options?: Record<string, any>) =>
+    t(key, { defaultValue: fallback, ...options })
   const [limit] = useState(100)
   const [offset] = useState(0)
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({})
@@ -88,11 +92,11 @@ export default function AdminUsers() {
   }, [openRoleDropdownUserId])
 
   if (isLoading) {
-    return <div className="text-slate-300">로딩 중...</div>
+    return <div className="text-slate-300">{tr('adminUsers.loading', 'Loading...')}</div>
   }
 
   if (isError) {
-    return <div className="text-slate-300">유저 목록을 불러오지 못했습니다.</div>
+    return <div className="text-slate-300">{tr('adminUsers.loadError', 'Failed to load users.')}</div>
   }
 
   const rows: Member[] = Array.isArray(users) ? users : []
@@ -101,19 +105,21 @@ export default function AdminUsers() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">유저 관리</h1>
-        <p className="mt-2 text-slate-400">유저 권한(read/write/admin)을 변경합니다.</p>
+        <h1 className="text-3xl font-bold text-white">{tr('adminUsers.title', 'User management')}</h1>
+        <p className="mt-2 text-slate-400">
+          {tr('adminUsers.subtitle', 'Update user roles (read/write/admin).')}
+        </p>
       </div>
 
       <div className="rounded-2xl border border-slate-700 bg-slate-800/50 overflow-visible">
         <table className="w-full text-sm">
           <thead className="bg-slate-800">
             <tr className="text-left text-slate-300">
-              <th className="px-4 py-3">이름</th>
-              <th className="px-4 py-3">이메일</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">비밀번호</th>
-              <th className="px-4 py-3">삭제</th>
+              <th className="px-4 py-3">{tr('adminUsers.table.name', 'Name')}</th>
+              <th className="px-4 py-3">{tr('adminUsers.table.email', 'Email')}</th>
+              <th className="px-4 py-3">{tr('adminUsers.table.role', 'Role')}</th>
+              <th className="px-4 py-3">{tr('adminUsers.table.password', 'Password')}</th>
+              <th className="px-4 py-3">{tr('adminUsers.table.delete', 'Delete')}</th>
             </tr>
           </thead>
           <tbody>
@@ -147,7 +153,7 @@ export default function AdminUsers() {
                         aria-expanded={isOpen}
                       >
                         <span className="truncate">
-                          {currentRole === 'admin' ? 'ADMIN' : currentRole === 'write' ? 'WRITE' : 'READ'}
+                          {tr(`adminUsers.roles.${currentRole}`, currentRole.toUpperCase())}
                         </span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
@@ -175,7 +181,7 @@ export default function AdminUsers() {
                                 }`}
                               >
                                 <span className="flex-1 text-left">
-                                  {role === 'admin' ? 'ADMIN' : role === 'write' ? 'WRITE' : 'READ'}
+                                  {tr(`adminUsers.roles.${role}`, role.toUpperCase())}
                                 </span>
                                 {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />}
                               </button>
@@ -190,15 +196,23 @@ export default function AdminUsers() {
                       type="button"
                       disabled={isResetting || isBlocked}
                       onClick={() => {
-                        const ok = window.confirm(`비밀번호를 1111로 초기화할까요?\n\n대상: ${u.email ?? u.name}`)
+                        const ok = window.confirm(
+                          tr('adminUsers.resetPasswordConfirm', 'Reset password to 1111?\\n\\nTarget: {{target}}', {
+                            target: u.email ?? u.name,
+                          })
+                        )
                         if (!ok) return
                         resetPasswordMutation.mutate({ userId: u.id })
                       }}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900/40 px-2.5 py-2 text-xs text-slate-200 hover:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
-                      title="비밀번호를 1111로 초기화"
+                      title={tr('adminUsers.resetPasswordTitle', 'Reset password to 1111')}
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{isResetting ? '초기화중' : 'PW 초기화'}</span>
+                      <span>
+                        {isResetting
+                          ? tr('adminUsers.resetting', 'Resetting...')
+                          : tr('adminUsers.reset', 'Reset PW')}
+                      </span>
                     </button>
                   </td>
                   <td className="px-4 py-3">
@@ -206,15 +220,27 @@ export default function AdminUsers() {
                       type="button"
                       disabled={isDeleting || isSelf || isBlocked}
                       onClick={() => {
-                        const ok = window.confirm(`유저를 삭제할까요?\n\n대상: ${u.email ?? u.name}\n\n* 삭제하면 복구가 어렵습니다.`)
+                        const ok = window.confirm(
+                          tr(
+                            'adminUsers.deleteConfirm',
+                            'Delete this user?\\n\\nTarget: {{target}}\\n\\n* Deletions cannot be easily undone.',
+                            { target: u.email ?? u.name }
+                          )
+                        )
                         if (!ok) return
                         deleteUserMutation.mutate({ userId: u.id })
                       }}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/20 px-2.5 py-2 text-xs text-red-200 hover:bg-red-950/35 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50"
-                      title={isSelf ? '자기 자신은 삭제할 수 없습니다.' : '유저 삭제'}
+                      title={
+                        isSelf
+                          ? tr('adminUsers.deleteSelfBlocked', 'You cannot delete your own account.')
+                          : tr('adminUsers.deleteTitle', 'Delete user')
+                      }
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-300" />
-                      <span>{isDeleting ? '삭제중' : '삭제'}</span>
+                      <span>
+                        {isDeleting ? tr('adminUsers.deleting', 'Deleting...') : tr('adminUsers.delete', 'Delete')}
+                      </span>
                     </button>
                   </td>
                 </tr>
@@ -223,7 +249,7 @@ export default function AdminUsers() {
             {rows.length === 0 && (
               <tr>
                 <td className="px-4 py-4 text-slate-300" colSpan={5}>
-                  유저가 없습니다.
+                  {tr('adminUsers.empty', 'No users found.')}
                 </td>
               </tr>
             )}
@@ -237,12 +263,14 @@ export default function AdminUsers() {
             className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
             role="dialog"
             aria-modal="true"
-            aria-label="재로그인 필요"
+            aria-label={tr('adminUsers.reauth.ariaLabel', 'Re-authentication required')}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-white">권한이 변경되었습니다</h2>
+            <h2 className="text-lg font-semibold text-white">
+              {tr('adminUsers.reauth.title', 'Role updated')}
+            </h2>
             <p className="mt-2 text-sm text-slate-300">
-              보안을 위해 다시 로그인해야 합니다. 확인을 누르면 로그인 화면으로 이동합니다.
+              {tr('adminUsers.reauth.subtitle', 'For security, please sign in again. You will be taken to the login page.')}
             </p>
 
             <div className="mt-5 flex justify-end">
@@ -256,7 +284,7 @@ export default function AdminUsers() {
                 }}
                 className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
               >
-                확인
+                {tr('adminUsers.reauth.confirm', 'OK')}
               </button>
             </div>
           </div>

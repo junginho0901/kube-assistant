@@ -2,9 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/services/api'
 import { KeyRound, User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export default function Account() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  const tr = (key: string, fallback: string, options?: Record<string, any>) =>
+    t(key, { defaultValue: fallback, ...options })
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 30000, retry: false })
 
   const [currentPassword, setCurrentPassword] = useState('')
@@ -20,7 +24,7 @@ export default function Account() {
       setNewPassword('')
       setConfirmPassword('')
       setLocalError(null)
-      setSuccess('비밀번호가 변경되었습니다.')
+      setSuccess(tr('account.password.changed', 'Password updated.'))
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
     onError: () => {
@@ -34,11 +38,11 @@ export default function Account() {
     e.preventDefault()
     setSuccess(null)
     if (!currentPassword || !newPassword) {
-      setLocalError('현재 비밀번호와 새 비밀번호를 입력하세요.')
+      setLocalError(tr('account.password.required', 'Enter current and new passwords.'))
       return
     }
     if (newPassword !== confirmPassword) {
-      setLocalError('새 비밀번호가 일치하지 않습니다.')
+      setLocalError(tr('account.password.mismatch', 'New passwords do not match.'))
       return
     }
     setLocalError(null)
@@ -48,8 +52,8 @@ export default function Account() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">계정</h1>
-        <p className="mt-2 text-slate-400">비밀번호를 변경할 수 있습니다.</p>
+        <h1 className="text-3xl font-bold text-white">{tr('account.title', 'Account')}</h1>
+        <p className="mt-2 text-slate-400">{tr('account.subtitle', 'You can change your password.')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -59,21 +63,21 @@ export default function Account() {
               <User className="w-6 h-6 text-primary-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">내 정보</h2>
-              <p className="text-sm text-slate-400">로그인된 계정 정보</p>
+              <h2 className="text-xl font-bold text-white">{tr('account.profile.title', 'Profile')}</h2>
+              <p className="text-sm text-slate-400">{tr('account.profile.subtitle', 'Signed-in account information')}</p>
             </div>
           </div>
 
           <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-            <div className="text-xs text-slate-400">이름</div>
+            <div className="text-xs text-slate-400">{tr('account.profile.name', 'Name')}</div>
             <div className="mt-1 text-sm text-white">{me?.name ?? '-'}</div>
-            <div className="mt-3 text-xs text-slate-400">이메일</div>
+            <div className="mt-3 text-xs text-slate-400">{tr('account.profile.email', 'Email')}</div>
             <div className="mt-1 text-sm text-white">{me?.email ?? '-'}</div>
-            <div className="mt-3 text-xs text-slate-400">본부</div>
+            <div className="mt-3 text-xs text-slate-400">{tr('account.profile.hq', 'HQ')}</div>
             <div className="mt-1 text-sm text-white">{me?.hq ?? '-'}</div>
-            <div className="mt-3 text-xs text-slate-400">팀</div>
+            <div className="mt-3 text-xs text-slate-400">{tr('account.profile.team', 'Team')}</div>
             <div className="mt-1 text-sm text-white">{me?.team ?? '-'}</div>
-            <div className="mt-3 text-xs text-slate-400">Role</div>
+            <div className="mt-3 text-xs text-slate-400">{tr('account.profile.role', 'Role')}</div>
             <div className="mt-1 text-sm text-white">{me?.role ?? '-'}</div>
           </div>
         </div>
@@ -84,8 +88,8 @@ export default function Account() {
               <KeyRound className="w-6 h-6 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">비밀번호 변경</h2>
-              <p className="text-sm text-slate-400">현재 비밀번호를 확인합니다</p>
+              <h2 className="text-xl font-bold text-white">{tr('account.password.title', 'Change password')}</h2>
+              <p className="text-sm text-slate-400">{tr('account.password.subtitle', 'Verify your current password')}</p>
             </div>
           </div>
 
@@ -97,7 +101,7 @@ export default function Account() {
 
           {(localError || changePasswordMutation.isError) && (
             <div className="mb-3 rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-              {localError ?? '비밀번호 변경에 실패했습니다.'}
+              {localError ?? tr('account.password.failed', 'Failed to change password.')}
             </div>
           )}
 
@@ -105,7 +109,9 @@ export default function Account() {
             <div className="flex-1 flex flex-col justify-between gap-4">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">현재 비밀번호</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('account.password.current', 'Current password')}
+                  </label>
                   <input
                     type="password"
                     value={currentPassword}
@@ -117,25 +123,29 @@ export default function Account() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">새 비밀번호</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('account.password.new', 'New password')}
+                  </label>
                   <input
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder="최소 4자"
+                    placeholder={tr('account.password.minLength', 'At least 4 characters')}
                     autoComplete="new-password"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">새 비밀번호 확인</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('account.password.confirm', 'Confirm new password')}
+                  </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder="다시 입력"
+                    placeholder={tr('account.password.confirmPlaceholder', 'Type again')}
                     autoComplete="new-password"
                   />
                 </div>
@@ -146,7 +156,9 @@ export default function Account() {
                 disabled={isBusy}
                 className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isBusy ? '변경 중...' : '비밀번호 변경'}
+                {isBusy
+                  ? tr('account.password.updating', 'Updating...')
+                  : tr('account.password.submit', 'Update password')}
               </button>
             </div>
           </form>
