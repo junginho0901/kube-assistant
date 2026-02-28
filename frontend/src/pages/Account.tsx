@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/services/api'
-import { KeyRound, Languages, User, X } from 'lucide-react'
+import { ChevronDown, KeyRound, Languages, User, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ModalOverlay'
 
@@ -18,6 +18,8 @@ export default function Account() {
   const [localError, setLocalError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false)
+  const languageDropdownRef = useRef<HTMLDivElement>(null)
 
   const changePasswordMutation = useMutation({
     mutationFn: () => api.changePassword({ current_password: currentPassword, new_password: newPassword }),
@@ -41,6 +43,17 @@ export default function Account() {
     if (language === next) return
     void i18n.changeLanguage(next)
   }
+
+  useEffect(() => {
+    if (!isLanguageDropdownOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+        setIsLanguageDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isLanguageDropdownOpen])
 
   const closePasswordModal = () => {
     setPasswordModalOpen(false)
@@ -126,29 +139,57 @@ export default function Account() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="relative w-full max-w-xs" ref={languageDropdownRef}>
             <button
               type="button"
-              onClick={() => setLanguage('en')}
-              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                language === 'en'
-                  ? 'border-primary-500 bg-primary-600 text-white'
-                  : 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-700/40'
-              }`}
+              onClick={() => setIsLanguageDropdownOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700/40"
+              aria-haspopup="listbox"
+              aria-expanded={isLanguageDropdownOpen}
             >
-              {tr('account.language.english', 'English')}
+              <span>
+                {language === 'ko'
+                  ? tr('account.language.korean', 'Korean')
+                  : tr('account.language.english', 'English')}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-slate-400 transition-transform ${
+                  isLanguageDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
             </button>
-            <button
-              type="button"
-              onClick={() => setLanguage('ko')}
-              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                language === 'ko'
-                  ? 'border-primary-500 bg-primary-600 text-white'
-                  : 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-700/40'
-              }`}
-            >
-              {tr('account.language.korean', 'Korean')}
-            </button>
+            {isLanguageDropdownOpen && (
+              <div className="absolute z-20 mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/95 p-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage('en')
+                    setIsLanguageDropdownOpen(false)
+                  }}
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm ${
+                    language === 'en'
+                      ? 'bg-primary-600/20 text-white'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {tr('account.language.english', 'English')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage('ko')
+                    setIsLanguageDropdownOpen(false)
+                  }}
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm ${
+                    language === 'ko'
+                      ? 'bg-primary-600/20 text-white'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {tr('account.language.korean', 'Korean')}
+                </button>
+              </div>
+            )}
           </div>
           <p className="mt-3 text-xs text-slate-400">
             {tr('account.language.hint', 'Changes apply immediately.')}
