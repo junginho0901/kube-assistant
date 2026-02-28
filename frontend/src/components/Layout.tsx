@@ -282,7 +282,10 @@ export default function Layout() {
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full flex items-center justify-between px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:text-slate-300"
+                    className={`
+                      w-full flex items-center justify-between px-4 py-2 rounded-lg text-[12px] font-semibold tracking-[0.14em]
+                      ${openGroups[group.id] ? 'bg-slate-900/60 text-slate-100' : 'bg-slate-900/30 text-slate-300 hover:text-white hover:bg-slate-800/60'}
+                    `}
                   >
                     <span>{group.label}</span>
                     <ChevronDown
