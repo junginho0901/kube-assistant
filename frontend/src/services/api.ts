@@ -715,6 +715,12 @@ export const api = {
     return data.logs
   },
 
+  deletePod: async (namespace: string, podName: string, force: boolean = false): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/pods/${podName}`, {
+      params: { force },
+    })
+  },
+
   getPodRbac: async (
     namespace: string,
     podName: string,
