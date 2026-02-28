@@ -170,5 +170,544 @@
       "memoryUsage": "Memory (usage)",
       "memoryLimit": "Memory limit"
     }
+  },
+  "common": {
+    "notAvailable": "N/A",
+    "none": "None",
+    "empty": "-",
+    "unknown": "Unknown",
+    "close": "Close"
+  },
+  "dashboard": {
+    "optimization": {
+      "missingMeta": "Server did not send meta (finish reason). ai-service may not be rebuilt/restarted.",
+      "title": "Optimization suggestions",
+      "subtitle": "AI suggests optimizations based on Deployment/Pod data in the selected namespace.",
+      "selectNamespaceTitle": "Select namespace",
+      "selectNamespace": "Select namespace",
+      "noNamespaces": "No namespaces to display",
+      "runTitle": "Generate AI suggestion",
+      "running": "Generating...",
+      "run": "Generate",
+      "stopTitle": "Stop",
+      "stop": "Stop",
+      "copyTitle": "Copy result",
+      "copied": "Copied",
+      "copy": "Copy",
+      "namespaceBadge": "Namespace {{namespace}}",
+      "tokensBadge": "Tokens {{used}}{{max}}",
+      "finishReason": "The response did not end with stop and may be truncated ({{reason}})",
+      "streamError": "Stream error",
+      "modelLatency": "Model calls can take up to ~1 minute",
+      "generating": "Generating optimization suggestions...",
+      "waiting": "Waiting for OpenAI response",
+      "failed": "Failed to generate suggestions",
+      "retry": "Retry",
+      "selectPrompt": "Select a namespace then click “Generate”.",
+      "promptNote": "(The API summarizes Deployment/Pod lists and asks AI for optimization ideas.)",
+      "observedData": "Observed data (table)",
+      "writing": "AI is drafting suggestions…"
+    },
+    "loading": "Loading data...",
+    "stats": {
+      "namespaces": "Namespaces",
+      "pods": "Pods",
+      "services": "Services",
+      "deployments": "Deployments",
+      "pvcs": "PVCs",
+      "nodes": "Nodes"
+    },
+    "issues": {
+      "metricsPodTitle": "Pod metrics collection failed",
+      "metricsNodeTitle": "Node metrics collection failed",
+      "kind": {
+        "node": "Node",
+        "deployment": "Deployment",
+        "pvc": "PVC",
+        "pod": "Pod",
+        "metrics": "Metrics"
+      },
+      "severity": {
+        "critical": "CRITICAL",
+        "warning": "WARNING",
+        "info": "INFO"
+      },
+      "title": "Issues",
+      "subtitle": "Aggregates problematic resources based on Pod/Node/Deployment/PVC status.",
+      "totalLabel": "Total",
+      "totalCount": "{{count}}",
+      "criticalLabel": "Critical",
+      "warningLabel": "Warning",
+      "infoLabel": "Info",
+      "includeRestarts": "Include restart history",
+      "includeRestartsHint": "Include past restarts for currently healthy (Running/Ready) pods as Info.",
+      "searchPlaceholder": "Search issues (name/namespace/message)...",
+      "loading": "Collecting issues...",
+      "none": "No issues detected",
+      "noneHint": "Check your filters/search terms",
+      "count": "{{count}}"
+    },
+    "metricsServerHint": "Check metrics-server status",
+    "title": "Cluster Dashboard",
+    "subtitle": "Get a quick overview of your Kubernetes cluster.",
+    "clusterVersion": "Cluster version: {{version}}",
+    "refreshTitle": "Force refresh",
+    "refresh": "Refresh",
+    "podStatus": {
+      "title": "Pod status",
+      "subtitle": "Click to view pods in each status"
+    },
+    "nodeStatus": {
+      "title": "Node status",
+      "subtitle": "Click to view nodes in each status"
+    },
+    "topPods": {
+      "title": "Top 5 pods by resource usage",
+      "metricsError": "Failed to fetch pod metrics"
+    },
+    "autoRefresh": "Auto refresh every 5 seconds",
+    "topResources": {
+      "error": "Failed to fetch data",
+      "empty": "No resource usage data"
+    },
+    "cpu": "CPU",
+    "memory": "Memory",
+    "topNodes": {
+      "title": "Top 3 nodes by resource usage",
+      "metricsError": "Failed to fetch node metrics"
+    },
+    "nodes": {
+      "title": "Nodes"
+    },
+    "nodeCard": {
+      "versionLabel": "Version",
+      "rolesLabel": "Roles",
+      "ipLabel": "IP"
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "issues": {
+        "title": "Check issues",
+        "subtitle": "Find resources with problems"
+      },
+      "optimization": {
+        "title": "Optimization suggestions",
+        "subtitle": "AI-powered resource optimization"
+      },
+      "storage": {
+        "title": "Storage analysis",
+        "subtitle": "PV/PVC usage status"
+      }
+    },
+    "labels": {
+      "namespaceShort": "ns:"
+    },
+    "storage": {
+      "title": "Storage analysis",
+      "subtitle": "Review PV/PVC status and binding state",
+      "pvcCount": "PVC {{count}}",
+      "pvCount": "PV {{count}}",
+      "pvcStatusTitle": "PVC Status",
+      "pvcStatusCount": "PVC {{status}} {{count}}",
+      "pvStatusTitle": "PV Status",
+      "pvStatusCount": "PV {{status}} {{count}}",
+      "tabs": {
+        "pvcs": "PVC",
+        "pvs": "PV",
+        "topology": "Topology"
+      },
+      "namespaceFilter": "Namespace filter",
+      "allNamespaces": "All namespaces",
+      "searchPlaceholder": "Search (name/status/StorageClass/Claim)...",
+      "loading": "Loading storage data...",
+      "noPVC": "No PVCs to display",
+      "pvLabel": "PV",
+      "noPV": "No PVs to display",
+      "reclaimLabel": "Reclaim",
+      "claimLabel": "Claim",
+      "topologyTitle": "Storage Topology",
+      "topologySummary": "Nodes: {{nodes}} · Edges: {{edges}}",
+      "noTopologyEdges": "No topology edges to display",
+      "topologyLimit": "Showing up to 50 edges",
+      "topologyLoading": "Loading topology...",
+      "topologyError": "Failed to load topology",
+      "topologyUnavailable": "Topology data is unavailable"
+    },
+    "unknownError": "Unknown error",
+    "resourceModal": {
+      "loading": "Loading...",
+      "total": "Total {{count}}",
+      "searchPlaceholder": "Search...",
+      "namespaceSummary": "Pods: {{pods}} | Services: {{services}} | Deployments: {{deployments}}",
+      "noSearchResults": "No results found",
+      "noNamespaces": "No namespaces",
+      "noPods": "No pods",
+      "typeLabel": "Type",
+      "clusterIpLabel": "Cluster IP",
+      "noServices": "No services",
+      "replicasLabel": "Replicas",
+      "noDeployments": "No deployments",
+      "noPVCs": "No PVCs",
+      "versionLabel": "Version",
+      "internalIpLabel": "Internal IP",
+      "rolesLabel": "Roles",
+      "noNodes": "No nodes"
+    },
+    "nodeModal": {
+      "title": "Node details",
+      "componentStatus": "Component Status",
+      "componentTable": {
+        "name": "NAME",
+        "status": "STATUS",
+        "message": "MESSAGE",
+        "error": "ERROR"
+      },
+      "basicInfo": "Basic information",
+      "name": "Name",
+      "osImage": "OS Image",
+      "kernelVersion": "Kernel Version",
+      "containerRuntime": "Container Runtime",
+      "kubeletVersion": "Kubelet Version",
+      "kubeProxyVersion": "Kube-Proxy Version",
+      "addresses": "Addresses",
+      "conditions": "Conditions",
+      "conditionsTable": {
+        "type": "Type",
+        "status": "Status",
+        "reason": "Reason",
+        "message": "Message"
+      },
+      "labels": "Labels",
+      "annotations": "Annotations"
+    }
+  },
+  "clusterView": {
+    "rbac": {
+      "serviceAccountDirect": "ServiceAccount (direct)",
+      "match": {
+        "userServiceAccount": "User(system:serviceaccount)",
+        "groupServiceAccounts": "Group(system:serviceaccounts)",
+        "groupAuthenticated": "Group(system:authenticated)"
+      },
+      "title": "RBAC",
+      "tooltip": "This view summarizes RBAC (Role/RoleBinding/ClusterRole/ClusterRoleBinding) only. Actual allow/deny can differ due to Admission (OPA/Gatekeeper), NetworkPolicy/CNI, and controller behavior.",
+      "tooltipLabel": "Note: RBAC only",
+      "includeAuthenticated": "Include broad (system:authenticated)",
+      "includeAuthenticatedHint": "When checked, bindings matched by system:authenticated will be included.",
+      "loading": "Loading RBAC data...",
+      "loadError": "Failed to load RBAC data. (This may be due to permissions or API errors.)",
+      "serviceAccountLabel": "ServiceAccount",
+      "defaultName": "default",
+      "defaultLabel": "(default)",
+      "bindingsLabel": "Bindings",
+      "roleBindingCount": "RoleBinding {{count}}",
+      "broadCount": "(broad {{count}})",
+      "clusterRoleBindingCount": "ClusterRoleBinding {{count}}",
+      "warningTitle": "Warning",
+      "summary": {
+        "title": "Permission summary",
+        "subtitle": "Aggregated from displayed Role/ClusterRole rules.",
+        "includeBroad": "(including broad)",
+        "excludeBroad": "(excluding broad)",
+        "total": "{{count}} items",
+        "none": "(none)",
+        "resources": "Resources",
+        "table": {
+          "apiGroup": "apiGroup",
+          "resource": "resource",
+          "verbs": "verbs",
+          "url": "url"
+        },
+        "resourceNames": "(names: {{names}})",
+        "nonResourceUrls": "Non-resource URLs"
+      },
+      "roleBindingsTitle": "RoleBindings (Namespace)",
+      "matchingLabel": "Matching",
+      "rulesCount": "rules: {{count}}",
+      "resolveFailed": "resolve failed",
+      "subjects": "Subjects",
+      "rulesLabel": "Rules",
+      "verbsLabel": "verbs",
+      "none": "(none)",
+      "resourcesLabel": "resources",
+      "apiGroupsLabel": "apiGroups",
+      "nonResourceUrlsLabel": "nonResourceURLs",
+      "resourceNamesLabel": "resourceNames",
+      "broadRoleBindingTitle": "Broad RoleBinding {{count}} (system:authenticated)",
+      "broadRoleBindingHint": "This can include most authenticated subjects and may overstate the actual permissions for this pod.",
+      "broadLabel": "Broad",
+      "clusterRoleBindingsTitle": "ClusterRoleBindings (Cluster)",
+      "broadClusterRoleBindingTitle": "Broad ClusterRoleBinding {{count}} (system:authenticated)",
+      "broadClusterRoleBindingHint": "This can include all authenticated subjects and may add noise. Use only for troubleshooting."
+    },
+    "logs": {
+      "streamError": "An error occurred while streaming logs.",
+      "fetchError": "Failed to load logs.",
+      "errorLabel": "Error",
+      "downloadError": "Failed to download logs.",
+      "containerLabel": "Container",
+      "selectContainer": "Select container",
+      "containerSearchPlaceholder": "Search containers...",
+      "noSearchResults": "No results found",
+      "noContainers": "No containers",
+      "downloadLines": "Log download lines",
+      "linesCount": "{{count}} lines",
+      "download": "Download",
+      "downloading": "Downloading...",
+      "loading": "Loading logs..."
+    },
+    "title": "Cluster view",
+    "subtitle": "Review pod placement across nodes",
+    "searchPlaceholder": "Search pod name...",
+    "allNamespaces": "All namespaces",
+    "loading": "Loading data...",
+    "searchResults": "Results",
+    "countSuffix": "items",
+    "searchResultsTotal": "(out of {{count}})",
+    "noSearchResults": "No pods found for \"{{query}}\"",
+    "nodePodsCount": "{{count}} Pods",
+    "restarts": "Restarts: {{count}}",
+    "noPods": "No pods found",
+    "tabs": {
+      "summary": "Summary",
+      "logs": "Logs",
+      "describe": "Describe",
+      "rbac": "RBAC",
+      "manifest": "Manifest"
+    },
+    "summary": {
+      "kind": "Kind",
+      "kindPod": "Pod",
+      "state": "State",
+      "node": "Node",
+      "createdAt": "Created at"
+    },
+    "containers": {
+      "title": "Container state",
+      "searchPlaceholder": "Search containers...",
+      "state": {
+        "unknown": "Unknown",
+        "running": "Running",
+        "waiting": "Waiting: {{reason}}",
+        "unknownReason": "Unknown",
+        "terminated": "Terminated: {{reason}} (exit code: {{code}})"
+      },
+      "imageLabel": "Image",
+      "restartsLabel": "Restarts",
+      "noSearchResults": "No results found",
+      "none": "No containers"
+    },
+    "health": {
+      "title": "Health"
+    },
+    "describe": {
+      "basicInfo": "Basic information",
+      "name": "Name",
+      "namespace": "Namespace",
+      "node": "Node",
+      "phase": "Phase",
+      "createdAt": "Created at",
+      "podIp": "Pod IP",
+      "labels": "Labels",
+      "containers": "Containers",
+      "containerReady": "Ready",
+      "containerNotReady": "Not Ready",
+      "containerImage": "Image",
+      "containerState": "State",
+      "containerWaiting": "Waiting ({{reason}})",
+      "containerTerminated": "Terminated ({{reason}})",
+      "containerRestarts": "Restart Count",
+      "conditions": "Conditions",
+      "conditionsType": "Type",
+      "conditionsStatus": "Status",
+      "conditionsLastTransition": "Last Transition",
+      "events": "Events"
+    },
+    "manifest": {
+      "loading": "Loading..."
+    }
+  },
+  "namespaces": {
+    "loading": "Loading data...",
+    "title": "Namespaces",
+    "subtitle": "Review all namespaces in the cluster and manage resources",
+    "refresh": "Refresh",
+    "searchPlaceholder": "Search namespaces...",
+    "matchCount": "{{count}} namespaces found",
+    "created": "Created",
+    "metrics": {
+      "pods": "Pods",
+      "services": "Services",
+      "deployments": "Deployments",
+      "pvcs": "PVCs"
+    },
+    "actions": {
+      "resources": "View resources",
+      "network": "View network",
+      "yaml": "View YAML"
+    },
+    "noSearchResults": "No results found",
+    "empty": "No namespaces found",
+    "describe": {
+      "title": "Namespace details",
+      "subtitle": "Details from kubectl describe namespace {{name}}",
+      "loading": "Loading namespace details...",
+      "error": "Failed to load namespace details.",
+      "basicInfo": "Basic information",
+      "name": "Name",
+      "status": "Status",
+      "createdAt": "Created at",
+      "labels": "Labels",
+      "annotations": "Annotations",
+      "recentEvents": "Recent events",
+      "notFound": "Namespace details not found."
+    }
+  },
+  "adminUsers": {
+    "loading": "Loading...",
+    "loadError": "Failed to load users.",
+    "title": "User management",
+    "subtitle": "Update user roles (read/write/admin).",
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "password": "Password",
+      "delete": "Delete"
+    },
+    "resetPasswordConfirm": "Reset password to 1111?\\\\n\\\\nTarget: {{target}}",
+    "resetPasswordTitle": "Reset password to 1111",
+    "resetting": "Resetting...",
+    "reset": "Reset PW",
+    "deleteConfirm": "Delete this user?\\\\n\\\\nTarget: {{target}}\\\\n\\\\n* Deletions cannot be easily undone.",
+    "deleteSelfBlocked": "You cannot delete your own account.",
+    "deleteTitle": "Delete user",
+    "deleting": "Deleting...",
+    "delete": "Delete",
+    "empty": "No users found.",
+    "reauth": {
+      "ariaLabel": "Re-authentication required",
+      "title": "Role updated",
+      "subtitle": "For security, please sign in again. You will be taken to the login page.",
+      "confirm": "OK"
+    }
+  },
+  "account": {
+    "password": {
+      "changed": "Password updated.",
+      "required": "Enter current and new passwords.",
+      "mismatch": "New passwords do not match.",
+      "title": "Change password",
+      "subtitle": "Verify your current password",
+      "failed": "Failed to change password.",
+      "current": "Current password",
+      "new": "New password",
+      "minLength": "At least 4 characters",
+      "confirm": "Confirm new password",
+      "confirmPlaceholder": "Type again",
+      "updating": "Updating...",
+      "submit": "Update password"
+    },
+    "title": "Account",
+    "subtitle": "You can change your password.",
+    "profile": {
+      "title": "Profile",
+      "subtitle": "Signed-in account information",
+      "name": "Name",
+      "email": "Email",
+      "hq": "HQ",
+      "team": "Team",
+      "role": "Role"
+    }
+  },
+  "storage": {
+    "search": {
+      "pvcs": "Search PVC name...",
+      "pvs": "Search PV name...",
+      "storageClasses": "Search StorageClass name...",
+      "volumeAttachments": "Search VolumeAttachment name...",
+      "action": "Search"
+    },
+    "title": "Storage",
+    "refreshTitle": "Refresh (force reload)",
+    "refresh": "Refresh",
+    "allNamespaces": "All namespaces",
+    "columns": {
+      "compactTitle": "Show key columns only",
+      "compact": "Compact",
+      "fullTitle": "Show all columns",
+      "full": "Full"
+    },
+    "volumeAttachment": {
+      "infoTitle": "VolumeAttachments are created for CSI volumes that require attach/detach. (e.g., NFS may not create them)",
+      "infoLine1": "VolumeAttachments are created for CSI volumes that require attach/detach.",
+      "infoLine2": "(e.g., NFS may not create them)",
+      "loadError": "Failed to load VolumeAttachments. (This may be restricted by cluster permissions or environment)"
+    },
+    "pvc": {
+      "linkHint": "Click to view PV/StorageClass links",
+      "linkTitle": "View links",
+      "setSearch": "Set as search"
+    },
+    "pv": {
+      "summary": "PV summary",
+      "gotoTitle": "Go to PV tab",
+      "goto": "Go to PV",
+      "none": "(no PV)"
+    },
+    "loading": "Loading...",
+    "lookupNone": "(not found or failed)",
+    "storageClass": {
+      "summary": "StorageClass summary",
+      "gotoTitle": "Go to StorageClass tab",
+      "goto": "Go to SC",
+      "none": "(no StorageClass)"
+    }
+  },
+  "login": {
+    "errors": {
+      "passwordMismatch": "Passwords do not match.",
+      "loginFailed": "Failed to sign in.",
+      "registerFailed": "Failed to create account."
+    },
+    "badge": "Operate Kubernetes faster",
+    "features": {
+      "dashboard": {
+        "title": "Dashboard",
+        "subtitle": "Quickly review cluster overview and key metrics"
+      },
+      "monitoring": {
+        "title": "Monitoring",
+        "subtitle": "Real-time node/pod resource usage"
+      },
+      "clusterView": {
+        "title": "Cluster view",
+        "subtitle": "View pod/container logs and manifests"
+      },
+      "aiChat": {
+        "title": "AI Chat",
+        "subtitle": "Operations Q&A, root cause analysis, guidance"
+      }
+    },
+    "form": {
+      "loginTitle": "Sign in",
+      "registerTitle": "Create account",
+      "switchToRegister": "Create account",
+      "switchToLogin": "Sign in",
+      "loginSubtitle": "Sign in to access the service.",
+      "registerSubtitle": "Create a new account and sign in.",
+      "name": "Name",
+      "namePlaceholder": "Jane Doe",
+      "hq": "HQ",
+      "hqPlaceholder": "e.g. Platform",
+      "team": "Team",
+      "teamPlaceholder": "e.g. DevOps",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "processing": "Processing...",
+      "submitLogin": "Sign in",
+      "submitRegister": "Create account"
+    }
   }
 }
