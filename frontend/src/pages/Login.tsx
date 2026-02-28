@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import { clearRedirectAfterLogin, getRedirectAfterLogin, setAccessToken } from '@/services/auth'
 import { Activity, Layers, LayoutDashboard, Lock, MessageSquare, UserPlus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 type Mode = 'login' | 'register'
 
@@ -11,6 +12,9 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  const tr = (key: string, fallback: string, options?: Record<string, any>) =>
+    t(key, { defaultValue: fallback, ...options })
 
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
@@ -54,7 +58,7 @@ export default function Login() {
 
     if (mode === 'register') {
       if (password !== confirmPassword) {
-        setFormError('비밀번호가 일치하지 않습니다.')
+        setFormError(tr('login.errors.passwordMismatch', 'Passwords do not match.'))
         return
       }
       registerMutation.mutate()
@@ -76,7 +80,7 @@ export default function Login() {
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/40 px-3 py-1 text-xs text-slate-300">
               <div className="h-2 w-2 rounded-full bg-primary-500" />
-              Kubernetes 운영을 더 빠르게
+              {tr('login.badge', 'Operate Kubernetes faster')}
             </div>
 
             <div className="space-y-3">
@@ -89,30 +93,38 @@ export default function Login() {
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
                 <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <LayoutDashboard className="h-4 w-4 text-primary-400" />
-                  대시보드
+                  {tr('login.features.dashboard.title', 'Dashboard')}
                 </div>
-                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">클러스터 개요/핵심 지표를 빠르게 확인</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">
+                  {tr('login.features.dashboard.subtitle', 'Quickly review cluster overview and key metrics')}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
                 <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <Activity className="h-4 w-4 text-cyan-400" />
-                  모니터링
+                  {tr('login.features.monitoring.title', 'Monitoring')}
                 </div>
-                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">Node/Pod 리소스 사용량 실시간 조회</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">
+                  {tr('login.features.monitoring.subtitle', 'Real-time node/pod resource usage')}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
                 <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <Layers className="h-4 w-4 text-slate-200" />
-                  클러스터 뷰
+                  {tr('login.features.clusterView.title', 'Cluster view')}
                 </div>
-                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">Pod/컨테이너 로그/매니페스트 확인</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">
+                  {tr('login.features.clusterView.subtitle', 'View pod/container logs and manifests')}
+                </p>
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 2xl:p-5">
                 <div className="flex items-center gap-2 text-sm 2xl:text-base font-semibold text-white">
                   <MessageSquare className="h-4 w-4 text-primary-400" />
-                  AI 챗
+                  {tr('login.features.aiChat.title', 'AI Chat')}
                 </div>
-                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">운영 질문/원인 분석/가이드 추천</p>
+                <p className="mt-1 text-xs 2xl:text-sm text-slate-400">
+                  {tr('login.features.aiChat.subtitle', 'Operations Q&A, root cause analysis, guidance')}
+                </p>
               </div>
             </div>
 
@@ -127,7 +139,11 @@ export default function Login() {
                   ) : (
                     <UserPlus className="h-5 w-5 text-primary-400" />
                   )}
-                  <h2 className="text-lg lg:text-xl font-semibold text-white">{mode === 'login' ? '로그인' : '회원가입'}</h2>
+                  <h2 className="text-lg lg:text-xl font-semibold text-white">
+                    {mode === 'login'
+                      ? tr('login.form.loginTitle', 'Sign in')
+                      : tr('login.form.registerTitle', 'Create account')}
+                  </h2>
                 </div>
 
                 <button
@@ -135,25 +151,29 @@ export default function Login() {
                   onClick={() => setMode((m) => (m === 'login' ? 'register' : 'login'))}
                   className="text-sm lg:text-base text-slate-300 hover:text-white"
                 >
-                  {mode === 'login' ? '회원가입' : '로그인'}
+                  {mode === 'login'
+                    ? tr('login.form.switchToRegister', 'Create account')
+                    : tr('login.form.switchToLogin', 'Sign in')}
                 </button>
               </div>
 
               <p className="mt-2 text-sm lg:text-base text-slate-400">
                 {mode === 'login'
-                  ? '계정으로 로그인하여 서비스를 이용하세요.'
-                  : '새 계정을 만들고 바로 로그인합니다.'}
+                  ? tr('login.form.loginSubtitle', 'Sign in to access the service.')
+                  : tr('login.form.registerSubtitle', 'Create a new account and sign in.')}
               </p>
 
               <form className="mt-5 space-y-3" onSubmit={handleSubmit}>
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">이름</label>
+                    <label className="block text-xs text-slate-400 mb-1">
+                      {tr('login.form.name', 'Name')}
+                    </label>
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      placeholder="홍길동"
+                      placeholder={tr('login.form.namePlaceholder', 'Jane Doe')}
                       autoComplete="name"
                     />
                   </div>
@@ -162,22 +182,26 @@ export default function Login() {
                 {mode === 'register' && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">본부</label>
+                      <label className="block text-xs text-slate-400 mb-1">
+                        {tr('login.form.hq', 'HQ')}
+                      </label>
                       <input
                         value={hq}
                         onChange={(e) => setHq(e.target.value)}
                         className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                        placeholder="예: 플랫폼"
+                        placeholder={tr('login.form.hqPlaceholder', 'e.g. Platform')}
                         autoComplete="organization"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">팀</label>
+                      <label className="block text-xs text-slate-400 mb-1">
+                        {tr('login.form.team', 'Team')}
+                      </label>
                       <input
                         value={team}
                         onChange={(e) => setTeam(e.target.value)}
                         className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                        placeholder="예: DevOps"
+                        placeholder={tr('login.form.teamPlaceholder', 'e.g. DevOps')}
                         autoComplete="organization"
                       />
                     </div>
@@ -185,7 +209,9 @@ export default function Login() {
                 )}
 
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">이메일</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('login.form.email', 'Email')}
+                  </label>
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -197,7 +223,9 @@ export default function Login() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">비밀번호</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('login.form.password', 'Password')}
+                  </label>
                   <input
                     type="password"
                     value={password}
@@ -213,7 +241,9 @@ export default function Login() {
 
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">비밀번호 확인</label>
+                    <label className="block text-xs text-slate-400 mb-1">
+                      {tr('login.form.confirmPassword', 'Confirm password')}
+                    </label>
                     <input
                       type="password"
                       value={confirmPassword}
@@ -230,7 +260,10 @@ export default function Login() {
 
                 {(formError || loginMutation.isError || registerMutation.isError) && (
                   <div className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200" aria-live="polite">
-                    {formError ?? (mode === 'login' ? '로그인에 실패했습니다.' : '회원가입에 실패했습니다.')}
+                    {formError ??
+                      (mode === 'login'
+                        ? tr('login.errors.loginFailed', 'Failed to sign in.')
+                        : tr('login.errors.registerFailed', 'Failed to create account.'))}
                   </div>
                 )}
 
@@ -244,7 +277,11 @@ export default function Login() {
                 }
                 className="w-full rounded-lg bg-primary-600 px-4 py-2.5 lg:py-3 text-sm lg:text-base font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isBusy ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
+                {isBusy
+                  ? tr('login.form.processing', 'Processing...')
+                  : mode === 'login'
+                    ? tr('login.form.submitLogin', 'Sign in')
+                    : tr('login.form.submitRegister', 'Create account')}
               </button>
             </form>
           </div>
