@@ -90,6 +90,43 @@
     },
     "noResults": "No pods found."
   },
+  "nodes": {
+    "title": "Nodes",
+    "subtitle": "Inspect cluster node status and capacity.",
+    "searchPlaceholder": "Search nodes by name...",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "noResults": "No nodes found.",
+    "top": {
+      "title": "Top nodes by resource usage",
+      "loading": "Loading metrics...",
+      "error": "Metrics unavailable",
+      "empty": "No metrics available"
+    },
+    "table": {
+      "name": "Name",
+      "status": "Status",
+      "roles": "Roles",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "version": "Version",
+      "internalIp": "Internal IP",
+      "externalIp": "External IP",
+      "age": "Age"
+    },
+    "detail": {
+      "title": "Node details",
+      "subtitle": "Details from kubectl describe node {{name}}",
+      "loading": "Loading node details...",
+      "error": "Failed to load node details.",
+      "notFound": "Node details not found.",
+      "conditions": "Conditions",
+      "taints": "Taints",
+      "addresses": "Addresses",
+      "version": "Versions",
+      "system": "System info"
+    }
+  },
   "aiChat": {
     "newChat": "New Chat",
     "newChatTitle": "New Chat",
