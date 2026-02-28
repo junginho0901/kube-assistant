@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/services/api'
-import { KeyRound, Languages, User } from 'lucide-react'
+import { KeyRound, Languages, User, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { ModalOverlay } from '@/components/ModalOverlay'
 
 export default function Account() {
   const queryClient = useQueryClient()
@@ -16,6 +17,7 @@ export default function Account() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
 
   const changePasswordMutation = useMutation({
     mutationFn: () => api.changePassword({ current_password: currentPassword, new_password: newPassword }),
@@ -38,6 +40,16 @@ export default function Account() {
   const setLanguage = (next: 'en' | 'ko') => {
     if (language === next) return
     void i18n.changeLanguage(next)
+  }
+
+  const closePasswordModal = () => {
+    setPasswordModalOpen(false)
+    setLocalError(null)
+    setSuccess(null)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    changePasswordMutation.reset()
   }
 
   const onSubmit = (e: React.FormEvent) => {
@@ -66,14 +78,25 @@ export default function Account() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-primary-500/10">
-              <User className="w-6 h-6 text-primary-400" />
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary-500/10">
+                <User className="w-6 h-6 text-primary-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">{tr('account.profile.title', 'Profile')}</h2>
+                <p className="text-sm text-slate-400">
+                  {tr('account.profile.subtitle', 'Signed-in account information')}
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">{tr('account.profile.title', 'Profile')}</h2>
-              <p className="text-sm text-slate-400">{tr('account.profile.subtitle', 'Signed-in account information')}</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPasswordModalOpen(true)}
+              className="rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/40"
+            >
+              {tr('account.password.open', 'Change password')}
+            </button>
           </div>
 
           <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
@@ -90,89 +113,7 @@ export default function Account() {
           </div>
         </div>
 
-        <div className="card h-full flex flex-col">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-cyan-500/10">
-              <KeyRound className="w-6 h-6 text-cyan-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">{tr('account.password.title', 'Change password')}</h2>
-              <p className="text-sm text-slate-400">{tr('account.password.subtitle', 'Verify your current password')}</p>
-            </div>
-          </div>
-
-          {success && (
-            <div className="mb-3 rounded-lg border border-green-900/40 bg-green-950/30 px-3 py-2 text-sm text-green-200">
-              {success}
-            </div>
-          )}
-
-          {(localError || changePasswordMutation.isError) && (
-            <div className="mb-3 rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-              {localError ?? tr('account.password.failed', 'Failed to change password.')}
-            </div>
-          )}
-
-          <form onSubmit={onSubmit} className="flex-1 flex flex-col">
-            <div className="flex-1 flex flex-col justify-between gap-4">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    {tr('account.password.current', 'Current password')}
-                  </label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    {tr('account.password.new', 'New password')}
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder={tr('account.password.minLength', 'At least 4 characters')}
-                    autoComplete="new-password"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    {tr('account.password.confirm', 'Confirm new password')}
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder={tr('account.password.confirmPlaceholder', 'Type again')}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isBusy}
-                className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isBusy
-                  ? tr('account.password.updating', 'Updating...')
-                  : tr('account.password.submit', 'Update password')}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="card lg:col-span-2">
+        <div className="card">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-emerald-500/10">
               <Languages className="w-6 h-6 text-emerald-400" />
@@ -214,6 +155,117 @@ export default function Account() {
           </p>
         </div>
       </div>
+
+      {passwordModalOpen && (
+        <ModalOverlay onClose={closePasswordModal}>
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={tr('account.password.title', 'Change password')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-cyan-500/10">
+                  <KeyRound className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    {tr('account.password.title', 'Change password')}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {tr('account.password.subtitle', 'Verify your current password')}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                className="rounded-lg border border-slate-700 bg-slate-900/40 p-2 text-slate-300 hover:bg-slate-700/40"
+                aria-label={tr('account.password.close', 'Close')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {success && (
+              <div className="mt-4 rounded-lg border border-green-900/40 bg-green-950/30 px-3 py-2 text-sm text-green-200">
+                {success}
+              </div>
+            )}
+
+            {(localError || changePasswordMutation.isError) && (
+              <div className="mt-4 rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+                {localError ?? tr('account.password.failed', 'Failed to change password.')}
+              </div>
+            )}
+
+            <form onSubmit={onSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {tr('account.password.current', 'Current password')}
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {tr('account.password.new', 'New password')}
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder={tr('account.password.minLength', 'At least 4 characters')}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {tr('account.password.confirm', 'Confirm new password')}
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder={tr('account.password.confirmPlaceholder', 'Type again')}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closePasswordModal}
+                  className="rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-2 text-sm text-slate-200 hover:bg-slate-700/40"
+                >
+                  {tr('account.password.cancel', 'Cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBusy}
+                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isBusy
+                    ? tr('account.password.updating', 'Updating...')
+                    : tr('account.password.submit', 'Update password')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   )
 }
