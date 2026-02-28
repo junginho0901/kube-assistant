@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import type { PodInfo } from '@/services/api'
 import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
@@ -44,6 +45,12 @@ interface PodDetail {
 
 export default function ClusterView() {
   const queryClient = useQueryClient()
+  const { t, i18n } = useTranslation()
+  const tr = (key: string, fallback: string, options?: Record<string, any>) => t(key, { defaultValue: fallback, ...options })
+  const locale = i18n.language === 'ko' ? 'ko-KR' : 'en-US'
+  const na = tr('common.notAvailable', 'N/A')
+  const unknown = tr('common.unknown', 'Unknown')
+  const emptyValue = tr('common.empty', '-')
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [selectedPod, setSelectedPod] = useState<PodDetail | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<string>('')
@@ -84,13 +91,13 @@ export default function ClusterView() {
   const formatMatchReason = (reason: string) => {
     switch (reason) {
       case 'serviceaccount':
-        return 'ServiceAccount 직접'
+        return tr('clusterView.rbac.serviceAccountDirect', 'ServiceAccount (direct)')
       case 'user:system:serviceaccount':
-        return 'User(system:serviceaccount)'
+        return tr('clusterView.rbac.match.userServiceAccount', 'User(system:serviceaccount)')
       case 'group:serviceaccounts':
-        return 'Group(system:serviceaccounts)'
+        return tr('clusterView.rbac.match.groupServiceAccounts', 'Group(system:serviceaccounts)')
       case 'group:system:authenticated':
-        return 'Group(system:authenticated)'
+        return tr('clusterView.rbac.match.groupAuthenticated', 'Group(system:authenticated)')
       default:
         return reason
     }
@@ -412,7 +419,7 @@ export default function ClusterView() {
         
         ws.onerror = (error) => {
           console.error('WebSocket error:', error)
-          setLogs((prev) => prev + '\n\n로그 스트리밍 중 오류가 발생했습니다.')
+          setLogs((prev) => prev + `\n\n${tr('clusterView.logs.streamError', 'An error occurred while streaming logs.')}`)
         }
         
         ws.onclose = (event) => {
@@ -425,7 +432,7 @@ export default function ClusterView() {
         
       } catch (error: any) {
         console.error('Error creating WebSocket:', error)
-        setLogs(`로그를 불러오는데 실패했습니다.\n\n에러: ${error.message}`)
+        setLogs(`${tr('clusterView.logs.fetchError', 'Failed to load logs.')}\n\n${tr('clusterView.logs.errorLabel', 'Error')}: ${error.message}`)
         setIsStreamingLogs(false)
       }
     }
@@ -781,8 +788,8 @@ export default function ClusterView() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('로그 다운로드 실패:', error)
-      alert('로그 다운로드에 실패했습니다.')
+      console.error('Log download failed:', error)
+      alert(tr('clusterView.logs.downloadError', 'Failed to download logs.'))
     } finally {
       setIsDownloading(false)
     }
@@ -793,9 +800,9 @@ export default function ClusterView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">클러스터 뷰</h1>
+          <h1 className="text-3xl font-bold text-white">{tr('clusterView.title', 'Cluster view')}</h1>
           <p className="mt-2 text-slate-400">
-            Node별 Pod 배치 현황을 확인하세요
+            {tr('clusterView.subtitle', 'Review pod placement across nodes')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -804,7 +811,7 @@ export default function ClusterView() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="파드 이름 검색..."
+              placeholder={tr('clusterView.searchPlaceholder', 'Search pod name...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-10 pl-10 pr-4 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors w-64"
@@ -825,7 +832,9 @@ export default function ClusterView() {
               className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[200px] justify-between"
             >
               <span className="text-sm font-medium">
-                {selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace}
+                {selectedNamespace === 'all'
+                  ? tr('clusterView.allNamespaces', 'All namespaces')
+                  : selectedNamespace}
               </span>
               <ChevronDown 
                 className={`w-4 h-4 text-slate-400 transition-transform ${
@@ -847,7 +856,7 @@ export default function ClusterView() {
                     <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                   )}
                   <span className={selectedNamespace === 'all' ? 'font-medium' : ''}>
-                    전체 네임스페이스
+                    {tr('clusterView.allNamespaces', 'All namespaces')}
                   </span>
                 </button>
                 {Array.isArray(namespaces) && namespaces.map((ns) => (
@@ -877,17 +886,19 @@ export default function ClusterView() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
           <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
-          <p className="text-slate-400">데이터를 불러오는 중...</p>
+          <p className="text-slate-400">{tr('clusterView.loading', 'Loading data...')}</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* 검색 결과 정보 */}
           {searchQuery && (
             <div className="text-sm text-slate-400">
-              검색 결과: <span className="text-white font-medium">{filteredPods.length}</span>개
+              {tr('clusterView.searchResults', 'Results')}:{' '}
+              <span className="text-white font-medium">{filteredPods.length}</span>{' '}
+              {tr('clusterView.countSuffix', 'items')}
               {filteredPods.length !== (allPods?.length || 0) && (
                 <span className="ml-2">
-                  (전체 {allPods?.length || 0}개 중)
+                  {tr('clusterView.searchResultsTotal', '(out of {{count}})', { count: allPods?.length || 0 })}
                 </span>
               )}
             </div>
@@ -898,7 +909,7 @@ export default function ClusterView() {
             <div className="card text-center py-12">
               <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
               <p className="text-slate-400">
-                "{searchQuery}"에 해당하는 Pod를 찾을 수 없습니다
+                {tr('clusterView.noSearchResults', 'No pods found for "{{query}}"', { query: searchQuery })}
               </p>
             </div>
           )}
@@ -910,7 +921,9 @@ export default function ClusterView() {
               <div className="flex items-center gap-3 mb-4">
                 <Server className="w-6 h-6 text-cyan-400" />
                 <h2 className="text-xl font-bold text-white">{nodeName}</h2>
-                <span className="badge badge-secondary">{pods.length} Pods</span>
+                <span className="badge badge-secondary">
+                  {tr('clusterView.nodePodsCount', '{{count}} Pods', { count: pods.length })}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -932,7 +945,8 @@ export default function ClusterView() {
                       {getPodHealth(pod).reason}
                     </div>
                     <div className="text-xs text-yellow-400 mt-1 min-h-[16px]">
-                      {pod.restart_count > 0 && `재시작: ${pod.restart_count}`}
+                      {pod.restart_count > 0 &&
+                        tr('clusterView.restarts', 'Restarts: {{count}}', { count: pod.restart_count })}
                     </div>
                   </button>
                 ))}
@@ -943,7 +957,7 @@ export default function ClusterView() {
             !searchQuery && !isLoading && allPods !== undefined && (
               <div className="card text-center py-12">
                 <Box className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400">Pod가 없습니다</p>
+                <p className="text-slate-400">{tr('clusterView.noPods', 'No pods found')}</p>
               </div>
             )
           )}
@@ -989,7 +1003,7 @@ export default function ClusterView() {
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Summary
+                {tr('clusterView.tabs.summary', 'Summary')}
               </button>
               <button
                 onClick={() => {
@@ -1025,7 +1039,7 @@ export default function ClusterView() {
                 }`}
               >
                 <Terminal className="w-4 h-4" />
-                Logs
+                {tr('clusterView.tabs.logs', 'Logs')}
               </button>
               <button
                 onClick={() => {
@@ -1041,7 +1055,7 @@ export default function ClusterView() {
                 }`}
               >
                 <FileCode className="w-4 h-4" />
-                Describe
+                {tr('clusterView.tabs.describe', 'Describe')}
               </button>
               <button
                 onClick={() => {
@@ -1057,7 +1071,7 @@ export default function ClusterView() {
                 }`}
               >
                 <Shield className="w-4 h-4" />
-                RBAC
+                {tr('clusterView.tabs.rbac', 'RBAC')}
               </button>
               <button
                 onClick={() => {
@@ -1073,7 +1087,7 @@ export default function ClusterView() {
                 }`}
               >
                 <FileCode className="w-4 h-4" />
-                Manifest
+                {tr('clusterView.tabs.manifest', 'Manifest')}
               </button>
             </div>
 
@@ -1084,22 +1098,22 @@ export default function ClusterView() {
                   {/* 기본 정보 */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-slate-400">KIND</p>
-                      <p className="text-white font-medium">Pod</p>
+                      <p className="text-sm text-slate-400">{tr('clusterView.summary.kind', 'Kind')}</p>
+                      <p className="text-white font-medium">{tr('clusterView.summary.kindPod', 'Pod')}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">STATE</p>
+                      <p className="text-sm text-slate-400">{tr('clusterView.summary.state', 'State')}</p>
                       <p className="text-white font-medium">{getPodHealth(selectedPod).reason}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">NODE</p>
-                      <p className="text-white font-medium">{selectedPod.node || 'N/A'}</p>
+                      <p className="text-sm text-slate-400">{tr('clusterView.summary.node', 'Node')}</p>
+                      <p className="text-white font-medium">{selectedPod.node || na}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-400">CREATED AT</p>
+                      <p className="text-sm text-slate-400">{tr('clusterView.summary.createdAt', 'Created at')}</p>
                       <p className="text-white font-medium">
                         {selectedPod.created_at 
-                          ? new Date(selectedPod.created_at).toLocaleString('ko-KR', {
+                          ? new Date(selectedPod.created_at).toLocaleString(locale, {
                               year: 'numeric',
                               month: '2-digit',
                               day: '2-digit',
@@ -1107,7 +1121,7 @@ export default function ClusterView() {
                               minute: '2-digit',
                               second: '2-digit'
                             })
-                          : 'N/A'}
+                          : na}
                       </p>
                     </div>
                   </div>
@@ -1115,7 +1129,9 @@ export default function ClusterView() {
                   {/* 컨테이너 상태 */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-bold text-white">Container State</h3>
+                      <h3 className="text-lg font-bold text-white">
+                        {tr('clusterView.containers.title', 'Container state')}
+                      </h3>
                     </div>
                     {/* 컨테이너 검색창 */}
                     {selectedPod.containers && selectedPod.containers.length > 0 && (
@@ -1123,7 +1139,7 @@ export default function ClusterView() {
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                           type="text"
-                          placeholder="컨테이너 검색..."
+                          placeholder={tr('clusterView.containers.searchPlaceholder', 'Search containers...')}
                           value={containerSearchQuery}
                           onChange={(e) => setContainerSearchQuery(e.target.value)}
                           className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
@@ -1159,19 +1175,24 @@ export default function ClusterView() {
                           })
                           .map((container) => {
                             // state 객체에서 상태 추출
-                            let stateText = 'Unknown'
+                            let stateText = tr('clusterView.containers.state.unknown', 'Unknown')
                             let stateColor = 'text-slate-400'
                             
                             if (container.state && typeof container.state === 'object') {
                               const state = container.state as any
                               if (state.running) {
-                                stateText = 'Running'
+                                stateText = tr('clusterView.containers.state.running', 'Running')
                                 stateColor = 'text-green-400'
                               } else if (state.waiting) {
-                                stateText = `Waiting: ${state.waiting.reason || 'Unknown'}`
+                                stateText = tr('clusterView.containers.state.waiting', 'Waiting: {{reason}}', {
+                                  reason: state.waiting.reason || tr('clusterView.containers.state.unknownReason', 'Unknown'),
+                                })
                                 stateColor = 'text-yellow-400'
                               } else if (state.terminated) {
-                                stateText = `Terminated: ${state.terminated.reason || 'Unknown'} (exit code: ${state.terminated.exit_code})`
+                                stateText = tr('clusterView.containers.state.terminated', 'Terminated: {{reason}} (exit code: {{code}})', {
+                                  reason: state.terminated.reason || tr('clusterView.containers.state.unknownReason', 'Unknown'),
+                                  code: state.terminated.exit_code ?? emptyValue,
+                                })
                                 stateColor = 'text-red-400'
                               }
                             }
@@ -1192,11 +1213,11 @@ export default function ClusterView() {
                                   </span>
                                 </div>
                                 <p className="text-sm text-slate-400 truncate" title={container.image}>
-                                  Image: {container.image}
+                                  {tr('clusterView.containers.imageLabel', 'Image')}: {container.image}
                                 </p>
                                 {container.restart_count > 0 && (
                                   <p className="text-sm text-yellow-400 mt-1">
-                                    Restarts: {container.restart_count}
+                                    {tr('clusterView.containers.restartsLabel', 'Restarts')}: {container.restart_count}
                                   </p>
                                 )}
                               </div>
@@ -1205,7 +1226,9 @@ export default function ClusterView() {
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-slate-400">
-                            {containerSearchQuery ? '검색 결과가 없습니다' : '컨테이너가 없습니다'}
+                            {containerSearchQuery
+                              ? tr('clusterView.containers.noSearchResults', 'No results found')
+                              : tr('clusterView.containers.none', 'No containers')}
                           </p>
                         </div>
                       )}
@@ -1214,7 +1237,9 @@ export default function ClusterView() {
 
                   {/* Health */}
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-3">Health</h3>
+                    <h3 className="text-lg font-bold text-white mb-3">
+                      {tr('clusterView.health.title', 'Health')}
+                    </h3>
                     <div className="flex items-center gap-2">
                       {getHealthIcon(getPodHealth(selectedPod).level, getPodHealth(selectedPod).reason)}
                       <span className="text-white font-medium">
@@ -1231,13 +1256,15 @@ export default function ClusterView() {
                   <div className="flex items-end gap-4 pb-4 flex-shrink-0 border-b border-slate-700">
                     {/* 컨테이너 선택 - 커스텀 드롭다운 */}
                     <div className="flex-1 relative" ref={containerDropdownRef}>
-                      <label className="text-sm text-slate-400 mb-2 block">Container</label>
+                      <label className="text-sm text-slate-400 mb-2 block">
+                        {tr('clusterView.logs.containerLabel', 'Container')}
+                      </label>
                       <button
                         onClick={() => setIsContainerDropdownOpen(!isContainerDropdownOpen)}
                         className="w-full h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 justify-between"
                       >
                         <span className="text-sm font-medium">
-                          {selectedContainer || '컨테이너 선택'}
+                          {selectedContainer || tr('clusterView.logs.selectContainer', 'Select container')}
                         </span>
                         <ChevronDown 
                           className={`w-4 h-4 text-slate-400 transition-transform ${
@@ -1254,7 +1281,7 @@ export default function ClusterView() {
                               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                               <input
                                 type="text"
-                                placeholder="컨테이너 검색..."
+                                placeholder={tr('clusterView.logs.containerSearchPlaceholder', 'Search containers...')}
                                 value={containerSearchQuery}
                                 onChange={(e) => setContainerSearchQuery(e.target.value)}
                                 onClick={(e) => e.stopPropagation()}
@@ -1304,7 +1331,9 @@ export default function ClusterView() {
                               ))
                           ) : (
                             <div className="p-4 text-center text-sm text-slate-400">
-                              {containerSearchQuery ? '검색 결과가 없습니다' : '컨테이너가 없습니다'}
+                              {containerSearchQuery
+                                ? tr('clusterView.logs.noSearchResults', 'No results found')
+                                : tr('clusterView.logs.noContainers', 'No containers')}
                             </div>
                           )}
                         </div>
@@ -1313,13 +1342,15 @@ export default function ClusterView() {
 
                     {/* 다운로드 줄 수 선택 - 커스텀 드롭다운 */}
                     <div className="relative" ref={tailLinesDropdownRef}>
-                      <label className="text-sm text-slate-400 mb-2 block">로그 다운로드 줄 수</label>
+                      <label className="text-sm text-slate-400 mb-2 block">
+                        {tr('clusterView.logs.downloadLines', 'Log download lines')}
+                      </label>
                       <button
                         onClick={() => setIsTailLinesDropdownOpen(!isTailLinesDropdownOpen)}
                         className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 justify-between min-w-[150px]"
                       >
                         <span className="text-sm font-medium">
-                          {downloadTailLines}줄
+                          {tr('clusterView.logs.linesCount', '{{count}} lines', { count: downloadTailLines })}
                         </span>
                         <ChevronDown 
                           className={`w-4 h-4 text-slate-400 transition-transform ${
@@ -1343,7 +1374,7 @@ export default function ClusterView() {
                                 <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                               )}
                               <span className={downloadTailLines === lines ? 'font-medium' : ''}>
-                                {lines}줄
+                                {tr('clusterView.logs.linesCount', '{{count}} lines', { count: lines })}
                               </span>
                             </button>
                           ))}
@@ -1353,21 +1384,27 @@ export default function ClusterView() {
 
                     {/* 다운로드 버튼 */}
                     <div>
-                      <label className="text-sm text-slate-400 mb-2 block invisible">다운로드</label>
+                      <label className="text-sm text-slate-400 mb-2 block invisible">
+                        {tr('clusterView.logs.download', 'Download')}
+                      </label>
                       <button
                         onClick={handleDownloadLogs}
                         disabled={isDownloading}
                         className="h-10 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg border border-primary-500 focus:outline-none focus:border-primary-400 transition-colors flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
-                        {isDownloading ? '다운로드 중...' : '다운로드'}
+                        {isDownloading
+                          ? tr('clusterView.logs.downloading', 'Downloading...')
+                          : tr('clusterView.logs.download', 'Download')}
                       </button>
                     </div>
                   </div>
 
                   {/* 로그 - 스크롤 가능 */}
                   <div className="flex-1 bg-slate-900 rounded-lg p-4 mt-4 font-mono text-sm text-slate-300 overflow-x-auto overflow-y-auto">
-                    <pre className="whitespace-pre-wrap break-words">{logs || '로그를 불러오는 중...'}</pre>
+                    <pre className="whitespace-pre-wrap break-words">
+                      {logs || tr('clusterView.logs.loading', 'Loading logs...')}
+                    </pre>
                     <div ref={logsEndRef} />
                   </div>
                 </div>
@@ -1377,33 +1414,35 @@ export default function ClusterView() {
                 <div className="space-y-6">
                   {/* 기본 정보 */}
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">기본 정보</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4">
+                      {tr('clusterView.describe.basicInfo', 'Basic information')}
+                    </h3>
                     <div className="grid grid-cols-2 gap-4 bg-slate-800 rounded-lg p-4">
                       <div>
-                        <p className="text-sm text-slate-400">Name</p>
+                        <p className="text-sm text-slate-400">{tr('clusterView.describe.name', 'Name')}</p>
                         <p className="text-white font-medium">{describeData.name}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-400">Namespace</p>
+                        <p className="text-sm text-slate-400">{tr('clusterView.describe.namespace', 'Namespace')}</p>
                         <p className="text-white font-medium">{describeData.namespace}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-400">Node</p>
-                        <p className="text-white font-medium">{describeData.node || 'N/A'}</p>
+                        <p className="text-sm text-slate-400">{tr('clusterView.describe.node', 'Node')}</p>
+                        <p className="text-white font-medium">{describeData.node || na}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-400">Phase</p>
+                        <p className="text-sm text-slate-400">{tr('clusterView.describe.phase', 'Phase')}</p>
                         <p className="text-white font-medium">{describeData.phase}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-400">Created At</p>
+                        <p className="text-sm text-slate-400">{tr('clusterView.describe.createdAt', 'Created at')}</p>
                         <p className="text-white font-medium">
-                          {new Date(describeData.created_at).toLocaleString('ko-KR')}
+                          {new Date(describeData.created_at).toLocaleString(locale)}
                         </p>
                       </div>
                       {describeData.pod_ip && (
                         <div>
-                          <p className="text-sm text-slate-400">Pod IP</p>
+                          <p className="text-sm text-slate-400">{tr('clusterView.describe.podIp', 'Pod IP')}</p>
                           <p className="text-white font-medium">{describeData.pod_ip}</p>
                         </div>
                       )}
@@ -1413,7 +1452,9 @@ export default function ClusterView() {
                   {/* 레이블 */}
                   {describeData.labels && Object.keys(describeData.labels).length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4">Labels</h3>
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        {tr('clusterView.describe.labels', 'Labels')}
+                      </h3>
                       <div className="bg-slate-800 rounded-lg p-4">
                         <div className="space-y-2">
                           {Object.entries(describeData.labels).map(([key, value]) => (
@@ -1430,7 +1471,9 @@ export default function ClusterView() {
                   {/* 컨테이너 */}
                   {describeData.containers && describeData.containers.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4">Containers</h3>
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        {tr('clusterView.describe.containers', 'Containers')}
+                      </h3>
                       <div className="space-y-4">
                         {describeData.containers.map((container: any, idx: number) => (
                           <div key={idx} className="bg-slate-800 rounded-lg p-4">
@@ -1439,25 +1482,34 @@ export default function ClusterView() {
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 container.ready ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                               }`}>
-                                {container.ready ? 'Ready' : 'Not Ready'}
+                                {container.ready
+                                  ? tr('clusterView.describe.containerReady', 'Ready')
+                                  : tr('clusterView.describe.containerNotReady', 'Not Ready')}
                               </span>
                             </div>
                             <div className="space-y-2 text-sm">
                               <div>
-                                <span className="text-slate-400">Image: </span>
+                                <span className="text-slate-400">{tr('clusterView.describe.containerImage', 'Image')}: </span>
                                 <span className="text-white font-mono">{container.image}</span>
                               </div>
                               <div>
-                                <span className="text-slate-400">State: </span>
+                                <span className="text-slate-400">{tr('clusterView.describe.containerState', 'State')}: </span>
                                 <span className="text-white">
-                                  {container.state?.running ? 'Running' : 
-                                   container.state?.waiting ? `Waiting (${container.state.waiting.reason || 'Unknown'})` :
-                                   container.state?.terminated ? `Terminated (${container.state.terminated.reason || 'Unknown'})` :
-                                   'Unknown'}
+                                  {container.state?.running
+                                    ? tr('clusterView.containers.state.running', 'Running')
+                                    : container.state?.waiting
+                                      ? tr('clusterView.describe.containerWaiting', 'Waiting ({{reason}})', {
+                                          reason: container.state.waiting.reason || tr('clusterView.containers.state.unknownReason', 'Unknown'),
+                                        })
+                                      : container.state?.terminated
+                                        ? tr('clusterView.describe.containerTerminated', 'Terminated ({{reason}})', {
+                                            reason: container.state.terminated.reason || tr('clusterView.containers.state.unknownReason', 'Unknown'),
+                                          })
+                                        : tr('clusterView.containers.state.unknown', 'Unknown')}
                                 </span>
                               </div>
                               <div>
-                                <span className="text-slate-400">Restart Count: </span>
+                                <span className="text-slate-400">{tr('clusterView.describe.containerRestarts', 'Restart Count')}: </span>
                                 <span className="text-white">{container.restart_count}</span>
                               </div>
                             </div>
@@ -1470,14 +1522,22 @@ export default function ClusterView() {
                   {/* Conditions */}
                   {describeData.conditions && describeData.conditions.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4">Conditions</h3>
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        {tr('clusterView.describe.conditions', 'Conditions')}
+                      </h3>
                       <div className="bg-slate-800 rounded-lg overflow-hidden">
                         <table className="w-full">
                           <thead className="bg-slate-700">
                             <tr>
-                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Type</th>
-                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Status</th>
-                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">Last Transition</th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">
+                                {tr('clusterView.describe.conditionsType', 'Type')}
+                              </th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">
+                                {tr('clusterView.describe.conditionsStatus', 'Status')}
+                              </th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-slate-300">
+                                {tr('clusterView.describe.conditionsLastTransition', 'Last Transition')}
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-700">
@@ -1492,7 +1552,7 @@ export default function ClusterView() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-2 text-sm text-slate-300">
-                                  {new Date(condition.last_transition_time).toLocaleString('ko-KR')}
+                                  {new Date(condition.last_transition_time).toLocaleString(locale)}
                                 </td>
                               </tr>
                             ))}
@@ -1505,7 +1565,9 @@ export default function ClusterView() {
                   {/* Events */}
                   {describeData.events && describeData.events.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4">Events</h3>
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        {tr('clusterView.describe.events', 'Events')}
+                      </h3>
                       <div className="bg-slate-800 rounded-lg p-4 space-y-3 max-h-96 overflow-y-auto">
                         {describeData.events.map((event: any, idx: number) => (
                           <div key={idx} className="border-l-2 border-slate-600 pl-3">
@@ -1522,7 +1584,7 @@ export default function ClusterView() {
                                 <p className="text-slate-300 text-sm mt-1">{event.message}</p>
                               </div>
                               <span className="text-slate-400 text-xs whitespace-nowrap ml-4">
-                                {new Date(event.last_timestamp).toLocaleString('ko-KR')}
+                                {new Date(event.last_timestamp).toLocaleString(locale)}
                               </span>
                             </div>
                           </div>
@@ -1537,12 +1599,17 @@ export default function ClusterView() {
                 <div className="space-y-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-white">RBAC</h3>
+                      <h3 className="text-lg font-semibold text-white">
+                        {tr('clusterView.rbac.title', 'RBAC')}
+                      </h3>
                       <span
                         className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs border border-slate-600"
-                        title="이 화면은 RBAC(Role/RoleBinding/ClusterRole/ClusterRoleBinding) 기준으로만 요약합니다. 실제 허용/차단은 Admission(OPA/Gatekeeper 등), NetworkPolicy/CNI, 컨트롤러 구현 등에 따라 달라질 수 있습니다."
+                        title={tr(
+                          'clusterView.rbac.tooltip',
+                          'This view summarizes RBAC (Role/RoleBinding/ClusterRole/ClusterRoleBinding) only. Actual allow/deny can differ due to Admission (OPA/Gatekeeper), NetworkPolicy/CNI, and controller behavior.',
+                        )}
                       >
-                        참고: RBAC 기준
+                        {tr('clusterView.rbac.tooltipLabel', 'Note: RBAC only')}
                       </span>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -1553,23 +1620,26 @@ export default function ClusterView() {
                           onChange={(e) => setIncludeAuthenticatedGroup(e.target.checked)}
                         />
                         <span>
-                          광범위(<span className="font-mono">system:authenticated</span>) 포함
+                          {tr('clusterView.rbac.includeAuthenticated', 'Include broad (system:authenticated)')}
                         </span>
                       </label>
                       <p className="text-slate-500 text-xs text-right max-w-[520px] leading-relaxed">
-                        체크하면 <span className="font-mono">system:authenticated</span> 로 매칭되는 바인딩도 함께 조회/표시합니다.
+                        {tr(
+                          'clusterView.rbac.includeAuthenticatedHint',
+                          'When checked, bindings matched by system:authenticated will be included.',
+                        )}
                       </p>
                     </div>
                   </div>
 
                   {isRbacLoading && (
-                    <div className="text-slate-400">RBAC 정보를 불러오는 중...</div>
+                    <div className="text-slate-400">{tr('clusterView.rbac.loading', 'Loading RBAC data...')}</div>
                   )}
 
                   {rbacError && (
                     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
                       <p className="text-red-300 text-sm">
-                        RBAC 정보를 불러오지 못했습니다. (권한 부족 또는 API 오류일 수 있습니다)
+                        {tr('clusterView.rbac.loadError', 'Failed to load RBAC data. (This may be due to permissions or API errors.)')}
                       </p>
                     </div>
                   )}
@@ -1579,19 +1649,25 @@ export default function ClusterView() {
                       <div className="bg-slate-800 rounded-lg p-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <p className="text-sm text-slate-400">ServiceAccount</p>
+                            <p className="text-sm text-slate-400">
+                              {tr('clusterView.rbac.serviceAccountLabel', 'ServiceAccount')}
+                            </p>
                             <p className="text-white font-medium">
-                              {rbacData.service_account?.name || 'default'}
+                              {rbacData.service_account?.name || tr('clusterView.rbac.defaultName', 'default')}
                               {rbacData.service_account?.name === 'default' && (
-                                <span className="ml-2 text-xs text-slate-400">(default)</span>
+                                <span className="ml-2 text-xs text-slate-400">
+                                  {tr('clusterView.rbac.defaultLabel', '(default)')}
+                                </span>
                               )}
                             </p>
                             <p className="text-xs text-slate-500 mt-1 break-words">
-                              system:serviceaccount:{rbacData.pod.namespace}:{rbacData.service_account?.name || 'default'}
+                              system:serviceaccount:{rbacData.pod.namespace}:{rbacData.service_account?.name || tr('clusterView.rbac.defaultName', 'default')}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-slate-400">Bindings</p>
+                            <p className="text-sm text-slate-400">
+                              {tr('clusterView.rbac.bindingsLabel', 'Bindings')}
+                            </p>
                             <p className="text-white font-medium">
                               {(() => {
                                 const roleAll = (rbacData.role_bindings || []) as any[]
@@ -1601,19 +1677,19 @@ export default function ClusterView() {
 
                                 return (
                                   <>
-                                    RoleBinding {roleAll.length}
+                                    {tr('clusterView.rbac.roleBindingCount', 'RoleBinding {{count}}', { count: roleAll.length })}
                                     {includeAuthenticatedGroup && roleAuthOnly > 0 && (
                                       <span className="text-slate-400 text-sm">
                                         {' '}
-                                        (광범위 {roleAuthOnly})
+                                        {tr('clusterView.rbac.broadCount', '(broad {{count}})', { count: roleAuthOnly })}
                                       </span>
                                     )}
                                     {' '}
-                                    · ClusterRoleBinding {clusterAll.length}
+                                    · {tr('clusterView.rbac.clusterRoleBindingCount', 'ClusterRoleBinding {{count}}', { count: clusterAll.length })}
                                     {includeAuthenticatedGroup && clusterAuthOnly > 0 && (
                                       <span className="text-slate-400 text-sm">
                                         {' '}
-                                        (광범위 {clusterAuthOnly})
+                                        {tr('clusterView.rbac.broadCount', '(broad {{count}})', { count: clusterAuthOnly })}
                                       </span>
                                     )}
                                   </>
@@ -1625,7 +1701,9 @@ export default function ClusterView() {
 
                         {Array.isArray(rbacData.errors) && rbacData.errors.length > 0 && (
                           <div className="mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-                            <p className="text-yellow-300 text-sm font-medium mb-2">주의</p>
+                            <p className="text-yellow-300 text-sm font-medium mb-2">
+                              {tr('clusterView.rbac.warningTitle', 'Warning')}
+                            </p>
                             <ul className="text-yellow-200/90 text-sm list-disc pl-5 space-y-1">
                               {rbacData.errors.map((e: string, idx: number) => (
                                 <li key={idx} className="break-words">{e}</li>
@@ -1642,24 +1720,32 @@ export default function ClusterView() {
                           <div className="bg-slate-800 rounded-lg p-4">
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <h4 className="text-white font-semibold">권한 요약</h4>
+                                <h4 className="text-white font-semibold">
+                                  {tr('clusterView.rbac.summary.title', 'Permission summary')}
+                                </h4>
                                 <p className="text-slate-400 text-xs mt-1">
-                                  표시된 Role/ClusterRole 규칙을 합산한 결과입니다.
-                                  {includeAuthenticatedGroup ? ' (광범위 포함)' : ' (광범위 제외)'}
+                                  {tr('clusterView.rbac.summary.subtitle', 'Aggregated from displayed Role/ClusterRole rules.')}
+                                  {includeAuthenticatedGroup
+                                    ? ` ${tr('clusterView.rbac.summary.includeBroad', '(including broad)')}`
+                                    : ` ${tr('clusterView.rbac.summary.excludeBroad', '(excluding broad)')}`}
                                 </p>
                               </div>
                               <div className="text-slate-300 text-sm flex-shrink-0">
-                                {total} 항목
+                                {tr('clusterView.rbac.summary.total', '{{count}} items', { count: total })}
                               </div>
                             </div>
 
                             {total === 0 ? (
-                              <div className="text-slate-400 text-sm mt-3">(없음)</div>
+                              <div className="text-slate-400 text-sm mt-3">
+                                {tr('clusterView.rbac.summary.none', '(none)')}
+                              </div>
                             ) : (
                               <div className="mt-3 space-y-4">
                                 {resourceItems.length > 0 && (
                                   <div>
-                                    <p className="text-slate-300 text-sm font-medium mb-2">Resources</p>
+                                    <p className="text-slate-300 text-sm font-medium mb-2">
+                                      {tr('clusterView.rbac.summary.resources', 'Resources')}
+                                    </p>
                                     <div className="overflow-x-auto">
                                       <table className="w-full min-w-[720px] text-sm table-auto">
                                         <colgroup>
@@ -1669,9 +1755,15 @@ export default function ClusterView() {
                                         </colgroup>
                                         <thead className="text-slate-400">
                                           <tr>
-                                            <th className="text-left py-2 pr-4">apiGroup</th>
-                                            <th className="text-left py-2 pr-4">resource</th>
-                                            <th className="text-left py-2 pr-4">verbs</th>
+                                            <th className="text-left py-2 pr-4">
+                                              {tr('clusterView.rbac.summary.table.apiGroup', 'apiGroup')}
+                                            </th>
+                                            <th className="text-left py-2 pr-4">
+                                              {tr('clusterView.rbac.summary.table.resource', 'resource')}
+                                            </th>
+                                            <th className="text-left py-2 pr-4">
+                                              {tr('clusterView.rbac.summary.table.verbs', 'verbs')}
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700">
@@ -1682,12 +1774,14 @@ export default function ClusterView() {
                                                 {it.resource}
                                                 {it.resourceNames?.length ? (
                                                   <span className="text-slate-400 text-xs ml-2">
-                                                    (names: {it.resourceNames.join(', ')})
+                                                    {tr('clusterView.rbac.summary.resourceNames', '(names: {{names}})', {
+                                                      names: it.resourceNames.join(', '),
+                                                    })}
                                                   </span>
                                                 ) : null}
                                               </td>
                                               <td className="py-2 pr-4 text-slate-200 font-mono break-words">
-                                                {it.verbsList.join(', ') || '(none)'}
+                                                {it.verbsList.join(', ') || tr('clusterView.rbac.summary.none', '(none)')}
                                               </td>
                                             </tr>
                                           ))}
@@ -1699,7 +1793,9 @@ export default function ClusterView() {
 
                                 {nonResourceItems.length > 0 && (
                                   <div>
-                                    <p className="text-slate-300 text-sm font-medium mb-2">Non-resource URLs</p>
+                                    <p className="text-slate-300 text-sm font-medium mb-2">
+                                      {tr('clusterView.rbac.summary.nonResourceUrls', 'Non-resource URLs')}
+                                    </p>
                                     <div className="overflow-x-auto">
                                       <table className="w-full min-w-[720px] text-sm table-auto">
                                         <colgroup>
@@ -1708,8 +1804,12 @@ export default function ClusterView() {
                                         </colgroup>
                                         <thead className="text-slate-400">
                                           <tr>
-                                            <th className="text-left py-2 pr-4">url</th>
-                                            <th className="text-left py-2 pr-4">verbs</th>
+                                            <th className="text-left py-2 pr-4">
+                                              {tr('clusterView.rbac.summary.table.url', 'url')}
+                                            </th>
+                                            <th className="text-left py-2 pr-4">
+                                              {tr('clusterView.rbac.summary.table.verbs', 'verbs')}
+                                            </th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700">
@@ -1717,7 +1817,7 @@ export default function ClusterView() {
                                             <tr key={idx}>
                                               <td className="py-2 pr-4 text-white font-mono break-words">{it.nonResourceURL}</td>
                                               <td className="py-2 pr-4 text-slate-200 font-mono break-words">
-                                                {it.verbsList.join(', ') || '(none)'}
+                                                {it.verbsList.join(', ') || tr('clusterView.rbac.summary.none', '(none)')}
                                               </td>
                                             </tr>
                                           ))}
@@ -1733,7 +1833,9 @@ export default function ClusterView() {
                       })()}
 
                       <div className="space-y-3">
-                        <h4 className="text-white font-semibold">RoleBindings (Namespace)</h4>
+                        <h4 className="text-white font-semibold">
+                          {tr('clusterView.rbac.roleBindingsTitle', 'RoleBindings (Namespace)')}
+                        </h4>
                         {(() => {
                           const all = (rbacData.role_bindings || []) as any[]
                           const authenticatedOnly = all.filter(isAuthenticatedOnlyGrant)
@@ -1753,23 +1855,23 @@ export default function ClusterView() {
                                           </p>
                                           {getBindingMatchPathText(b) && (
                                             <p className="text-xs text-slate-500 mt-1 break-words">
-                                              매칭: {getBindingMatchPathText(b)}
+                                              {tr('clusterView.rbac.matchingLabel', 'Matching')}: {getBindingMatchPathText(b)}
                                             </p>
                                           )}
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                           <p className="text-sm text-slate-300">
-                                            rules: {b.resolved_role?.rules?.length ?? 0}
+                                            {tr('clusterView.rbac.rulesCount', 'rules: {{count}}', { count: b.resolved_role?.rules?.length ?? 0 })}
                                           </p>
                                           {b.resolved_role?.error && (
-                                            <p className="text-xs text-yellow-300">resolve 실패</p>
+                                            <p className="text-xs text-yellow-300">{tr('clusterView.rbac.resolveFailed', 'resolve failed')}</p>
                                           )}
                                         </div>
                                       </div>
 
                                       <div className="mt-4 space-y-3">
                                         <div>
-                                          <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                          <p className="text-sm text-slate-400 mb-1">{tr('clusterView.rbac.subjects', 'Subjects')}</p>
                                           <div className="flex flex-wrap gap-2">
                                             {(b.subjects || []).map((s: any, idx: number) => (
                                               <span
@@ -1789,30 +1891,30 @@ export default function ClusterView() {
                                           </div>
                                         ) : (
                                           <div>
-                                            <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                            <p className="text-sm text-slate-400 mb-2">{tr('clusterView.rbac.rulesLabel', 'Rules')}</p>
                                             <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                                               {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
                                                 <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
                                                   <div className="flex flex-col gap-1">
                                                     <div className="flex flex-wrap gap-2">
-                                                      <span className="text-slate-400">verbs</span>
-                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                      <span className="text-slate-400">{tr('clusterView.rbac.verbsLabel', 'verbs')}</span>
+                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2">
-                                                      <span className="text-slate-400">resources</span>
-                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                      <span className="text-slate-500">apiGroups</span>
+                                                      <span className="text-slate-400">{tr('clusterView.rbac.resourcesLabel', 'resources')}</span>
+                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
+                                                      <span className="text-slate-500">{tr('clusterView.rbac.apiGroupsLabel', 'apiGroups')}</span>
                                                       <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
                                                     </div>
                                                     {(r.non_resource_urls || []).length > 0 && (
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">nonResourceURLs</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.nonResourceUrlsLabel', 'nonResourceURLs')}</span>
                                                         <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
                                                       </div>
                                                     )}
                                                     {(r.resource_names || []).length > 0 && (
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">resourceNames</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.resourceNamesLabel', 'resourceNames')}</span>
                                                         <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
                                                       </div>
                                                     )}
@@ -1827,7 +1929,7 @@ export default function ClusterView() {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-slate-400 text-sm">(없음)</div>
+                                <div className="text-slate-400 text-sm">{tr('clusterView.rbac.none', '(none)')}</div>
                               )}
 
                               {includeAuthenticatedGroup && authenticatedOnly.length > 0 && (
@@ -1835,14 +1937,20 @@ export default function ClusterView() {
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                       <p className="text-yellow-200 font-medium break-words">
-                                        광범위 RoleBinding {authenticatedOnly.length}개{' '}
-                                        <span className="text-yellow-200/80">(system:authenticated)</span>
+                                        {tr('clusterView.rbac.broadRoleBindingTitle', 'Broad RoleBinding {{count}} (system:authenticated)', {
+                                          count: authenticatedOnly.length,
+                                        })}
                                       </p>
                                       <p className="text-xs text-slate-400 mt-1">
-                                        대부분의 인증된 주체가 포함될 수 있어 실제 “이 Pod만의 권한”을 과대해 보이게 만들 수 있습니다.
+                                        {tr(
+                                          'clusterView.rbac.broadRoleBindingHint',
+                                          'This can include most authenticated subjects and may overstate the actual permissions for this pod.',
+                                        )}
                                       </p>
                                     </div>
-                                    <span className="text-xs text-yellow-300 flex-shrink-0">광범위</span>
+                                    <span className="text-xs text-yellow-300 flex-shrink-0">
+                                      {tr('clusterView.rbac.broadLabel', 'Broad')}
+                                    </span>
                                   </div>
 
                                   <div className="mt-3 space-y-2">
@@ -1856,24 +1964,24 @@ export default function ClusterView() {
                                             </p>
                                             {getBindingMatchPathText(b) && (
                                               <p className="text-xs text-slate-500 mt-1 break-words">
-                                                매칭: {getBindingMatchPathText(b)}
+                                                {tr('clusterView.rbac.matchingLabel', 'Matching')}: {getBindingMatchPathText(b)}
                                               </p>
                                             )}
                                           </div>
                                           <div className="text-right flex-shrink-0">
                                             <p className="text-sm text-slate-300">
-                                              rules: {b.resolved_role?.rules?.length ?? 0}
+                                              {tr('clusterView.rbac.rulesCount', 'rules: {{count}}', { count: b.resolved_role?.rules?.length ?? 0 })}
                                             </p>
-                                            <p className="text-xs text-yellow-300">광범위</p>
+                                            <p className="text-xs text-yellow-300">{tr('clusterView.rbac.broadLabel', 'Broad')}</p>
                                             {b.resolved_role?.error && (
-                                              <p className="text-xs text-yellow-300">resolve 실패</p>
+                                              <p className="text-xs text-yellow-300">{tr('clusterView.rbac.resolveFailed', 'resolve failed')}</p>
                                             )}
                                           </div>
                                         </div>
 
                                         <div className="mt-4 space-y-3">
                                           <div>
-                                            <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                            <p className="text-sm text-slate-400 mb-1">{tr('clusterView.rbac.subjects', 'Subjects')}</p>
                                             <div className="flex flex-wrap gap-2">
                                               {(b.subjects || []).map((s: any, idx: number) => (
                                                 <span
@@ -1893,19 +2001,19 @@ export default function ClusterView() {
                                             </div>
                                           ) : (
                                             <div>
-                                              <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                              <p className="text-sm text-slate-400 mb-2">{tr('clusterView.rbac.rulesLabel', 'Rules')}</p>
                                               <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                                                 {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
                                                   <div key={idx} className="bg-slate-800 rounded-lg p-3 text-sm">
                                                     <div className="flex flex-col gap-1">
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">verbs</span>
-                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.verbsLabel', 'verbs')}</span>
+                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
                                                       </div>
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">resources</span>
-                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                        <span className="text-slate-500">apiGroups</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.resourcesLabel', 'resources')}</span>
+                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
+                                                        <span className="text-slate-500">{tr('clusterView.rbac.apiGroupsLabel', 'apiGroups')}</span>
                                                         <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
                                                       </div>
                                                     </div>
@@ -1926,7 +2034,9 @@ export default function ClusterView() {
                       </div>
 
                       <div className="space-y-3">
-                        <h4 className="text-white font-semibold">ClusterRoleBindings (Cluster)</h4>
+                        <h4 className="text-white font-semibold">
+                          {tr('clusterView.rbac.clusterRoleBindingsTitle', 'ClusterRoleBindings (Cluster)')}
+                        </h4>
                         {(() => {
                           const all = (rbacData.cluster_role_bindings || []) as any[]
                           const authenticatedOnly = all.filter(isAuthenticatedOnlyGrant)
@@ -1946,23 +2056,23 @@ export default function ClusterView() {
                                           </p>
                                           {getBindingMatchPathText(b) && (
                                             <p className="text-xs text-slate-500 mt-1 break-words">
-                                              매칭: {getBindingMatchPathText(b)}
+                                              {tr('clusterView.rbac.matchingLabel', 'Matching')}: {getBindingMatchPathText(b)}
                                             </p>
                                           )}
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                           <p className="text-sm text-slate-300">
-                                            rules: {b.resolved_role?.rules?.length ?? 0}
+                                            {tr('clusterView.rbac.rulesCount', 'rules: {{count}}', { count: b.resolved_role?.rules?.length ?? 0 })}
                                           </p>
                                           {b.resolved_role?.error && (
-                                            <p className="text-xs text-yellow-300">resolve 실패</p>
+                                            <p className="text-xs text-yellow-300">{tr('clusterView.rbac.resolveFailed', 'resolve failed')}</p>
                                           )}
                                         </div>
                                       </div>
 
                                       <div className="mt-4 space-y-3">
                                         <div>
-                                          <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                          <p className="text-sm text-slate-400 mb-1">{tr('clusterView.rbac.subjects', 'Subjects')}</p>
                                           <div className="flex flex-wrap gap-2">
                                             {(b.subjects || []).map((s: any, idx: number) => (
                                               <span
@@ -1982,30 +2092,30 @@ export default function ClusterView() {
                                           </div>
                                         ) : (
                                           <div>
-                                            <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                            <p className="text-sm text-slate-400 mb-2">{tr('clusterView.rbac.rulesLabel', 'Rules')}</p>
                                             <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                                               {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
                                                 <div key={idx} className="bg-slate-900 rounded-lg p-3 text-sm">
                                                   <div className="flex flex-col gap-1">
                                                     <div className="flex flex-wrap gap-2">
-                                                      <span className="text-slate-400">verbs</span>
-                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                      <span className="text-slate-400">{tr('clusterView.rbac.verbsLabel', 'verbs')}</span>
+                                                      <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2">
-                                                      <span className="text-slate-400">resources</span>
-                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                      <span className="text-slate-500">apiGroups</span>
+                                                      <span className="text-slate-400">{tr('clusterView.rbac.resourcesLabel', 'resources')}</span>
+                                                      <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
+                                                      <span className="text-slate-500">{tr('clusterView.rbac.apiGroupsLabel', 'apiGroups')}</span>
                                                       <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
                                                     </div>
                                                     {(r.non_resource_urls || []).length > 0 && (
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">nonResourceURLs</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.nonResourceUrlsLabel', 'nonResourceURLs')}</span>
                                                         <span className="text-white font-mono break-words">{(r.non_resource_urls || []).join(', ')}</span>
                                                       </div>
                                                     )}
                                                     {(r.resource_names || []).length > 0 && (
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">resourceNames</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.resourceNamesLabel', 'resourceNames')}</span>
                                                         <span className="text-white font-mono break-words">{(r.resource_names || []).join(', ')}</span>
                                                       </div>
                                                     )}
@@ -2020,7 +2130,7 @@ export default function ClusterView() {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-slate-400 text-sm">(없음)</div>
+                                <div className="text-slate-400 text-sm">{tr('clusterView.rbac.none', '(none)')}</div>
                               )}
 
                               {includeAuthenticatedGroup && authenticatedOnly.length > 0 && (
@@ -2028,14 +2138,20 @@ export default function ClusterView() {
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                       <p className="text-yellow-200 font-medium break-words">
-                                        광범위 ClusterRoleBinding {authenticatedOnly.length}개{' '}
-                                        <span className="text-yellow-200/80">(system:authenticated)</span>
+                                        {tr('clusterView.rbac.broadClusterRoleBindingTitle', 'Broad ClusterRoleBinding {{count}} (system:authenticated)', {
+                                          count: authenticatedOnly.length,
+                                        })}
                                       </p>
                                       <p className="text-xs text-slate-400 mt-1">
-                                        모든 인증된 주체가 포함될 수 있어 노이즈가 많습니다. 문제 분석용으로만 참고하세요.
+                                        {tr(
+                                          'clusterView.rbac.broadClusterRoleBindingHint',
+                                          'This can include all authenticated subjects and may add noise. Use only for troubleshooting.',
+                                        )}
                                       </p>
                                     </div>
-                                    <span className="text-xs text-yellow-300 flex-shrink-0">광범위</span>
+                                    <span className="text-xs text-yellow-300 flex-shrink-0">
+                                      {tr('clusterView.rbac.broadLabel', 'Broad')}
+                                    </span>
                                   </div>
 
                                   <div className="mt-3 space-y-2">
@@ -2049,24 +2165,24 @@ export default function ClusterView() {
                                             </p>
                                             {getBindingMatchPathText(b) && (
                                               <p className="text-xs text-slate-500 mt-1 break-words">
-                                                매칭: {getBindingMatchPathText(b)}
+                                                {tr('clusterView.rbac.matchingLabel', 'Matching')}: {getBindingMatchPathText(b)}
                                               </p>
                                             )}
                                           </div>
                                           <div className="text-right flex-shrink-0">
                                             <p className="text-sm text-slate-300">
-                                              rules: {b.resolved_role?.rules?.length ?? 0}
+                                              {tr('clusterView.rbac.rulesCount', 'rules: {{count}}', { count: b.resolved_role?.rules?.length ?? 0 })}
                                             </p>
-                                            <p className="text-xs text-yellow-300">광범위</p>
+                                            <p className="text-xs text-yellow-300">{tr('clusterView.rbac.broadLabel', 'Broad')}</p>
                                             {b.resolved_role?.error && (
-                                              <p className="text-xs text-yellow-300">resolve 실패</p>
+                                              <p className="text-xs text-yellow-300">{tr('clusterView.rbac.resolveFailed', 'resolve failed')}</p>
                                             )}
                                           </div>
                                         </div>
 
                                         <div className="mt-4 space-y-3">
                                           <div>
-                                            <p className="text-sm text-slate-400 mb-1">Subjects</p>
+                                            <p className="text-sm text-slate-400 mb-1">{tr('clusterView.rbac.subjects', 'Subjects')}</p>
                                             <div className="flex flex-wrap gap-2">
                                               {(b.subjects || []).map((s: any, idx: number) => (
                                                 <span
@@ -2086,19 +2202,19 @@ export default function ClusterView() {
                                             </div>
                                           ) : (
                                             <div>
-                                              <p className="text-sm text-slate-400 mb-2">Rules</p>
+                                              <p className="text-sm text-slate-400 mb-2">{tr('clusterView.rbac.rulesLabel', 'Rules')}</p>
                                               <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                                                 {(b.resolved_role?.rules || []).map((r: any, idx: number) => (
                                                   <div key={idx} className="bg-slate-800 rounded-lg p-3 text-sm">
                                                     <div className="flex flex-col gap-1">
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">verbs</span>
-                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || '(none)'}</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.verbsLabel', 'verbs')}</span>
+                                                        <span className="text-white font-mono break-words">{(r.verbs || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
                                                       </div>
                                                       <div className="flex flex-wrap gap-2">
-                                                        <span className="text-slate-400">resources</span>
-                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || '(none)'}</span>
-                                                        <span className="text-slate-500">apiGroups</span>
+                                                        <span className="text-slate-400">{tr('clusterView.rbac.resourcesLabel', 'resources')}</span>
+                                                        <span className="text-white font-mono break-words">{(r.resources || []).join(', ') || tr('clusterView.rbac.none', '(none)')}</span>
+                                                        <span className="text-slate-500">{tr('clusterView.rbac.apiGroupsLabel', 'apiGroups')}</span>
                                                         <span className="text-slate-200 font-mono break-words">{(r.api_groups || []).join(', ') || '(core)'}</span>
                                                       </div>
                                                     </div>
@@ -2124,7 +2240,7 @@ export default function ClusterView() {
 
               {showManifest && (
                 <div className="h-full bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-300 overflow-x-auto overflow-y-auto">
-                  <pre>{manifest || '로딩 중...'}</pre>
+                  <pre>{manifest || tr('clusterView.manifest.loading', 'Loading...')}</pre>
                 </div>
               )}
             </div>
