@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '@/services/api'
-import { KeyRound, User } from 'lucide-react'
+import { KeyRound, Languages, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export default function Account() {
   const queryClient = useQueryClient()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const tr = (key: string, fallback: string, options?: Record<string, any>) =>
     t(key, { defaultValue: fallback, ...options })
   const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 30000, retry: false })
@@ -33,6 +33,12 @@ export default function Account() {
   })
 
   const isBusy = changePasswordMutation.isPending
+  const language = i18n.language?.startsWith('ko') ? 'ko' : 'en'
+
+  const setLanguage = (next: 'en' | 'ko') => {
+    if (language === next) return
+    void i18n.changeLanguage(next)
+  }
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,8 +58,10 @@ export default function Account() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">{tr('account.title', 'Account')}</h1>
-        <p className="mt-2 text-slate-400">{tr('account.subtitle', 'You can change your password.')}</p>
+        <h1 className="text-3xl font-bold text-white">{tr('account.title', 'Settings')}</h1>
+        <p className="mt-2 text-slate-400">
+          {tr('account.subtitle', 'Manage your profile, password, and language.')}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -162,6 +170,48 @@ export default function Account() {
               </button>
             </div>
           </form>
+        </div>
+
+        <div className="card lg:col-span-2">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-emerald-500/10">
+              <Languages className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">{tr('account.language.title', 'Language')}</h2>
+              <p className="text-sm text-slate-400">
+                {tr('account.language.subtitle', 'Choose the display language.')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setLanguage('en')}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                language === 'en'
+                  ? 'border-primary-500 bg-primary-600 text-white'
+                  : 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-700/40'
+              }`}
+            >
+              {tr('account.language.english', 'English')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage('ko')}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                language === 'ko'
+                  ? 'border-primary-500 bg-primary-600 text-white'
+                  : 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-700/40'
+              }`}
+            >
+              {tr('account.language.korean', 'Korean')}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            {tr('account.language.hint', 'Changes apply immediately.')}
+          </p>
         </div>
       </div>
     </div>

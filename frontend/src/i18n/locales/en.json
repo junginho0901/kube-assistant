@@ -61,8 +61,8 @@
     "userManagement": "User Management"
   },
   "layout": {
-    "accountTitle": "Account settings / Change password",
-    "account": "Account",
+    "accountTitle": "Settings",
+    "account": "Settings",
     "logout": "Log out",
     "clusterChecking": "Checking connection...",
     "clusterConnected": "Cluster connected",
@@ -593,6 +593,13 @@
     }
   },
   "account": {
+    "language": {
+      "title": "Language",
+      "subtitle": "Choose the display language.",
+      "english": "English",
+      "korean": "Korean",
+      "hint": "Changes apply immediately."
+    },
     "password": {
       "changed": "Password updated.",
       "required": "Enter current and new passwords.",
@@ -608,8 +615,8 @@
       "updating": "Updating...",
       "submit": "Update password"
     },
-    "title": "Account",
-    "subtitle": "You can change your password.",
+    "title": "Settings",
+    "subtitle": "Manage your profile, password, and language.",
     "profile": {
       "title": "Profile",
       "subtitle": "Signed-in account information",
