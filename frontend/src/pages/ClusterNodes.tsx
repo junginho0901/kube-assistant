@@ -72,6 +72,10 @@ export default function ClusterNodes() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null)
+  const [podFilter, setPodFilter] = useState('')
+  const [podPage, setPodPage] = useState(1)
+  const [sortKey, setSortKey] = useState<null | 'name' | 'status' | 'roles' | 'cpu' | 'memory' | 'version' | 'internal_ip' | 'external_ip' | 'age'>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const { data: nodes, isLoading: isLoadingNodes } = useQuery({
     queryKey: ['cluster', 'nodes'],
