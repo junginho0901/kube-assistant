@@ -120,11 +120,53 @@
       "loading": "Loading node details...",
       "error": "Failed to load node details.",
       "notFound": "Node details not found.",
+      "uptime": "Uptime",
+      "cpuUsage": "CPU Usage",
+      "memoryUsage": "Memory Usage",
       "conditions": "Conditions",
       "taints": "Taints",
       "addresses": "Addresses",
       "version": "Versions",
-      "system": "System info"
+      "system": "System info",
+      "labels": "Labels",
+      "annotations": "Annotations",
+      "pods": "Pods",
+      "events": "Events",
+      "createdAt": "Created",
+      "podCidr": "Pod CIDR",
+      "scheduling": "Scheduling",
+      "schedulingEnabled": "Enabled",
+      "schedulingDisabled": "Disabled",
+      "systemOs": "OS",
+      "systemArch": "Arch",
+      "systemImage": "OS Image",
+      "systemKernel": "Kernel",
+      "systemRuntime": "Runtime",
+      "systemKubelet": "Kubelet",
+      "systemProxy": "Kube Proxy"
+    },
+    "pods": {
+      "search": "Filter pods...",
+      "prev": "Prev",
+      "next": "Next",
+      "table": {
+        "name": "Name",
+        "namespace": "Namespace",
+        "ready": "Ready",
+        "status": "Status",
+        "restarts": "Restarts",
+        "ip": "IP",
+        "age": "Age"
+      }
+    },
+    "events": {
+      "table": {
+        "type": "Type",
+        "reason": "Reason",
+        "message": "Message",
+        "lastSeen": "Last Seen",
+        "count": "Count"
+      }
     }
   },
   "aiChat": {
