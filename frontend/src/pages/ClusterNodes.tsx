@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
-import { RefreshCw, Search, Server, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, Search, Server, X } from 'lucide-react'
 import { ModalOverlay } from '@/components/ModalOverlay'
 
 interface NodeInfo {
@@ -27,7 +27,20 @@ interface NodeMetric {
 
 interface NodeDescribe {
   name: string
-  conditions: Array<{ type: string; status: string; reason?: string | null; message?: string | null }>
+  created_at?: string | null
+  labels?: Record<string, string>
+  annotations?: Record<string, string>
+  conditions: Array<{
+    type: string
+    status: string
+    reason?: string | null
+    message?: string | null
+    last_transition_time?: string | null
+    last_update_time?: string | null
+  }>
+  pod_cidr?: string | null
+  pod_cidrs?: string[] | null
+  unschedulable?: boolean | null
   addresses: Array<{ type: string; address: string }>
   taints: Array<{ key?: string | null; value?: string | null; effect?: string | null }>
   system_info: {
@@ -41,6 +54,15 @@ interface NodeDescribe {
   }
 }
 
+interface NodeEvent {
+  type?: string | null
+  reason?: string | null
+  message?: string | null
+  count?: number | null
+  first_timestamp?: string | null
+  last_timestamp?: string | null
+}
+
 export default function ClusterNodes() {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
@@ -50,6 +72,10 @@ export default function ClusterNodes() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null)
+  const [podFilter, setPodFilter] = useState('')
+  const [podPage, setPodPage] = useState(1)
+  const [sortKey, setSortKey] = useState<null | 'name' | 'status' | 'roles' | 'cpu' | 'memory' | 'version' | 'internal_ip' | 'external_ip' | 'age'>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const { data: nodes, isLoading: isLoadingNodes } = useQuery({
     queryKey: ['cluster', 'nodes'],
@@ -67,6 +93,18 @@ export default function ClusterNodes() {
     enabled: Boolean(selectedNodeName),
   })
 
+  const { data: nodePods } = useQuery({
+    queryKey: ['cluster', 'nodes', 'pods', selectedNodeName],
+    queryFn: () => api.getNodePods(selectedNodeName as string),
+    enabled: Boolean(selectedNodeName),
+  })
+
+  const { data: nodeEvents } = useQuery({
+    queryKey: ['cluster', 'nodes', 'events', selectedNodeName],
+    queryFn: () => api.getNodeEvents(selectedNodeName as string),
+    enabled: Boolean(selectedNodeName),
+  })
+
   const metricsMap = useMemo(() => {
     const map = new Map<string, NodeMetric>()
     if (Array.isArray(metrics)) {
@@ -77,12 +115,218 @@ export default function ClusterNodes() {
     return map
   }, [metrics])
 
+  const formatTimestamp = (iso?: string | null) => {
+    if (!iso) return '-'
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '-'
+    return date.toLocaleString()
+  }
+
+  const formatRelative = (iso?: string | null) => {
+    if (!iso) return '-'
+    const date = new Date(iso)
+    const diffMs = Date.now() - date.getTime()
+    if (!Number.isFinite(diffMs) || diffMs < 0) return '-'
+    const minutes = Math.floor(diffMs / 60000)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+    if (days >= 30) {
+      const months = Math.floor(days / 30)
+      return `${months}mo`
+    }
+    if (days > 0) return `${days}d`
+    if (hours > 0) return `${hours}h`
+    return `${minutes}m`
+  }
+
+  const formatPodAge = (iso?: string | null) => {
+    if (!iso) return '-'
+    const date = new Date(iso)
+    const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000))
+    const days = Math.floor(diffSec / 86400)
+    const hours = Math.floor((diffSec % 86400) / 3600)
+    const minutes = Math.floor((diffSec % 3600) / 60)
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
+  }
+
+  const renderKeyValueList = (obj?: Record<string, string>) => {
+    const entries = obj ? Object.entries(obj) : []
+    if (entries.length === 0) {
+      return <span className="text-slate-400">{tr('common.none', '(none)')}</span>
+    }
+    return (
+      <div className="flex flex-wrap gap-2 text-xs text-slate-200">
+        {entries.map(([key, value]) => (
+          <span
+            key={`${key}-${value}`}
+            className="relative inline-flex items-center rounded-full border border-slate-700 bg-slate-800/80 px-2 py-1 max-w-full group"
+          >
+            <span className="font-mono text-slate-300 max-w-[160px] truncate">{key}</span>
+            <span className="mx-1 text-slate-500">:</span>
+            <span className="max-w-[260px] truncate">{value}</span>
+            <span className="pointer-events-none absolute left-0 top-full mt-1 z-20 w-max max-w-[520px] rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-200 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="break-words">{`${key}: ${value}`}</span>
+            </span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  const sortedEvents = useMemo(() => {
+    if (!Array.isArray(nodeEvents)) return []
+    const getTime = (e: NodeEvent) => {
+      const ts = e.last_timestamp || e.first_timestamp
+      if (!ts) return 0
+      const d = new Date(ts).getTime()
+      return Number.isFinite(d) ? d : 0
+    }
+    return [...nodeEvents].sort((a, b) => getTime(b) - getTime(a))
+  }, [nodeEvents])
+
+  const getEventBadge = (type?: string | null) => {
+    const tval = (type || '').toLowerCase()
+    if (tval.includes('warning')) return 'badge-warning'
+    if (tval.includes('error') || tval.includes('failed')) return 'badge-error'
+    return 'badge-info'
+  }
+
+  useEffect(() => {
+    setPodPage(1)
+  }, [podFilter, selectedNodeName])
+
+  const filteredNodePods = useMemo(() => {
+    if (!Array.isArray(nodePods)) return []
+    if (!podFilter.trim()) return nodePods
+    const q = podFilter.toLowerCase()
+    return nodePods.filter(
+      (pod) =>
+        pod.name.toLowerCase().includes(q) ||
+        pod.namespace.toLowerCase().includes(q)
+    )
+  }, [nodePods, podFilter])
+
+  const podsPageSize = 10
+  const podTotalPages = Math.max(1, Math.ceil(filteredNodePods.length / podsPageSize))
+  const pagedPods = useMemo(() => {
+    const start = (podPage - 1) * podsPageSize
+    return filteredNodePods.slice(start, start + podsPageSize)
+  }, [filteredNodePods, podPage])
+  const emptyPodRows = Math.max(0, podsPageSize - pagedPods.length)
+
+  const metricForSelected = selectedNodeName ? metricsMap.get(selectedNodeName) : undefined
+  const cpuPercent = metricForSelected ? parseFloat(metricForSelected.cpu_percent) : 0
+  const memPercent = metricForSelected ? parseFloat(metricForSelected.memory_percent) : 0
+
+  const UsageCard = ({
+    label,
+    value,
+    percent,
+    color,
+  }: {
+    label: string
+    value: string
+    percent: number
+    color: string
+  }) => (
+    <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3">
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-base text-white mt-1">{value}</p>
+      <div className="mt-3 w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${Math.min(Math.max(percent, 0), 100)}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  )
+
   const filteredNodes = useMemo(() => {
     if (!Array.isArray(nodes)) return [] as NodeInfo[]
     if (!searchQuery.trim()) return nodes as NodeInfo[]
     const q = searchQuery.toLowerCase()
     return (nodes as NodeInfo[]).filter((node) => node.name.toLowerCase().includes(q))
   }, [nodes, searchQuery])
+
+  const parseAgeDays = (age?: string | null) => {
+    if (!age) return 0
+    const match = age.match(/(\\d+)\\s+day/)
+    if (match) return Number(match[1]) || 0
+    return 0
+  }
+
+  const formatAgeDays = (age?: string | null) => {
+    const days = parseAgeDays(age)
+    return `${days}d`
+  }
+
+  const handleSort = (key: typeof sortKey) => {
+    if (key !== sortKey) {
+      setSortKey(key)
+      setSortDir('asc')
+      return
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc')
+      return
+    }
+    setSortKey(null)
+  }
+
+  const renderSortIcon = (key: NonNullable<typeof sortKey>) => {
+    if (sortKey !== key) return null
+    return sortDir === 'asc' ? (
+      <ChevronUp className="w-3.5 h-3.5 text-slate-300" />
+    ) : (
+      <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+    )
+  }
+
+  const sortedNodes = useMemo(() => {
+    if (!sortKey) return filteredNodes
+    const list = [...filteredNodes]
+    const getValue = (node: NodeInfo) => {
+      switch (sortKey) {
+        case 'name':
+          return node.name
+        case 'status':
+          return node.status || ''
+        case 'roles':
+          return (node.roles || []).join(',')
+        case 'cpu': {
+          const metric = metricsMap.get(node.name)
+          return metric ? parseFloat(metric.cpu_percent) || 0 : 0
+        }
+        case 'memory': {
+          const metric = metricsMap.get(node.name)
+          return metric ? parseFloat(metric.memory_percent) || 0 : 0
+        }
+        case 'version':
+          return node.version || ''
+        case 'internal_ip':
+          return node.internal_ip || ''
+        case 'external_ip':
+          return node.external_ip || ''
+        case 'age':
+          return parseAgeDays(node.age)
+        default:
+          return ''
+      }
+    }
+    list.sort((a, b) => {
+      const av = getValue(a)
+      const bv = getValue(b)
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av
+      }
+      const as = String(av)
+      const bs = String(bv)
+      return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
+    })
+    return list
+  }, [filteredNodes, metricsMap, sortDir, sortKey])
 
   const topNodes = useMemo(() => {
     if (!Array.isArray(metrics) || metrics.length === 0) return [] as NodeMetric[]
@@ -208,22 +452,40 @@ export default function ClusterNodes() {
       </div>
 
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm min-w-[980px]">
+        <table className="w-full text-sm min-w-[980px] table-fixed">
           <thead className="text-slate-400">
             <tr>
-              <th className="text-left py-3 px-4">{tr('nodes.table.name', 'Name')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.status', 'Status')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.roles', 'Roles')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.cpu', 'CPU')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.memory', 'Memory')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.version', 'Version')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.internalIp', 'Internal IP')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.externalIp', 'External IP')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.age', 'Age')}</th>
+              <th className="text-left py-3 px-4 w-[260px] cursor-pointer" onClick={() => handleSort('name')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.name', 'Name')}{renderSortIcon('name')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[120px] cursor-pointer" onClick={() => handleSort('status')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.status', 'Status')}{renderSortIcon('status')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[180px] cursor-pointer" onClick={() => handleSort('roles')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.roles', 'Roles')}{renderSortIcon('roles')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('cpu')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.cpu', 'CPU')}{renderSortIcon('cpu')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[170px] cursor-pointer" onClick={() => handleSort('memory')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.memory', 'Memory')}{renderSortIcon('memory')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[160px] cursor-pointer" onClick={() => handleSort('version')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.version', 'Version')}{renderSortIcon('version')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('internal_ip')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.internalIp', 'Internal IP')}{renderSortIcon('internal_ip')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('external_ip')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.externalIp', 'External IP')}{renderSortIcon('external_ip')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[110px] cursor-pointer" onClick={() => handleSort('age')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.age', 'Age')}{renderSortIcon('age')}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
-            {filteredNodes.map((node) => {
+            {sortedNodes.map((node) => {
               const metric = metricsMap.get(node.name)
               return (
                 <tr
@@ -231,27 +493,21 @@ export default function ClusterNodes() {
                   className="text-slate-200 hover:bg-slate-800/60 cursor-pointer"
                   onClick={() => setSelectedNodeName(node.name)}
                 >
-                  <td className="py-3 px-4 font-medium text-white">{node.name}</td>
+                  <td className="py-3 px-4 font-medium text-white"><span className="block truncate">{node.name}</span></td>
                   <td className="py-3 px-4">
                     <span className={`badge ${getStatusColor(node.status)}`}>{node.status}</span>
                   </td>
-                  <td className="py-3 px-4 text-xs font-mono">
-                    {node.roles && node.roles.length > 0 ? node.roles.join(', ') : '-'}
-                  </td>
-                  <td className="py-3 px-4 text-xs font-mono">
-                    {metric ? `${metric.cpu} (${metric.cpu_percent})` : '-'}
-                  </td>
-                  <td className="py-3 px-4 text-xs font-mono">
-                    {metric ? `${metric.memory} (${metric.memory_percent})` : '-'}
-                  </td>
-                  <td className="py-3 px-4 text-xs font-mono">{node.version || '-'}</td>
-                  <td className="py-3 px-4 text-xs font-mono">{node.internal_ip || '-'}</td>
-                  <td className="py-3 px-4 text-xs font-mono">{node.external_ip || '-'}</td>
-                  <td className="py-3 px-4 text-xs font-mono">{node.age}</td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{node.roles && node.roles.length > 0 ? node.roles.join(', ') : '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{metric ? `${metric.cpu} (${metric.cpu_percent})` : '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{metric ? `${metric.memory} (${metric.memory_percent})` : '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{node.version || '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{node.internal_ip || '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{node.external_ip || '-'}</span></td>
+                  <td className="py-3 px-4 text-xs font-mono"><span className="block truncate">{formatAgeDays(node.age)}</span></td>
                 </tr>
               )
             })}
-            {filteredNodes.length === 0 && !isLoadingNodes && (
+            {sortedNodes.length === 0 && !isLoadingNodes && (
               <tr>
                 <td colSpan={9} className="py-6 px-4 text-slate-400">
                   {tr('nodes.noResults', 'No nodes found.')}
@@ -265,14 +521,12 @@ export default function ClusterNodes() {
       {selectedNodeName && (
         <ModalOverlay onClose={() => setSelectedNodeName(null)}>
           <div
-            className="bg-slate-900 border border-slate-700 rounded-xl max-w-3xl w-full max-h-[80vh] overflow-hidden shadow-xl"
+            className="fixed inset-y-0 right-0 w-full max-w-[560px] bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col overflow-x-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+            <div className="flex items-start justify-between px-5 py-4 border-b border-slate-700">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {tr('nodes.detail.title', 'Node details')}: {selectedNodeName}
-                </h2>
+                <h2 className="text-lg font-semibold text-white">{selectedNodeName}</h2>
                 <p className="text-xs text-slate-400">
                   {tr('nodes.detail.subtitle', 'Details from kubectl describe node {{name}}', {
                     name: selectedNodeName,
@@ -286,30 +540,82 @@ export default function ClusterNodes() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 max-h-[60vh] overflow-y-auto text-sm space-y-4">
+
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-6 text-sm">
               {isLoadingDescribe ? (
                 <p className="text-slate-400">{tr('nodes.detail.loading', 'Loading node details...')}</p>
               ) : isDescribeError ? (
                 <p className="text-red-400">{tr('nodes.detail.error', 'Failed to load node details.')}</p>
               ) : nodeDescribe ? (
                 <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3">
+                      <p className="text-xs text-slate-400">{tr('nodes.detail.uptime', 'Uptime')}</p>
+                      <p className="text-base text-white mt-1">
+                        {formatRelative(
+                          nodeDescribe.conditions?.find((c) => c.type === 'Ready')?.last_transition_time
+                        )}
+                      </p>
+                    </div>
+                    <UsageCard
+                      label={tr('nodes.detail.cpuUsage', 'CPU Usage')}
+                      value={`${metricForSelected?.cpu || '-'} (${metricForSelected?.cpu_percent || '-'})`}
+                      percent={Number.isFinite(cpuPercent) ? cpuPercent : 0}
+                      color={cpuPercent >= 80 ? '#ef4444' : cpuPercent >= 60 ? '#f59e0b' : '#10b981'}
+                    />
+                    <UsageCard
+                      label={tr('nodes.detail.memoryUsage', 'Memory Usage')}
+                      value={`${metricForSelected?.memory || '-'} (${metricForSelected?.memory_percent || '-'})`}
+                      percent={Number.isFinite(memPercent) ? memPercent : 0}
+                      color={memPercent >= 80 ? '#ef4444' : memPercent >= 60 ? '#f59e0b' : '#3b82f6'}
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.system', 'System info')}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-200">
+                      <div>{tr('nodes.detail.systemOs', 'OS')}: {nodeDescribe.system_info?.operating_system || '-'}</div>
+                      <div>{tr('nodes.detail.systemArch', 'Arch')}: {nodeDescribe.system_info?.architecture || '-'}</div>
+                      <div>{tr('nodes.detail.systemImage', 'OS Image')}: {nodeDescribe.system_info?.os_image || '-'}</div>
+                      <div>{tr('nodes.detail.systemKernel', 'Kernel')}: {nodeDescribe.system_info?.kernel_version || '-'}</div>
+                      <div>{tr('nodes.detail.systemRuntime', 'Runtime')}: {nodeDescribe.system_info?.container_runtime || '-'}</div>
+                      <div>{tr('nodes.detail.systemKubelet', 'Kubelet')}: {nodeDescribe.system_info?.kubelet_version || '-'}</div>
+                      <div>{tr('nodes.detail.systemProxy', 'Kube Proxy')}: {nodeDescribe.system_info?.kube_proxy_version || '-'}</div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.conditions', 'Conditions')}</p>
+                    <div className="space-y-2 text-xs text-slate-200">
+                      {nodeDescribe.conditions && nodeDescribe.conditions.length > 0
+                        ? nodeDescribe.conditions.map((c, idx) => (
+                            <div key={`${c.type}-${idx}`} className="flex items-start justify-between gap-4">
+                              <div>
+                                <div className="font-medium text-white">{c.type}</div>
+                                <div className="text-slate-400">{c.reason || '-'}</div>
+                              </div>
+                              <div className="text-right text-slate-400">
+                                <div>{c.status}</div>
+                                <div>{formatRelative(c.last_transition_time)}</div>
+                              </div>
+                            </div>
+                          ))
+                        : tr('common.none', '(none)')}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.conditions', 'Conditions')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-                        {nodeDescribe.conditions && nodeDescribe.conditions.length > 0
-                          ? nodeDescribe.conditions
-                              .map(
-                                (c: NodeDescribe['conditions'][number]) =>
-                                  `${c.type}: ${c.status}${c.reason ? ` (${c.reason})` : ''}`
-                              )
-                              .join('\n')
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                      <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.addresses', 'Addresses')}</p>
+                      <pre className="text-xs text-slate-200 whitespace-pre-wrap">
+                        {nodeDescribe.addresses && nodeDescribe.addresses.length > 0
+                          ? nodeDescribe.addresses.map((a) => `${a.type}: ${a.address}`).join('\n')
                           : tr('common.none', '(none)')}
                       </pre>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.taints', 'Taints')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
+                    <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                      <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.taints', 'Taints')}</p>
+                      <pre className="text-xs text-slate-200 whitespace-pre-wrap">
                         {nodeDescribe.taints && nodeDescribe.taints.length > 0
                           ? nodeDescribe.taints
                               .map((t) => `${t.key || ''}=${t.value || ''}:${t.effect || ''}`)
@@ -319,33 +625,155 @@ export default function ClusterNodes() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.addresses', 'Addresses')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-                        {nodeDescribe.addresses && nodeDescribe.addresses.length > 0
-                          ? nodeDescribe.addresses.map((a) => `${a.type}: ${a.address}`).join('\n')
-                          : tr('common.none', '(none)')}
-                      </pre>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                      <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.version', 'Versions')}</p>
+                      <div className="text-xs text-slate-200">
+                      <div>{tr('nodes.detail.createdAt', 'Created')}: {formatTimestamp(nodeDescribe.created_at)}</div>
+                      <div>{tr('nodes.detail.podCidr', 'Pod CIDR')}: {nodeDescribe.pod_cidr || '-'}</div>
+                      <div>{tr('nodes.detail.scheduling', 'Scheduling')}: {nodeDescribe.unschedulable ? tr('nodes.detail.schedulingDisabled', 'Disabled') : tr('nodes.detail.schedulingEnabled', 'Enabled')}</div>
+                      </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.labels', 'Labels')}</p>
+                    {renderKeyValueList(nodeDescribe.labels)}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.annotations', 'Annotations')}</p>
+                    {renderKeyValueList(nodeDescribe.annotations)}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <p className="text-xs text-slate-400">{tr('nodes.detail.pods', 'Pods')}</p>
+                      <input
+                        type="text"
+                        value={podFilter}
+                        onChange={(e) => setPodFilter(e.target.value)}
+                        placeholder={tr('nodes.pods.search', 'Filter pods...')}
+                        className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500"
+                      />
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.version', 'Versions')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-                        {`kubelet: ${nodeDescribe.system_info?.kubelet_version || '-'}\n` +
-                        `kube-proxy: ${nodeDescribe.system_info?.kube_proxy_version || '-'}`}
-                      </pre>
+                    <div className="flex flex-col gap-2">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[980px] table-fixed">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="text-left py-2 w-[32%]">{tr('nodes.pods.table.name', 'Name')}</th>
+                            <th className="text-left py-2 w-[16%]">{tr('nodes.pods.table.namespace', 'Namespace')}</th>
+                            <th className="text-left py-2 w-[10%]">{tr('nodes.pods.table.ready', 'Ready')}</th>
+                            <th className="text-left py-2 w-[12%]">{tr('nodes.pods.table.status', 'Status')}</th>
+                            <th className="text-left py-2 w-[10%]">{tr('nodes.pods.table.restarts', 'Restarts')}</th>
+                            <th className="text-left py-2 w-[12%]">{tr('nodes.pods.table.ip', 'IP')}</th>
+                            <th className="text-left py-2 w-[8%]">{tr('nodes.pods.table.age', 'Age')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {pagedPods.map((pod) => (
+                            <tr key={`${pod.namespace}-${pod.name}`} className="text-slate-200">
+                              <td className="py-2 pr-2 font-medium text-white"><span className="block truncate">{pod.name}</span></td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.namespace}</span></td>
+                              <td className="py-2 pr-2">{pod.ready || '-'}</td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.status || pod.phase || '-'}</span></td>
+                              <td className="py-2 pr-2">{pod.restart_count ?? 0}</td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.pod_ip || '-'}</span></td>
+                              <td className="py-2 pr-2">{formatPodAge(pod.created_at)}</td>
+                            </tr>
+                          ))}
+                          {emptyPodRows > 0 &&
+                            Array.from({ length: emptyPodRows }).map((_, idx) => (
+                              <tr key={`empty-${idx}`} className="text-slate-700">
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                              </tr>
+                            ))}
+                          {pagedPods.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-4 text-slate-400">
+                                {tr('common.none', '(none)')}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-800">
+                        <span>
+                          {filteredNodePods.length === 0
+                            ? tr('common.none', '(none)')
+                            : `${(podPage - 1) * podsPageSize + 1}-${Math.min(
+                                podPage * podsPageSize,
+                                filteredNodePods.length
+                              )} / ${filteredNodePods.length}`}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPodPage((prev) => Math.max(1, prev - 1))}
+                            disabled={podPage === 1}
+                            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+                          >
+                            {tr('nodes.pods.prev', 'Prev')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPodPage((prev) => Math.min(podTotalPages, prev + 1))}
+                            disabled={podPage >= podTotalPages}
+                            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+                          >
+                            {tr('nodes.pods.next', 'Next')}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.system', 'System info')}</p>
-                    <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-{`OS: ${nodeDescribe.system_info?.operating_system || '-'}\n` +
-`Arch: ${nodeDescribe.system_info?.architecture || '-'}\n` +
-`OS Image: ${nodeDescribe.system_info?.os_image || '-'}\n` +
-`Kernel: ${nodeDescribe.system_info?.kernel_version || '-'}\n` +
-`Container Runtime: ${nodeDescribe.system_info?.container_runtime || '-'}`}
-                    </pre>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.events', 'Events')}</p>
+                    {sortedEvents.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs table-fixed min-w-[620px]">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="text-left py-2 w-[12%]">{tr('nodes.events.table.type', 'Type')}</th>
+                              <th className="text-left py-2 w-[18%]">{tr('nodes.events.table.reason', 'Reason')}</th>
+                              <th className="text-left py-2 w-[44%]">{tr('nodes.events.table.message', 'Message')}</th>
+                              <th className="text-left py-2 w-[14%]">{tr('nodes.events.table.lastSeen', 'Last Seen')}</th>
+                              <th className="text-left py-2 w-[12%]">{tr('nodes.events.table.count', 'Count')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                            {sortedEvents.slice(0, 50).map((event, idx) => (
+                              <tr key={`${event.reason}-${idx}`} className="text-slate-200">
+                                <td className="py-2 pr-2">
+                                  <span className={`badge ${getEventBadge(event.type)}`}>{event.type || '-'}</span>
+                                </td>
+                                <td className="py-2 pr-2 align-top">
+                                  <span className="block break-words whitespace-normal">
+                                    {event.reason || '-'}
+                                  </span>
+                                </td>
+                                <td className="py-2 pr-2 align-top">
+                                  <span className="block break-words whitespace-normal">
+                                    {event.message || '-'}
+                                  </span>
+                                </td>
+                                <td className="py-2 pr-2">{formatRelative(event.last_timestamp || event.first_timestamp)}</td>
+                                <td className="py-2 pr-2">{event.count ?? 1}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">{tr('common.none', '(none)')}</span>
+                    )}
                   </div>
                 </>
               ) : (

@@ -120,11 +120,53 @@
       "loading": "노드 상세 로딩 중...",
       "error": "노드 상세를 불러오지 못했습니다.",
       "notFound": "노드 상세 정보가 없습니다.",
+      "uptime": "업타임",
+      "cpuUsage": "CPU 사용량",
+      "memoryUsage": "메모리 사용량",
       "conditions": "조건",
       "taints": "테인트",
       "addresses": "주소",
       "version": "버전",
-      "system": "시스템 정보"
+      "system": "시스템 정보",
+      "labels": "라벨",
+      "annotations": "어노테이션",
+      "pods": "파드",
+      "events": "이벤트",
+      "createdAt": "생성 시각",
+      "podCidr": "Pod CIDR",
+      "scheduling": "스케줄링",
+      "schedulingEnabled": "활성",
+      "schedulingDisabled": "비활성",
+      "systemOs": "OS",
+      "systemArch": "아키텍처",
+      "systemImage": "OS 이미지",
+      "systemKernel": "커널",
+      "systemRuntime": "런타임",
+      "systemKubelet": "Kubelet",
+      "systemProxy": "Kube Proxy"
+    },
+    "pods": {
+      "search": "파드 필터...",
+      "prev": "이전",
+      "next": "다음",
+      "table": {
+        "name": "이름",
+        "namespace": "네임스페이스",
+        "ready": "준비됨",
+        "status": "상태",
+        "restarts": "재시작",
+        "ip": "IP",
+        "age": "생성 시각"
+      }
+    },
+    "events": {
+      "table": {
+        "type": "유형",
+        "reason": "이유",
+        "message": "메시지",
+        "lastSeen": "최근",
+        "count": "횟수"
+      }
     }
   },
   "aiChat": {

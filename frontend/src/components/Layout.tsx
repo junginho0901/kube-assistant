@@ -246,7 +246,7 @@ export default function Layout() {
 
   useEffect(() => {
     if (!activeGroup) return
-    setOpenGroups((prev) => ({ ...prev, [activeGroup]: true }))
+    setOpenGroups({ [activeGroup]: true })
   }, [activeGroup])
 
   const toggleGroup = (groupId: string) => {
