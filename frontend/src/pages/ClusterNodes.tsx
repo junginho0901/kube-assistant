@@ -625,33 +625,155 @@ export default function ClusterNodes() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.addresses', 'Addresses')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-                        {nodeDescribe.addresses && nodeDescribe.addresses.length > 0
-                          ? nodeDescribe.addresses.map((a) => `${a.type}: ${a.address}`).join('\n')
-                          : tr('common.none', '(none)')}
-                      </pre>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                      <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.version', 'Versions')}</p>
+                      <div className="text-xs text-slate-200">
+                      <div>{tr('nodes.detail.createdAt', 'Created')}: {formatTimestamp(nodeDescribe.created_at)}</div>
+                      <div>{tr('nodes.detail.podCidr', 'Pod CIDR')}: {nodeDescribe.pod_cidr || '-'}</div>
+                      <div>{tr('nodes.detail.scheduling', 'Scheduling')}: {nodeDescribe.unschedulable ? tr('nodes.detail.schedulingDisabled', 'Disabled') : tr('nodes.detail.schedulingEnabled', 'Enabled')}</div>
+                      </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.labels', 'Labels')}</p>
+                    {renderKeyValueList(nodeDescribe.labels)}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.annotations', 'Annotations')}</p>
+                    {renderKeyValueList(nodeDescribe.annotations)}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <p className="text-xs text-slate-400">{tr('nodes.detail.pods', 'Pods')}</p>
+                      <input
+                        type="text"
+                        value={podFilter}
+                        onChange={(e) => setPodFilter(e.target.value)}
+                        placeholder={tr('nodes.pods.search', 'Filter pods...')}
+                        className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 placeholder:text-slate-500"
+                      />
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.version', 'Versions')}</p>
-                      <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-                        {`kubelet: ${nodeDescribe.system_info?.kubelet_version || '-'}\n` +
-                        `kube-proxy: ${nodeDescribe.system_info?.kube_proxy_version || '-'}`}
-                      </pre>
+                    <div className="flex flex-col gap-2">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[980px] table-fixed">
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th className="text-left py-2 w-[32%]">{tr('nodes.pods.table.name', 'Name')}</th>
+                            <th className="text-left py-2 w-[16%]">{tr('nodes.pods.table.namespace', 'Namespace')}</th>
+                            <th className="text-left py-2 w-[10%]">{tr('nodes.pods.table.ready', 'Ready')}</th>
+                            <th className="text-left py-2 w-[12%]">{tr('nodes.pods.table.status', 'Status')}</th>
+                            <th className="text-left py-2 w-[10%]">{tr('nodes.pods.table.restarts', 'Restarts')}</th>
+                            <th className="text-left py-2 w-[12%]">{tr('nodes.pods.table.ip', 'IP')}</th>
+                            <th className="text-left py-2 w-[8%]">{tr('nodes.pods.table.age', 'Age')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {pagedPods.map((pod) => (
+                            <tr key={`${pod.namespace}-${pod.name}`} className="text-slate-200">
+                              <td className="py-2 pr-2 font-medium text-white"><span className="block truncate">{pod.name}</span></td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.namespace}</span></td>
+                              <td className="py-2 pr-2">{pod.ready || '-'}</td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.status || pod.phase || '-'}</span></td>
+                              <td className="py-2 pr-2">{pod.restart_count ?? 0}</td>
+                              <td className="py-2 pr-2"><span className="block truncate">{pod.pod_ip || '-'}</span></td>
+                              <td className="py-2 pr-2">{formatPodAge(pod.created_at)}</td>
+                            </tr>
+                          ))}
+                          {emptyPodRows > 0 &&
+                            Array.from({ length: emptyPodRows }).map((_, idx) => (
+                              <tr key={`empty-${idx}`} className="text-slate-700">
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                                <td className="py-2 pr-2">&nbsp;</td>
+                              </tr>
+                            ))}
+                          {pagedPods.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-4 text-slate-400">
+                                {tr('common.none', '(none)')}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-800">
+                        <span>
+                          {filteredNodePods.length === 0
+                            ? tr('common.none', '(none)')
+                            : `${(podPage - 1) * podsPageSize + 1}-${Math.min(
+                                podPage * podsPageSize,
+                                filteredNodePods.length
+                              )} / ${filteredNodePods.length}`}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPodPage((prev) => Math.max(1, prev - 1))}
+                            disabled={podPage === 1}
+                            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+                          >
+                            {tr('nodes.pods.prev', 'Prev')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPodPage((prev) => Math.min(podTotalPages, prev + 1))}
+                            disabled={podPage >= podTotalPages}
+                            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+                          >
+                            {tr('nodes.pods.next', 'Next')}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">{tr('nodes.detail.system', 'System info')}</p>
-                    <pre className="bg-slate-800 rounded-md p-2 text-xs whitespace-pre-wrap text-slate-200">
-{`OS: ${nodeDescribe.system_info?.operating_system || '-'}\n` +
-`Arch: ${nodeDescribe.system_info?.architecture || '-'}\n` +
-`OS Image: ${nodeDescribe.system_info?.os_image || '-'}\n` +
-`Kernel: ${nodeDescribe.system_info?.kernel_version || '-'}\n` +
-`Container Runtime: ${nodeDescribe.system_info?.container_runtime || '-'}`}
-                    </pre>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+                    <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.events', 'Events')}</p>
+                    {sortedEvents.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs table-fixed min-w-[620px]">
+                          <thead className="text-slate-400">
+                            <tr>
+                              <th className="text-left py-2 w-[12%]">{tr('nodes.events.table.type', 'Type')}</th>
+                              <th className="text-left py-2 w-[18%]">{tr('nodes.events.table.reason', 'Reason')}</th>
+                              <th className="text-left py-2 w-[44%]">{tr('nodes.events.table.message', 'Message')}</th>
+                              <th className="text-left py-2 w-[14%]">{tr('nodes.events.table.lastSeen', 'Last Seen')}</th>
+                              <th className="text-left py-2 w-[12%]">{tr('nodes.events.table.count', 'Count')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                            {sortedEvents.slice(0, 50).map((event, idx) => (
+                              <tr key={`${event.reason}-${idx}`} className="text-slate-200">
+                                <td className="py-2 pr-2">
+                                  <span className={`badge ${getEventBadge(event.type)}`}>{event.type || '-'}</span>
+                                </td>
+                                <td className="py-2 pr-2 align-top">
+                                  <span className="block break-words whitespace-normal">
+                                    {event.reason || '-'}
+                                  </span>
+                                </td>
+                                <td className="py-2 pr-2 align-top">
+                                  <span className="block break-words whitespace-normal">
+                                    {event.message || '-'}
+                                  </span>
+                                </td>
+                                <td className="py-2 pr-2">{formatRelative(event.last_timestamp || event.first_timestamp)}</td>
+                                <td className="py-2 pr-2">{event.count ?? 1}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">{tr('common.none', '(none)')}</span>
+                    )}
                   </div>
                 </>
               ) : (
