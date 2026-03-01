@@ -54,6 +54,15 @@ interface NodeDescribe {
   }
 }
 
+interface NodeEvent {
+  type?: string | null
+  reason?: string | null
+  message?: string | null
+  count?: number | null
+  first_timestamp?: string | null
+  last_timestamp?: string | null
+}
+
 export default function ClusterNodes() {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
