@@ -452,22 +452,40 @@ export default function ClusterNodes() {
       </div>
 
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm min-w-[980px]">
+        <table className="w-full text-sm min-w-[980px] table-fixed">
           <thead className="text-slate-400">
             <tr>
-              <th className="text-left py-3 px-4">{tr('nodes.table.name', 'Name')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.status', 'Status')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.roles', 'Roles')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.cpu', 'CPU')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.memory', 'Memory')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.version', 'Version')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.internalIp', 'Internal IP')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.externalIp', 'External IP')}</th>
-              <th className="text-left py-3 px-4">{tr('nodes.table.age', 'Age')}</th>
+              <th className="text-left py-3 px-4 w-[260px] cursor-pointer" onClick={() => handleSort('name')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.name', 'Name')}{renderSortIcon('name')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[120px] cursor-pointer" onClick={() => handleSort('status')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.status', 'Status')}{renderSortIcon('status')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[180px] cursor-pointer" onClick={() => handleSort('roles')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.roles', 'Roles')}{renderSortIcon('roles')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('cpu')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.cpu', 'CPU')}{renderSortIcon('cpu')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[170px] cursor-pointer" onClick={() => handleSort('memory')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.memory', 'Memory')}{renderSortIcon('memory')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[160px] cursor-pointer" onClick={() => handleSort('version')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.version', 'Version')}{renderSortIcon('version')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('internal_ip')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.internalIp', 'Internal IP')}{renderSortIcon('internal_ip')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[150px] cursor-pointer" onClick={() => handleSort('external_ip')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.externalIp', 'External IP')}{renderSortIcon('external_ip')}</span>
+              </th>
+              <th className="text-left py-3 px-4 w-[110px] cursor-pointer" onClick={() => handleSort('age')}>
+                <span className="inline-flex items-center gap-1">{tr('nodes.table.age', 'Age')}{renderSortIcon('age')}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
-            {filteredNodes.map((node) => {
+            {sortedNodes.map((node) => {
               const metric = metricsMap.get(node.name)
               return (
                 <tr
