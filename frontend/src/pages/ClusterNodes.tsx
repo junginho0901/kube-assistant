@@ -93,6 +93,18 @@ export default function ClusterNodes() {
     enabled: Boolean(selectedNodeName),
   })
 
+  const { data: nodePods } = useQuery({
+    queryKey: ['cluster', 'nodes', 'pods', selectedNodeName],
+    queryFn: () => api.getNodePods(selectedNodeName as string),
+    enabled: Boolean(selectedNodeName),
+  })
+
+  const { data: nodeEvents } = useQuery({
+    queryKey: ['cluster', 'nodes', 'events', selectedNodeName],
+    queryFn: () => api.getNodeEvents(selectedNodeName as string),
+    enabled: Boolean(selectedNodeName),
+  })
+
   const metricsMap = useMemo(() => {
     const map = new Map<string, NodeMetric>()
     if (Array.isArray(metrics)) {
