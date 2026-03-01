@@ -250,6 +250,84 @@ export default function ClusterNodes() {
     return (nodes as NodeInfo[]).filter((node) => node.name.toLowerCase().includes(q))
   }, [nodes, searchQuery])
 
+  const parseAgeDays = (age?: string | null) => {
+    if (!age) return 0
+    const match = age.match(/(\\d+)\\s+day/)
+    if (match) return Number(match[1]) || 0
+    return 0
+  }
+
+  const formatAgeDays = (age?: string | null) => {
+    const days = parseAgeDays(age)
+    return `${days}d`
+  }
+
+  const handleSort = (key: typeof sortKey) => {
+    if (key !== sortKey) {
+      setSortKey(key)
+      setSortDir('asc')
+      return
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc')
+      return
+    }
+    setSortKey(null)
+  }
+
+  const renderSortIcon = (key: NonNullable<typeof sortKey>) => {
+    if (sortKey !== key) return null
+    return sortDir === 'asc' ? (
+      <ChevronUp className="w-3.5 h-3.5 text-slate-300" />
+    ) : (
+      <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+    )
+  }
+
+  const sortedNodes = useMemo(() => {
+    if (!sortKey) return filteredNodes
+    const list = [...filteredNodes]
+    const getValue = (node: NodeInfo) => {
+      switch (sortKey) {
+        case 'name':
+          return node.name
+        case 'status':
+          return node.status || ''
+        case 'roles':
+          return (node.roles || []).join(',')
+        case 'cpu': {
+          const metric = metricsMap.get(node.name)
+          return metric ? parseFloat(metric.cpu_percent) || 0 : 0
+        }
+        case 'memory': {
+          const metric = metricsMap.get(node.name)
+          return metric ? parseFloat(metric.memory_percent) || 0 : 0
+        }
+        case 'version':
+          return node.version || ''
+        case 'internal_ip':
+          return node.internal_ip || ''
+        case 'external_ip':
+          return node.external_ip || ''
+        case 'age':
+          return parseAgeDays(node.age)
+        default:
+          return ''
+      }
+    }
+    list.sort((a, b) => {
+      const av = getValue(a)
+      const bv = getValue(b)
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av
+      }
+      const as = String(av)
+      const bs = String(bv)
+      return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
+    })
+    return list
+  }, [filteredNodes, metricsMap, sortDir, sortKey])
+
   const topNodes = useMemo(() => {
     if (!Array.isArray(metrics) || metrics.length === 0) return [] as NodeMetric[]
     const parsePercent = (value: string | undefined) => {
