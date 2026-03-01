@@ -2796,11 +2796,15 @@ class K8sService:
             
             describe_info = {
                 "name": node.metadata.name,
+                "created_at": self._to_iso(getattr(node.metadata, "creation_timestamp", None)),
                 "labels": node.metadata.labels or {},
                 "annotations": node.metadata.annotations or {},
                 "conditions": [],
                 "addresses": [],
                 "taints": [],
+                "pod_cidr": getattr(node.spec, "pod_cidr", None),
+                "pod_cidrs": getattr(node.spec, "pod_cidrs", None),
+                "unschedulable": getattr(node.spec, "unschedulable", None),
                 "capacity": {},
                 "allocatable": {},
                 "system_info": {}
@@ -2813,7 +2817,9 @@ class K8sService:
                         "type": condition.type,
                         "status": condition.status,
                         "reason": condition.reason,
-                        "message": condition.message
+                        "message": condition.message,
+                        "last_transition_time": self._to_iso(getattr(condition, "last_transition_time", None)),
+                        "last_update_time": self._to_iso(getattr(condition, "last_heartbeat_time", None)),
                     })
             
             # Addresses
@@ -2855,6 +2861,50 @@ class K8sService:
             return describe_info
         except ApiException as e:
             raise Exception(f"Failed to describe node: {e}")
+
+    async def get_node_pods(self, name: str) -> List[Dict[str, Any]]:
+        """노드에 스케줄된 Pod 목록 조회"""
+        try:
+            pods = self.v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={name}")
+            result = []
+            for pod in pods.items:
+                pod_info = self._pod_to_info(pod)
+                result.append(self._serialize_pod_info(pod_info))
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get node pods: {e}")
+
+    async def get_node_events(self, name: str) -> List[Dict[str, Any]]:
+        """노드 이벤트 조회"""
+        try:
+            field_selector = f"involvedObject.kind=Node,involvedObject.name={name}"
+            events = self.v1.list_event_for_all_namespaces(field_selector=field_selector)
+            result = []
+            for event in events.items:
+                involved = getattr(event, "involved_object", None)
+                result.append({
+                    "type": event.type,
+                    "reason": event.reason,
+                    "message": event.message,
+                    "namespace": getattr(event.metadata, "namespace", None),
+                    "object": {
+                        "kind": getattr(involved, "kind", None),
+                        "name": getattr(involved, "name", None),
+                    },
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
+                    "count": event.count,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get node events: {e}")
+
+    async def get_node_yaml(self, name: str) -> str:
+        """Node YAML 조회"""
+        try:
+            return await self.get_resource_yaml("nodes", name, namespace=None)
+        except Exception as e:
+            raise Exception(f"Failed to get node yaml: {e}")
     
     def _parse_cpu_usage(self, cpu_str: str) -> float:
         """CPU 사용량을 millicores 단위로 변환"""
