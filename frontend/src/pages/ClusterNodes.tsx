@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import { ChevronDown, ChevronUp, RefreshCw, Search, Server, X } from 'lucide-react'
@@ -137,6 +137,25 @@ export default function ClusterNodes() {
   }, [metrics])
 
   const canEditYaml = me?.role === 'admin'
+  const isAdmin = me?.role === 'admin'
+
+  const cordonMutation = useMutation({
+    mutationFn: (nodeName: string) => api.cordonNode(nodeName),
+    onSuccess: async (_data, nodeName) => {
+      await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes'] })
+      await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', nodeName] })
+    },
+  })
+
+  const uncordonMutation = useMutation({
+    mutationFn: (nodeName: string) => api.uncordonNode(nodeName),
+    onSuccess: async (_data, nodeName) => {
+      await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes'] })
+      await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', nodeName] })
+    },
+  })
+
+  const isSchedulingMutation = cordonMutation.isPending || uncordonMutation.isPending
 
   const handleApplyYaml = async (nextValue: string) => {
     if (!selectedNodeName) return
@@ -144,6 +163,15 @@ export default function ClusterNodes() {
     setYamlRefreshNonce((prev) => prev + 1)
     await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', selectedNodeName] })
     await queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes'] })
+  }
+
+  const handleToggleScheduling = () => {
+    if (!selectedNodeName || !nodeDescribe || isSchedulingMutation) return
+    if (nodeDescribe.unschedulable) {
+      uncordonMutation.mutate(selectedNodeName)
+    } else {
+      cordonMutation.mutate(selectedNodeName)
+    }
   }
 
   const formatTimestamp = (iso?: string | null) => {
@@ -569,12 +597,30 @@ export default function ClusterNodes() {
                   })}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedNodeName(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isAdmin && nodeDescribe && (
+                  <button
+                    type="button"
+                    onClick={handleToggleScheduling}
+                    disabled={isSchedulingMutation}
+                    className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+                  >
+                    {isSchedulingMutation
+                      ? nodeDescribe.unschedulable
+                        ? tr('nodes.actions.uncordoning', 'Uncordoning...')
+                        : tr('nodes.actions.cordoning', 'Cordoning...')
+                      : nodeDescribe.unschedulable
+                        ? tr('nodes.actions.uncordon', 'Uncordon')
+                        : tr('nodes.actions.cordon', 'Cordon')}
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedNodeName(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800 text-xs">
