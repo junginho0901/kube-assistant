@@ -777,21 +777,21 @@ export default function ClusterNodes() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
                       <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.addresses', 'Addresses')}</p>
-                      <pre className="text-xs text-slate-200 whitespace-pre-wrap break-all">
+                      <div className="text-xs text-slate-200 whitespace-pre-wrap break-all">
                         {nodeDescribe.addresses && nodeDescribe.addresses.length > 0
                           ? nodeDescribe.addresses.map((a) => `${a.type}: ${a.address}`).join('\n')
                           : tr('common.none', '(none)')}
-                      </pre>
+                      </div>
                     </div>
                     <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
                       <p className="text-xs text-slate-400 mb-2">{tr('nodes.detail.taints', 'Taints')}</p>
-                      <pre className="text-xs text-slate-200 whitespace-pre-wrap break-all">
+                      <div className="text-xs text-slate-200 whitespace-pre-wrap break-all">
                         {nodeDescribe.taints && nodeDescribe.taints.length > 0
                           ? nodeDescribe.taints
                               .map((t) => `${t.key || ''}=${t.value || ''}:${t.effect || ''}`)
                               .join('\n')
                           : tr('common.none', '(none)')}
-                      </pre>
+                      </div>
                     </div>
                   </div>
 
