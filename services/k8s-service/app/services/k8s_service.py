@@ -2920,9 +2920,88 @@ class K8sService:
     async def get_node_yaml(self, name: str, force_refresh: bool = False) -> str:
         """Node YAML 조회"""
         try:
-            return await self.get_resource_yaml("nodes", name, namespace=None)
+            return await self.get_resource_yaml("nodes", name, namespace=None, force_refresh=force_refresh)
         except Exception as e:
             raise Exception(f"Failed to get node yaml: {e}")
+
+    async def apply_node_yaml(self, name: str, yaml_content: str) -> Dict[str, Any]:
+        """Node YAML 적용 (spec 업데이트)"""
+        try:
+            import yaml
+
+            data = yaml.safe_load(yaml_content)
+            if not isinstance(data, dict):
+                raise Exception("Invalid YAML content")
+
+            kind = data.get("kind")
+            if kind != "Node":
+                raise Exception("YAML kind must be Node")
+
+            metadata = data.get("metadata") or {}
+            yaml_name = metadata.get("name")
+            if yaml_name and yaml_name != name:
+                raise Exception("YAML name does not match target node")
+
+            # Only allow safe fields via patch
+            current = self.v1.read_node(name)
+            current_labels = (current.metadata.labels or {}) if current and current.metadata else {}
+            current_annotations = (current.metadata.annotations or {}) if current and current.metadata else {}
+
+            def is_protected_label(key: str) -> bool:
+                prefixes = (
+                    "kubernetes.io/",
+                    "node-role.kubernetes.io/",
+                    "beta.kubernetes.io/",
+                    "node.kubernetes.io/",
+                    "topology.kubernetes.io/",
+                )
+                return key.startswith(prefixes)
+
+            def is_protected_annotation(key: str) -> bool:
+                prefixes = (
+                    "kubeadm.",
+                    "node.alpha.kubernetes.io/",
+                    "volumes.kubernetes.io/",
+                    "csi.volume.kubernetes.io/",
+                )
+                return key.startswith(prefixes)
+
+            patch: Dict[str, Any] = {"metadata": {}, "spec": {}}
+            if metadata.get("labels") is not None:
+                desired = metadata.get("labels") or {}
+                patch_labels = dict(desired)
+                # Remove labels that were explicitly deleted (non-protected only)
+                for key in current_labels:
+                    if key not in desired and not is_protected_label(key):
+                        patch_labels[key] = None
+                patch["metadata"]["labels"] = patch_labels
+            if metadata.get("annotations") is not None:
+                desired = metadata.get("annotations") or {}
+                patch_annotations = dict(desired)
+                for key in current_annotations:
+                    if key not in desired and not is_protected_annotation(key):
+                        patch_annotations[key] = None
+                patch["metadata"]["annotations"] = patch_annotations
+
+            spec = data.get("spec") or {}
+            if "unschedulable" in spec:
+                patch["spec"]["unschedulable"] = spec.get("unschedulable")
+
+            # Clean empty sections
+            if not patch["metadata"]:
+                patch.pop("metadata")
+            if not patch["spec"]:
+                patch.pop("spec")
+            if not patch:
+                raise Exception("No supported fields to apply (labels/annotations/unschedulable only)")
+
+            self.v1.patch_node(name, patch)
+            self._invalidate_yaml_cache("nodes", name, namespace=None)
+            return {"status": "ok"}
+        except ApiException as e:
+            raise Exception(f"Failed to apply node yaml: {e}")
+        except Exception as e:
+            raise Exception(f"Failed to apply node yaml: {e}")
     
     def _parse_cpu_usage(self, cpu_str: str) -> float:
         """CPU 사용량을 millicores 단위로 변환"""
