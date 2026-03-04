@@ -118,7 +118,17 @@
       "cordon": "스케줄링 비활성화",
       "uncordon": "스케줄링 활성화",
       "cordoning": "스케줄링 비활성화 중...",
-      "uncordoning": "스케줄링 활성화 중..."
+      "uncordoning": "스케줄링 활성화 중...",
+      "drain": "Drain",
+      "draining": "Draining...",
+      "drainSuccess": "드레인 완료"
+    },
+    "drain": {
+      "title": "노드 드레인",
+      "confirm": "노드 {{name}}를 드레인할까요?",
+      "warning": "드레인은 해당 노드의 파드를 축출합니다. 영향 범위를 충분히 이해한 후 진행하세요.",
+      "confirmButton": "드레인",
+      "error": "노드 드레인에 실패했습니다."
     },
     "detail": {
       "title": "노드 상세",
