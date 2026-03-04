@@ -1227,7 +1227,7 @@ export default function ClusterNodes() {
       )}
 
       {showNodeShell && selectedNodeName && (
-        <ModalOverlay onClose={() => setShowNodeShell(false)}>
+        <ModalOverlay closeOnOverlayClick={false}>
           <div
             className="w-full max-w-5xl h-[80vh] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl overflow-hidden"
             onClick={(event) => event.stopPropagation()}
