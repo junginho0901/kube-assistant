@@ -846,20 +846,6 @@ export default function ClusterNodes() {
                 </div>
               )}
 
-              {applyToast && (
-                <div className="absolute top-4 right-4 z-20">
-                  <div
-                    className={`rounded-lg border px-3 py-2 text-xs shadow-lg ${
-                      applyToast.type === 'success'
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                        : 'border-red-500/30 bg-red-500/10 text-red-200'
-                    }`}
-                  >
-                    {applyToast.message}
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800 text-xs">
                 <button
                   type="button"
@@ -915,44 +901,48 @@ export default function ClusterNodes() {
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-6 text-sm">
               {detailTab === 'yaml' ? (
-                <YamlEditor
-                  key={`${selectedNodeName || 'node'}-${detailTab}`}
-                  value={nodeYaml?.yaml || ''}
-                  canEdit={canEditYaml}
-                  isLoading={isYamlLoading}
-                  isRefreshing={isYamlFetching}
-                  error={isYamlError ? tr('nodes.detail.yaml.error', 'Failed to load YAML.') : null}
-                  onRefresh={() => setYamlRefreshNonce((prev) => prev + 1)}
-                  onApply={handleApplyYaml}
-                  onApplySuccess={() =>
-                    setApplyToast({
-                      type: 'success',
-                      message: tr('nodes.detail.yaml.applied', 'Applied'),
-                    })
-                  }
-                  onApplyError={(message) =>
-                    setApplyToast({
-                      type: 'error',
-                      message: message || tr('nodes.detail.yaml.error', 'Failed to load YAML.'),
-                    })
-                  }
-                  onDirtyChange={setIsYamlDirty}
-                  labels={{
-                    title: tr('nodes.detail.yaml.title', 'Node YAML'),
-                    refresh: tr('nodes.detail.yaml.refresh', 'Refresh'),
-                    copy: tr('nodes.detail.yaml.copy', 'Copy'),
-                    edit: tr('nodes.detail.yaml.edit', 'Edit'),
-                    apply: tr('nodes.detail.yaml.apply', 'Apply'),
-                    applying: tr('nodes.detail.yaml.applying', 'Applying...'),
-                    cancel: tr('nodes.detail.yaml.cancel', 'Cancel'),
-                    loading: tr('nodes.detail.yaml.loading', 'Loading YAML...'),
-                    error: tr('nodes.detail.yaml.error', 'Failed to load YAML.'),
-                    readonly: tr('nodes.detail.yaml.readonly', 'Read-only for non-admin users.'),
-                    editHint: tr('nodes.detail.yaml.editHint', 'Edit is available for admin users.'),
-                    applied: tr('nodes.detail.yaml.applied', 'Applied'),
-                    refreshing: tr('nodes.detail.yaml.refreshing', 'Refreshing...'),
-                  }}
-                />
+                <>
+                  <YamlEditor
+                    key={`${selectedNodeName || 'node'}-${detailTab}`}
+                    value={nodeYaml?.yaml || ''}
+                    canEdit={canEditYaml}
+                    isLoading={isYamlLoading}
+                    isRefreshing={isYamlFetching}
+                    error={isYamlError ? tr('nodes.detail.yaml.error', 'Failed to load YAML.') : null}
+                    onRefresh={() => setYamlRefreshNonce((prev) => prev + 1)}
+                    onApply={handleApplyYaml}
+                    onApplySuccess={() =>
+                      setApplyToast({
+                        type: 'success',
+                        message: tr('nodes.detail.yaml.applied', 'Applied'),
+                      })
+                    }
+                    onApplyError={(message) =>
+                      setApplyToast({
+                        type: 'error',
+                        message: message || tr('nodes.detail.yaml.error', 'Failed to load YAML.'),
+                      })
+                    }
+                    onDirtyChange={setIsYamlDirty}
+                    showInlineApplied={false}
+                    toast={applyToast}
+                    labels={{
+                      title: tr('nodes.detail.yaml.title', 'Node YAML'),
+                      refresh: tr('nodes.detail.yaml.refresh', 'Refresh'),
+                      copy: tr('nodes.detail.yaml.copy', 'Copy'),
+                      edit: tr('nodes.detail.yaml.edit', 'Edit'),
+                      apply: tr('nodes.detail.yaml.apply', 'Apply'),
+                      applying: tr('nodes.detail.yaml.applying', 'Applying...'),
+                      cancel: tr('nodes.detail.yaml.cancel', 'Cancel'),
+                      loading: tr('nodes.detail.yaml.loading', 'Loading YAML...'),
+                      error: tr('nodes.detail.yaml.error', 'Failed to load YAML.'),
+                      readonly: tr('nodes.detail.yaml.readonly', 'Read-only for non-admin users.'),
+                      editHint: tr('nodes.detail.yaml.editHint', 'Edit is available for admin users.'),
+                      applied: tr('nodes.detail.yaml.applied', 'Applied'),
+                      refreshing: tr('nodes.detail.yaml.refreshing', 'Refreshing...'),
+                    }}
+                  />
+                </>
               ) : isLoadingDescribe ? (
                 <p className="text-slate-400">{tr('nodes.detail.loading', 'Loading node details...')}</p>
               ) : isDescribeError ? (
