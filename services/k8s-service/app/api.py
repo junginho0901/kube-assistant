@@ -3,7 +3,7 @@ Kubernetes 클러스터 리소스 API
 """
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from app.services.k8s_service import K8sService
 from app.streaming import sse_event
 from app.config import settings
@@ -1108,18 +1108,35 @@ async def websocket_node_debug_shell(
     pod_name = None
     k8s_ws = None
 
-    async def wait_for_pod_ready(ns: str, name: str, timeout_sec: int = 60) -> bool:
+    async def wait_for_pod_ready(
+        ns: str, name: str, timeout_sec: int = 60
+    ) -> Tuple[bool, Optional[str]]:
         deadline = asyncio.get_event_loop().time() + timeout_sec
+        terminal_wait_reasons = {
+            "ErrImagePull",
+            "ImagePullBackOff",
+            "CreateContainerConfigError",
+            "CreateContainerError",
+        }
         while asyncio.get_event_loop().time() < deadline:
             try:
                 pod = await asyncio.to_thread(k8s_service.v1.read_namespaced_pod, name, ns)
                 phase = getattr(pod.status, "phase", "")
                 if phase == "Running":
-                    return True
+                    return True, None
+                statuses = getattr(pod.status, "container_statuses", None) or []
+                for status in statuses:
+                    state = getattr(status, "state", None)
+                    waiting = getattr(state, "waiting", None) if state else None
+                    reason = getattr(waiting, "reason", None) if waiting else None
+                    if reason in terminal_wait_reasons:
+                        message = getattr(waiting, "message", "") if waiting else ""
+                        detail = f"{reason}: {message}".strip()
+                        return False, detail or reason
             except Exception:
                 pass
             await asyncio.sleep(1)
-        return False
+        return False, None
 
     try:
         await websocket.send_text("Creating debug pod...")
@@ -1128,9 +1145,12 @@ async def websocket_node_debug_shell(
         )
 
         await websocket.send_text("Waiting for debug pod to start...")
-        ready = await wait_for_pod_ready(namespace, pod_name, timeout_sec=90)
+        ready, wait_error = await wait_for_pod_ready(namespace, pod_name, timeout_sec=90)
         if not ready:
-            await websocket.send_text("Error: Debug pod did not become ready.")
+            if wait_error:
+                await websocket.send_text(f"Error: {wait_error}")
+            else:
+                await websocket.send_text("Error: Debug pod did not become ready.")
             return
 
         # Build K8s WebSocket URL
