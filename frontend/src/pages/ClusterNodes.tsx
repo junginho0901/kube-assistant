@@ -746,112 +746,113 @@ export default function ClusterNodes() {
       {selectedNodeName && (
         <ModalOverlay onClose={handleCloseDetail}>
           <div
-            className="fixed inset-y-0 right-0 w-full max-w-[560px] bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col overflow-x-hidden relative"
+            className="fixed inset-y-0 right-0 w-full max-w-[560px] bg-slate-900 border-l border-slate-700 shadow-2xl overflow-x-hidden"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="relative flex h-full flex-col">
               <div className="flex items-start justify-between px-5 py-4 border-b border-slate-700">
-              <div>
-                <h2 className="text-lg font-semibold text-white">{selectedNodeName}</h2>
-                <p className="text-xs text-slate-400">
-                  {tr('nodes.detail.subtitle', 'Details from kubectl describe node {{name}}', {
-                    name: selectedNodeName,
-                  })}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isAdmin && nodeDescribe && (
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{selectedNodeName}</h2>
+                  <p className="text-xs text-slate-400">
+                    {tr('nodes.detail.subtitle', 'Details from kubectl describe node {{name}}', {
+                      name: selectedNodeName,
+                    })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isAdmin && nodeDescribe && (
+                    <button
+                      type="button"
+                      onClick={handleToggleScheduling}
+                      disabled={disableSchedulingAction}
+                      title={
+                        disableSchedulingAction
+                          ? tr('nodes.actions.schedulingDisabled', 'Action disabled while another operation is running.')
+                          : undefined
+                      }
+                      className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+                    >
+                      {isSchedulingMutation
+                        ? nodeDescribe.unschedulable
+                          ? tr('nodes.actions.uncordoning', 'Uncordoning...')
+                          : tr('nodes.actions.cordoning', 'Cordoning...')
+                        : nodeDescribe.unschedulable
+                          ? tr('nodes.actions.uncordon', 'Uncordon')
+                          : tr('nodes.actions.cordon', 'Cordon')}
+                    </button>
+                  )}
+                  {isAdmin && nodeDescribe && (
+                    <button
+                      type="button"
+                      onClick={openDrainDialog}
+                      disabled={disableDrainAction}
+                      title={
+                        disableDrainAction
+                          ? tr('nodes.actions.drainDisabled', 'Drain is disabled while another operation is running.')
+                          : undefined
+                      }
+                      className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+                    >
+                      {isDrainMutation
+                        ? tr('nodes.actions.draining', 'Draining...')
+                        : tr('nodes.actions.drain', 'Drain')}
+                    </button>
+                  )}
                   <button
-                    type="button"
-                    onClick={handleToggleScheduling}
-                    disabled={disableSchedulingAction}
-                    title={
-                      disableSchedulingAction
-                        ? tr('nodes.actions.schedulingDisabled', 'Action disabled while another operation is running.')
-                        : undefined
-                    }
-                    className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+                    onClick={handleCloseDetail}
+                    className="text-slate-400 hover:text-white"
                   >
-                    {isSchedulingMutation
-                      ? nodeDescribe.unschedulable
-                        ? tr('nodes.actions.uncordoning', 'Uncordoning...')
-                        : tr('nodes.actions.cordoning', 'Cordoning...')
-                      : nodeDescribe.unschedulable
-                        ? tr('nodes.actions.uncordon', 'Uncordon')
-                        : tr('nodes.actions.cordon', 'Cordon')}
+                    <X className="w-4 h-4" />
                   </button>
-                )}
-                {isAdmin && nodeDescribe && (
-                  <button
-                    type="button"
-                    onClick={openDrainDialog}
-                    disabled={disableDrainAction}
-                    title={
-                      disableDrainAction
-                        ? tr('nodes.actions.drainDisabled', 'Drain is disabled while another operation is running.')
-                        : undefined
-                    }
-                    className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
-                  >
-                    {isDrainMutation
-                      ? tr('nodes.actions.draining', 'Draining...')
-                      : tr('nodes.actions.drain', 'Drain')}
-                  </button>
-                )}
-                <button
-                  onClick={handleCloseDetail}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {(isSchedulingMutation || isDrainMutation) && (
-              <div className="px-5 pb-2 text-[11px] text-slate-400">
-                {isDrainMutation
-                  ? tr('nodes.actions.drainInProgress', 'Drain in progress. Actions are temporarily disabled.')
-                  : tr('nodes.actions.schedulingInProgress', 'Scheduling update in progress. Actions are temporarily disabled.')}
-              </div>
-            )}
-
-            {applyToast && (
-              <div className="absolute top-4 right-4 z-20">
-                <div
-                  className={`rounded-lg border px-3 py-2 text-xs shadow-lg ${
-                    applyToast.type === 'success'
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                      : 'border-red-500/30 bg-red-500/10 text-red-200'
-                  }`}
-                >
-                  {applyToast.message}
                 </div>
               </div>
-            )}
 
-            <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800 text-xs">
-              <button
-                type="button"
-                onClick={() => handleTabChange('info')}
-                className={`px-3 py-1 rounded-md border ${
-                  detailTab === 'info'
-                    ? 'border-slate-500 bg-slate-800 text-white'
-                    : 'border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                {tr('nodes.detail.tabs.info', 'Info')}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTabChange('yaml')}
-                className={`px-3 py-1 rounded-md border ${
-                  detailTab === 'yaml'
-                    ? 'border-slate-500 bg-slate-800 text-white'
-                    : 'border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                {tr('nodes.detail.tabs.yaml', 'YAML')}
-              </button>
-            </div>
+              {(isSchedulingMutation || isDrainMutation) && (
+                <div className="px-5 pb-2 text-[11px] text-slate-400">
+                  {isDrainMutation
+                    ? tr('nodes.actions.drainInProgress', 'Drain in progress. Actions are temporarily disabled.')
+                    : tr('nodes.actions.schedulingInProgress', 'Scheduling update in progress. Actions are temporarily disabled.')}
+                </div>
+              )}
+
+              {applyToast && (
+                <div className="absolute top-4 right-4 z-20">
+                  <div
+                    className={`rounded-lg border px-3 py-2 text-xs shadow-lg ${
+                      applyToast.type === 'success'
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                        : 'border-red-500/30 bg-red-500/10 text-red-200'
+                    }`}
+                  >
+                    {applyToast.message}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 px-5 py-2 border-b border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('info')}
+                  className={`px-3 py-1 rounded-md border ${
+                    detailTab === 'info'
+                      ? 'border-slate-500 bg-slate-800 text-white'
+                      : 'border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tr('nodes.detail.tabs.info', 'Info')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('yaml')}
+                  className={`px-3 py-1 rounded-md border ${
+                    detailTab === 'yaml'
+                      ? 'border-slate-500 bg-slate-800 text-white'
+                      : 'border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tr('nodes.detail.tabs.yaml', 'YAML')}
+                </button>
+              </div>
 
             {showDrainStatus && (
               <div className="px-5 py-3 border-b border-slate-800">
