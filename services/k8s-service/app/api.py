@@ -1189,6 +1189,11 @@ async def websocket_node_debug_shell(
             async with session.ws_connect(
                 url, headers=headers, ssl=ssl_context, protocols=protocols
             ) as k8s_ws:
+                try:
+                    await websocket.send_text("Shell ready.")
+                    await k8s_ws.send_bytes(b"\x00\r")
+                except Exception:
+                    pass
 
                 async def pump_k8s_to_client():
                     async for msg in k8s_ws:
