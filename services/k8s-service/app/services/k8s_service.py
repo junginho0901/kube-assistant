@@ -2981,12 +2981,7 @@ class K8sService:
 
             pods = self.v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={name}")
             policy_api = getattr(self, "policy_v1", None) or client.PolicyV1Api(api_client=self.api_client)
-            use_beta_eviction = not hasattr(policy_api, "create_namespaced_pod_eviction")
-            if use_beta_eviction:
-                try:
-                    policy_api = client.PolicyV1beta1Api(api_client=self.api_client)
-                except Exception:
-                    policy_api = client.PolicyV1beta1Api()
+            use_api_method = hasattr(policy_api, "create_namespaced_pod_eviction")
 
             for pod in pods.items:
                 owners = pod.metadata.owner_references or []
@@ -2995,19 +2990,19 @@ class K8sService:
                 if pod.metadata.annotations and pod.metadata.annotations.get("kubernetes.io/config.mirror"):
                     continue
 
-                EvictionCls = getattr(client, "V1beta1Eviction", None) if use_beta_eviction else getattr(client, "V1Eviction", None)
-                if EvictionCls is None:
-                    EvictionCls = client.V1Eviction
-                eviction = EvictionCls(
-                    metadata=client.V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace),
-                    delete_options=client.V1DeleteOptions(grace_period_seconds=0),
-                )
                 try:
-                    policy_api.create_namespaced_pod_eviction(
-                        name=pod.metadata.name,
-                        namespace=pod.metadata.namespace,
-                        body=eviction,
-                    )
+                    if use_api_method:
+                        eviction = client.V1Eviction(
+                            metadata=client.V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace),
+                            delete_options=client.V1DeleteOptions(grace_period_seconds=0),
+                        )
+                        policy_api.create_namespaced_pod_eviction(
+                            name=pod.metadata.name,
+                            namespace=pod.metadata.namespace,
+                            body=eviction,
+                        )
+                    else:
+                        self._create_pod_eviction_raw(pod.metadata.namespace, pod.metadata.name, 0)
                 except ApiException as e:
                     if e.status == 404:
                         continue
@@ -3016,6 +3011,36 @@ class K8sService:
             self._set_drain_status(drain_id, name, "success")
         except Exception as e:
             self._set_drain_status(drain_id, name, "error", str(e))
+
+    def _create_pod_eviction_raw(self, namespace: str, name: str, grace_period_seconds: int = 0) -> None:
+        """Fallback eviction call for kubernetes clients missing eviction helpers."""
+        if not self.api_client:
+            raise Exception("API client not initialized for eviction")
+
+        # Try policy/v1, then policy/v1beta1
+        for api_version in ("policy/v1", "policy/v1beta1"):
+            body = {
+                "apiVersion": api_version,
+                "kind": "Eviction",
+                "metadata": {"name": name, "namespace": namespace},
+                "deleteOptions": {"gracePeriodSeconds": grace_period_seconds},
+            }
+            path = f"/apis/{api_version}/namespaces/{namespace}/pods/{name}/eviction"
+            try:
+                self.api_client.call_api(
+                    path,
+                    "POST",
+                    body=body,
+                    response_type="object",
+                    auth_settings=["BearerToken"],
+                    _preload_content=False,
+                )
+                return
+            except ApiException as e:
+                if e.status == 404:
+                    continue
+                raise
+        raise Exception("Eviction API not available")
 
     async def apply_node_yaml(self, name: str, yaml_content: str) -> Dict[str, Any]:
         """Node YAML 적용 (spec 업데이트)"""
