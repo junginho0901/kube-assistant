@@ -155,6 +155,15 @@ export default function ClusterNodes() {
     setShowNodeShell(false)
   }, [selectedNodeName])
 
+  useEffect(() => {
+    if (!selectedNodeName) return
+    if (drainStatus === 'success' && nodeDescribe?.unschedulable === false) {
+      setDrainStatus('idle')
+      setDrainId(null)
+      setDrainError(null)
+    }
+  }, [drainStatus, nodeDescribe?.unschedulable, selectedNodeName])
+
   const metricsMap = useMemo(() => {
     const map = new Map<string, NodeMetric>()
     if (Array.isArray(metrics)) {
