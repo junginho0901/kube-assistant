@@ -2980,9 +2980,6 @@ class K8sService:
             self.v1.patch_node(name, {"spec": {"unschedulable": True}})
 
             pods = self.v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={name}")
-            policy_api = getattr(self, "policy_v1", None) or client.PolicyV1Api(api_client=self.api_client)
-            use_api_method = hasattr(policy_api, "create_namespaced_pod_eviction")
-
             for pod in pods.items:
                 owners = pod.metadata.owner_references or []
                 if any(owner.kind == "DaemonSet" for owner in owners):
@@ -2991,18 +2988,7 @@ class K8sService:
                     continue
 
                 try:
-                    if use_api_method:
-                        eviction = client.V1Eviction(
-                            metadata=client.V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace),
-                            delete_options=client.V1DeleteOptions(grace_period_seconds=0),
-                        )
-                        policy_api.create_namespaced_pod_eviction(
-                            name=pod.metadata.name,
-                            namespace=pod.metadata.namespace,
-                            body=eviction,
-                        )
-                    else:
-                        self._create_pod_eviction_raw(pod.metadata.namespace, pod.metadata.name, 0)
+                    self._create_pod_eviction_raw(pod.metadata.namespace, pod.metadata.name, 0)
                 except ApiException as e:
                     if e.status == 404:
                         continue
