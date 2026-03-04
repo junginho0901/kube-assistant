@@ -121,7 +121,11 @@
       "uncordoning": "Uncordoning...",
       "drain": "Drain",
       "draining": "Draining...",
-      "drainSuccess": "Drained successfully."
+      "drainSuccess": "Drained successfully.",
+      "schedulingDisabled": "Action disabled while another operation is running.",
+      "drainDisabled": "Drain is disabled while another operation is running.",
+      "drainInProgress": "Drain in progress. Actions are temporarily disabled.",
+      "schedulingInProgress": "Scheduling update in progress. Actions are temporarily disabled."
     },
     "drain": {
       "title": "Drain node",
