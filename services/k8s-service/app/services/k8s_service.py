@@ -6,6 +6,7 @@ from kubernetes.client.rest import ApiException
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import time
+import uuid
 import os
 import asyncio
 import json
@@ -28,6 +29,7 @@ from app.cluster import (
 METRICS_REQUEST_TIMEOUT = 6  # seconds for metrics.k8s.io calls
 METRICS_MAX_RETRIES = 2      # max retries for metrics fetch
 YAML_CACHE_TTL = 10          # seconds
+DRAIN_STATUS_TTL = 600       # seconds
 
 
 class K8sService:
@@ -73,6 +75,8 @@ class K8sService:
             self._api_resources_cache_at: float = 0.0
             # YAML cache (resource yaml)
             self._yaml_cache: Dict[str, Dict[str, Any]] = {}
+            # Drain status cache
+            self._drain_status: Dict[str, Dict[str, Any]] = {}
             
         except Exception as e:
             print(f"Warning: Kubernetes client initialization failed: {e}")
@@ -2941,6 +2945,68 @@ class K8sService:
             return {"status": "ok", "unschedulable": False}
         except ApiException as e:
             raise Exception(f"Failed to uncordon node: {e}")
+
+    def _set_drain_status(self, drain_id: str, node_name: str, status: str, message: Optional[str] = None) -> None:
+        self._drain_status[drain_id] = {
+            "id": drain_id,
+            "node": node_name,
+            "status": status,
+            "message": message,
+            "expires_at": time.time() + DRAIN_STATUS_TTL,
+        }
+
+    def get_drain_status(self, drain_id: str) -> Dict[str, Any]:
+        item = self._drain_status.get(drain_id)
+        if not item:
+            raise Exception("Drain status not found")
+        if item.get("expires_at", 0) < time.time():
+            self._drain_status.pop(drain_id, None)
+            raise Exception("Drain status expired")
+        return {"id": item.get("id"), "node": item.get("node"), "status": item.get("status"), "message": item.get("message")}
+
+    async def start_node_drain(self, name: str) -> Dict[str, Any]:
+        drain_id = uuid.uuid4().hex
+        self._set_drain_status(drain_id, name, "pending")
+        asyncio.create_task(self._run_drain_node(drain_id, name))
+        return {"drain_id": drain_id, "status": "accepted"}
+
+    async def _run_drain_node(self, drain_id: str, name: str) -> None:
+        await asyncio.to_thread(self._drain_node_worker, drain_id, name)
+
+    def _drain_node_worker(self, drain_id: str, name: str) -> None:
+        try:
+            self._set_drain_status(drain_id, name, "draining")
+            # Cordon first
+            self.v1.patch_node(name, {"spec": {"unschedulable": True}})
+
+            pods = self.v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={name}")
+            policy_api = getattr(self, "policy_v1", None) or client.PolicyV1Api(api_client=self.api_client)
+
+            for pod in pods.items:
+                owners = pod.metadata.owner_references or []
+                if any(owner.kind == "DaemonSet" for owner in owners):
+                    continue
+                if pod.metadata.annotations and pod.metadata.annotations.get("kubernetes.io/config.mirror"):
+                    continue
+
+                eviction = client.V1Eviction(
+                    metadata=client.V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace),
+                    delete_options=client.V1DeleteOptions(grace_period_seconds=0),
+                )
+                try:
+                    policy_api.create_namespaced_pod_eviction(
+                        name=pod.metadata.name,
+                        namespace=pod.metadata.namespace,
+                        body=eviction,
+                    )
+                except ApiException as e:
+                    if e.status == 404:
+                        continue
+                    raise
+
+            self._set_drain_status(drain_id, name, "success")
+        except Exception as e:
+            self._set_drain_status(drain_id, name, "error", str(e))
 
     async def apply_node_yaml(self, name: str, yaml_content: str) -> Dict[str, Any]:
         """Node YAML 적용 (spec 업데이트)"""
