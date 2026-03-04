@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -29,6 +30,7 @@ const buildWsUrl = (path: string, params?: Record<string, string>) => {
 }
 
 export default function NodeShellTerminal({ nodeName, namespace, image, onClose, title }: NodeShellTerminalProps) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -52,7 +54,7 @@ export default function NodeShellTerminal({ nodeName, namespace, image, onClose,
       fit.fit()
     }
 
-    term.writeln(`Connecting to ${nodeName}...`)
+    term.writeln(t('nodes.shell.connectingTo', 'Connecting to {{node}}...', { node: nodeName }))
 
     const wsUrl = buildWsUrl(`/api/v1/cluster/nodes/${nodeName}/debug-shell/ws`, {
       ...(namespace ? { namespace } : {}),
@@ -66,7 +68,7 @@ export default function NodeShellTerminal({ nodeName, namespace, image, onClose,
 
     ws.onopen = () => {
       setStatus('connected')
-      term.writeln('Connected.')
+      term.writeln(t('nodes.shell.connected', 'Connected.'))
       term.focus()
     }
 
@@ -89,14 +91,14 @@ export default function NodeShellTerminal({ nodeName, namespace, image, onClose,
 
     ws.onerror = () => {
       setStatus('error')
-      term.writeln('Connection error.')
+      term.writeln(t('nodes.shell.connectionError', 'Connection error.'))
     }
 
     ws.onclose = (event) => {
       if (event.code === 1008) {
         handleUnauthorized()
       }
-      term.writeln('Disconnected.')
+      term.writeln(t('nodes.shell.disconnected', 'Disconnected.'))
     }
 
     const disposable = term.onData((data) => {
@@ -129,14 +131,14 @@ export default function NodeShellTerminal({ nodeName, namespace, image, onClose,
       <div className="flex items-center justify-between border-b border-slate-700 px-4 py-2">
         <div>
           <p className="text-sm font-semibold text-white">
-            {title || `Shell: ${nodeName}`}
+            {title || t('nodes.shell.title', 'Shell: {{node}}', { node: nodeName })}
           </p>
           <p className="text-xs text-slate-400">
             {status === 'connecting'
-              ? 'Connecting...'
+              ? t('nodes.shell.statusConnecting', 'Connecting...')
               : status === 'connected'
-                ? 'Connected'
-                : 'Connection error'}
+                ? t('nodes.shell.statusConnected', 'Connected')
+                : t('nodes.shell.statusError', 'Connection error')}
           </p>
         </div>
         <button
