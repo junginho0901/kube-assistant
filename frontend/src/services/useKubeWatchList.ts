@@ -44,6 +44,7 @@ export function useKubeWatchList(options: {
   path: string
   query?: string
   applyEvent?: (prev: any[] | undefined, event: WatchEvent) => any[]
+  onEvent?: (event: WatchEvent) => void
 }) {
   const queryClient = useQueryClient()
   const query = options.query ?? 'watch=1'
@@ -64,6 +65,7 @@ export function useKubeWatchList(options: {
       queryClient.setQueryData(options.queryKey, (prev: any[] | undefined) =>
         (options.applyEvent ?? applyWatchEvent)(prev, event)
       )
+      options.onEvent?.(event)
     }
 
     let cleanup: (() => void) | undefined

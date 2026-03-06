@@ -132,6 +132,12 @@ export default function ClusterNodes() {
     queryKey: ['cluster', 'nodes'],
     path: '/api/v1/nodes',
     query: 'watch=1',
+    onEvent: (event) => {
+      const name = event?.object?.name
+      if (name && name === selectedNodeName) {
+        queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', selectedNodeName] })
+      }
+    },
   })
 
   const { data: metrics, isLoading: isLoadingMetrics, isError: isMetricsError } = useQuery({
