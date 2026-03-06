@@ -172,11 +172,25 @@ class WebSocketMultiplexer:
     async def _run_watch(self, websocket, path: str, query: str, stop_event: asyncio.Event) -> None:
         try:
             async for event in self._watch_stream(path, query, stop_event):
-                await websocket.send_json(event)
+                await websocket.send_json(
+                    {
+                        "type": "DATA",
+                        "path": path,
+                        "query": query,
+                        "data": event,
+                    }
+                )
         except asyncio.CancelledError:
             return
         except Exception as e:
-            await websocket.send_json({"type": "ERROR", "object": {"message": str(e)}})
+            await websocket.send_json(
+                {
+                    "type": "ERROR",
+                    "path": path,
+                    "query": query,
+                    "error": {"message": str(e)},
+                }
+            )
 
     async def _watch_stream(self, path: str, query: str, stop_event: asyncio.Event):
         resource, namespace = self._parse_path(path)
