@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs
 
+from fastapi.encoders import jsonable_encoder
 from kubernetes import client, watch
 
 
@@ -182,25 +183,23 @@ class WebSocketMultiplexer:
     async def _run_watch(self, websocket, path: str, query: str, stop_event: asyncio.Event) -> None:
         try:
             async for event in self._watch_stream(path, query, stop_event):
-                await websocket.send_json(
-                    {
-                        "type": "DATA",
-                        "path": path,
-                        "query": query,
-                        "data": event,
-                    }
-                )
+                payload = {
+                    "type": "DATA",
+                    "path": path,
+                    "query": query,
+                    "data": event,
+                }
+                await websocket.send_json(jsonable_encoder(payload))
         except asyncio.CancelledError:
             return
         except Exception as e:
-            await websocket.send_json(
-                {
-                    "type": "ERROR",
-                    "path": path,
-                    "query": query,
-                    "error": {"message": str(e)},
-                }
-            )
+            payload = {
+                "type": "ERROR",
+                "path": path,
+                "query": query,
+                "error": {"message": str(e)},
+            }
+            await websocket.send_json(jsonable_encoder(payload))
 
     async def _watch_stream(self, path: str, query: str, stop_event: asyncio.Event):
         resource, namespace = self._parse_path(path)
