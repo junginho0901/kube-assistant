@@ -134,8 +134,8 @@ export default function ClusterNodes() {
     query: 'watch=1',
     onEvent: (event) => {
       const name = event?.object?.name
-      if (name && name === selectedNodeName) {
-        queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', selectedNodeName] })
+      if (name) {
+        queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', name] })
       }
     },
   })

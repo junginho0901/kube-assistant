@@ -81,6 +81,7 @@ export function useKubeWatchList(options: {
     options.path,
     query,
     options.applyEvent,
+    options.onEvent,
     JSON.stringify(options.queryKey),
   ])
 }

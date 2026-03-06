@@ -21,6 +21,15 @@ class WebSocketMultiplexer:
         self._ws_keys: Dict[int, set[str]] = {}
         self._k8s = k8s_service
 
+    def _to_iso(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+
     def _make_key(self, ws_id: int, cluster_id: str, path: str, query: str) -> str:
         return f"{ws_id}:{cluster_id}:{path}?{query}"
 
@@ -115,8 +124,9 @@ class WebSocketMultiplexer:
                 "kind": event.involved_object.kind,
                 "name": event.involved_object.name,
             },
-            "first_timestamp": event.first_timestamp,
-            "last_timestamp": event.last_timestamp,
+            "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+            "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
+            "event_time": self._to_iso(getattr(event, "event_time", None)),
             "count": event.count,
         }
 
