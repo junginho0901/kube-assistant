@@ -193,6 +193,12 @@ export default function ClusterNodes() {
     path: '/api/v1/events',
     query: nodeEventQuery,
     applyEvent: applyNodeEvent,
+    onEvent: (event) => {
+      const name = event?.object?.object?.name
+      if (name) {
+        queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', name] })
+      }
+    },
   })
 
   const { data: drainStatusData } = useQuery({
