@@ -868,12 +868,25 @@ class K8sService:
                     print(f"[WARN] Failed to format namespace.creation_timestamp: {e}")
                     created_at = str(ns.metadata.creation_timestamp)
 
+            # conditions 파싱
+            conditions = []
+            if getattr(ns, "status", None) and getattr(ns.status, "conditions", None):
+                for cond in ns.status.conditions:
+                    conditions.append({
+                        "type": getattr(cond, "type", None),
+                        "status": getattr(cond, "status", None),
+                        "last_transition_time": str(cond.last_transition_time) if getattr(cond, "last_transition_time", None) else None,
+                        "reason": getattr(cond, "reason", None),
+                        "message": getattr(cond, "message", None),
+                    })
+
             describe_info: Dict[str, Any] = {
                 "name": ns.metadata.name,
                 "status": getattr(ns.status, "phase", None) if getattr(ns, "status", None) else None,
                 "created_at": created_at,
                 "labels": ns.metadata.labels or {},
                 "annotations": ns.metadata.annotations or {},
+                "conditions": conditions,
                 "events": [],
             }
 
