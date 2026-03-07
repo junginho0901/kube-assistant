@@ -883,6 +883,32 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get resource quotas for namespace {name}: {e}")
 
+    async def get_namespace_limit_ranges(self, name: str) -> List[Dict[str, Any]]:
+        """네임스페이스의 LimitRange 목록 조회"""
+        try:
+            lrs = self.v1.list_namespaced_limit_range(namespace=name)
+            result = []
+            for lr in (lrs.items or []):
+                limits = []
+                if getattr(lr, "spec", None) and getattr(lr.spec, "limits", None):
+                    for lim in lr.spec.limits:
+                        limits.append({
+                            "type": getattr(lim, "type", None),
+                            "default": dict(lim.default) if getattr(lim, "default", None) else {},
+                            "default_request": dict(lim.default_request) if getattr(lim, "default_request", None) else {},
+                            "max": dict(getattr(lim, "max", None) or {}),
+                            "min": dict(getattr(lim, "min", None) or {}),
+                        })
+                result.append({
+                    "name": lr.metadata.name,
+                    "namespace": lr.metadata.namespace,
+                    "created_at": lr.metadata.creation_timestamp.isoformat() if getattr(lr.metadata, "creation_timestamp", None) and hasattr(lr.metadata.creation_timestamp, "isoformat") else str(lr.metadata.creation_timestamp) if getattr(lr.metadata, "creation_timestamp", None) else None,
+                    "limits": limits,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get limit ranges for namespace {name}: {e}")
+
     async def get_services(self, namespace: str) -> List[ServiceInfo]:
         """서비스 목록"""
         try:
