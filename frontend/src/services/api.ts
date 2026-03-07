@@ -665,6 +665,43 @@ export const api = {
     return data
   },
 
+  getNamespaceYaml: async (name: string, forceRefresh: boolean = false): Promise<{ yaml: string }> => {
+    const { data } = await client.get(`/cluster/namespaces/${name}/yaml`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  applyNamespaceYaml: async (name: string, yaml: string): Promise<{ status: string }> => {
+    const { data } = await client.post(`/cluster/namespaces/${name}/yaml/apply`, { yaml })
+    return data
+  },
+
+  getNamespaceResourceQuotas: async (namespace: string): Promise<NamespaceResourceQuota[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/resource-quotas`)
+    return data
+  },
+
+  getNamespaceLimitRanges: async (namespace: string): Promise<NamespaceLimitRange[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/limit-ranges`)
+    return data
+  },
+
+  getNamespacePods: async (namespace: string): Promise<NamespacePod[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/owned-pods`)
+    return data
+  },
+
+  createNamespace: async (name: string): Promise<{ status: string; name: string }> => {
+    const { data } = await client.post('/cluster/namespaces', { name })
+    return data
+  },
+
+  deleteNamespace: async (name: string): Promise<{ status: string; name: string }> => {
+    const { data } = await client.delete(`/cluster/namespaces/${name}`)
+    return data
+  },
+
   getServices: async (namespace: string, forceRefresh = false): Promise<ServiceInfo[]> => {
     const { data } = await client.get(`/cluster/namespaces/${namespace}/services`, {
       params: { force_refresh: forceRefresh },
