@@ -150,7 +150,10 @@ async def describe_namespace(namespace: str):
     try:
         return await k8s_service.describe_namespace(namespace)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Namespace '{namespace}' not found")
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/namespaces/{namespace}/services", response_model=List[ServiceInfo])
