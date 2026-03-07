@@ -14,6 +14,8 @@ from app.k8s_setup import (
     patch_configmap,
     restart_deployment,
     validate_kubeconfig_connection,
+    KubeconfigValidationError,
+    check_k8s_service_health,
 )
 from app.config import settings
 
@@ -84,6 +86,8 @@ class ClusterSetupStatus(BaseModel):
     configured: bool
     mode: Optional[str] = None
     secret_name: Optional[str] = None
+    connection_status: Optional[str] = None
+    connection_message: Optional[str] = None
 
 
 class ClusterSetupRequest(BaseModel):
@@ -197,7 +201,23 @@ async def get_setup_status():
     setup = await db.get_cluster_setup()
     if not setup:
         return ClusterSetupStatus(configured=False)
-    return ClusterSetupStatus(configured=True, mode=setup.mode, secret_name=setup.secret_name)
+    health = check_k8s_service_health()
+    kube_status = str(health.get("kubernetes", "") or "")
+    status = "unknown"
+    message = None
+    if health:
+        if health.get("status") == "healthy" and kube_status == "connected":
+            status = "connected"
+        else:
+            status = "connecting"
+            message = kube_status or "connecting"
+    return ClusterSetupStatus(
+        configured=True,
+        mode=setup.mode,
+        secret_name=setup.secret_name,
+        connection_status=status,
+        connection_message=message,
+    )
 
 
 @router.post("/setup", response_model=ClusterSetupStatus)
@@ -220,13 +240,13 @@ async def setup_cluster(request: ClusterSetupRequest):
             if not data.get("clusters") or not data.get("users"):
                 raise ValueError("missing clusters/users")
             validate_kubeconfig_connection(kubeconfig=data)
-        except HTTPException:
-            raise
-        except Exception:
+        except KubeconfigValidationError as e:
             raise HTTPException(
                 status_code=400,
-                detail="Unable to connect to the cluster with the provided kubeconfig.",
+                detail=f"Unable to connect to the cluster with the provided kubeconfig. {str(e)}",
             )
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid kubeconfig format.")
     else:
         kubeconfig_text = ""
 
