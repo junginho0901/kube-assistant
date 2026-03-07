@@ -856,7 +856,33 @@ class K8sService:
             return describe_info
         except ApiException as e:
             raise Exception(f"Failed to describe namespace: {e}")
-    
+
+    async def get_namespace_resource_quotas(self, name: str) -> List[Dict[str, Any]]:
+        """네임스페이스의 ResourceQuota 목록 조회"""
+        try:
+            rqs = self.v1.list_namespaced_resource_quota(namespace=name)
+            result = []
+            for rq in (rqs.items or []):
+                hard = {}
+                used = {}
+                if getattr(rq, "status", None):
+                    hard = dict(rq.status.hard) if getattr(rq.status, "hard", None) else {}
+                    used = dict(rq.status.used) if getattr(rq.status, "used", None) else {}
+                spec_hard = {}
+                if getattr(rq, "spec", None) and getattr(rq.spec, "hard", None):
+                    spec_hard = dict(rq.spec.hard)
+                result.append({
+                    "name": rq.metadata.name,
+                    "namespace": rq.metadata.namespace,
+                    "created_at": rq.metadata.creation_timestamp.isoformat() if getattr(rq.metadata, "creation_timestamp", None) and hasattr(rq.metadata.creation_timestamp, "isoformat") else str(rq.metadata.creation_timestamp) if getattr(rq.metadata, "creation_timestamp", None) else None,
+                    "spec_hard": spec_hard,
+                    "status_hard": hard,
+                    "status_used": used,
+                })
+            return result
+        except ApiException as e:
+            raise Exception(f"Failed to get resource quotas for namespace {name}: {e}")
+
     async def get_services(self, namespace: str) -> List[ServiceInfo]:
         """서비스 목록"""
         try:
