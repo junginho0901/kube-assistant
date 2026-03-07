@@ -1089,7 +1089,7 @@ export const api = {
     return data
   },
 
-  updateClusterConnection: async (id: string, payload: { name: string }) => {
+  updateClusterConnection: async (id: string, payload: { name?: string; kubeconfig?: string }) => {
     const { data } = await client.patch(`/auth/cluster-connections/${id}`, payload)
     return data
   },

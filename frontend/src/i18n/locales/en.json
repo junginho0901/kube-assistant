@@ -815,6 +815,14 @@
         "kubeconfig": "Kubeconfig",
         "save": "Save",
         "saving": "Saving..."
+      },
+      "detail": {
+        "title": "Cluster details",
+        "name": "Name",
+        "kubeconfig": "Kubeconfig (replace)",
+        "kubeconfigHint": "Paste kubeconfig to replace the existing one.",
+        "secret": "Secret",
+        "save": "Save"
       }
     }
   },

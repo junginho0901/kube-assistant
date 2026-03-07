@@ -815,6 +815,14 @@
         "kubeconfig": "Kubeconfig",
         "save": "저장",
         "saving": "저장 중..."
+      },
+      "detail": {
+        "title": "클러스터 상세",
+        "name": "이름",
+        "kubeconfig": "Kubeconfig (교체)",
+        "kubeconfigHint": "기존 kubeconfig를 교체하려면 붙여넣으세요.",
+        "secret": "시크릿",
+        "save": "저장"
       }
     }
   },

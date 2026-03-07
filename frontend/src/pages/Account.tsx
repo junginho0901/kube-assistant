@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/services/api'
-import { Check, ChevronDown, Database, KeyRound, Languages, Loader2, Pencil, Terminal, Trash2, User, X } from 'lucide-react'
+import { ChevronDown, Database, KeyRound, Languages, Loader2, Terminal, Trash2, User, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { loadNodeShellSettings, saveNodeShellSettings } from '@/services/nodeShellSettings'
@@ -29,9 +29,14 @@ export default function Account() {
   const [clusterMode, setClusterMode] = useState<'in_cluster' | 'external'>('in_cluster')
   const [clusterKubeconfig, setClusterKubeconfig] = useState('')
   const [clusterError, setClusterError] = useState<string | null>(null)
-  const [renameClusterId, setRenameClusterId] = useState<string | null>(null)
-  const [renameClusterName, setRenameClusterName] = useState('')
-  const [renameClusterError, setRenameClusterError] = useState<string | null>(null)
+  const [clusterDetailOpen, setClusterDetailOpen] = useState(false)
+  const [selectedCluster, setSelectedCluster] = useState<
+    | { id: string; name: string; mode: string; secret_name?: string | null; is_active?: boolean }
+    | null
+  >(null)
+  const [detailName, setDetailName] = useState('')
+  const [detailKubeconfig, setDetailKubeconfig] = useState('')
+  const [detailError, setDetailError] = useState<string | null>(null)
 
   const changePasswordMutation = useMutation({
     mutationFn: () => api.changePassword({ current_password: currentPassword, new_password: newPassword }),
@@ -88,23 +93,27 @@ export default function Account() {
   const deleteClusterMutation = useMutation({
     mutationFn: (id: string) => api.deleteClusterConnection(id),
     onSuccess: () => {
+      setClusterDetailOpen(false)
+      setSelectedCluster(null)
       queryClient.invalidateQueries({ queryKey: ['cluster-connections'] })
     },
   })
 
-  const renameClusterMutation = useMutation({
-    mutationFn: (payload: { id: string; name: string }) =>
-      api.updateClusterConnection(payload.id, { name: payload.name.trim() }),
+  const updateClusterMutation = useMutation({
+    mutationFn: (payload: { id: string; name?: string; kubeconfig?: string }) =>
+      api.updateClusterConnection(payload.id, {
+        name: payload.name?.trim(),
+        kubeconfig: payload.kubeconfig?.trim(),
+      }),
     onSuccess: () => {
-      setRenameClusterId(null)
-      setRenameClusterName('')
-      setRenameClusterError(null)
+      setClusterDetailOpen(false)
+      setSelectedCluster(null)
+      setDetailError(null)
+      setDetailKubeconfig('')
       queryClient.invalidateQueries({ queryKey: ['cluster-connections'] })
     },
     onError: (err: any) => {
-      setRenameClusterError(
-        err?.response?.data?.detail || tr('account.cluster.errors.rename', 'Failed to rename cluster.')
-      )
+      setDetailError(err?.response?.data?.detail || tr('account.cluster.errors.rename', 'Failed to rename cluster.'))
     },
   })
 
@@ -305,31 +314,27 @@ export default function Account() {
                 <div className="divide-y divide-slate-800">
                   {(clusterConnections || []).map((cluster) => {
                     const isActive = Boolean(cluster.is_active)
-                    const isEditing = renameClusterId === cluster.id
                     return (
-                      <div key={cluster.id} className="flex items-center justify-between px-4 py-3">
+                      <div
+                        key={cluster.id}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-slate-900/40 cursor-pointer"
+                        onClick={() => {
+                          setSelectedCluster(cluster)
+                          setDetailName(cluster.name)
+                          setDetailKubeconfig('')
+                          setDetailError(null)
+                          setClusterDetailOpen(true)
+                        }}
+                      >
                         <div>
-                          {isEditing ? (
-                            <div className="space-y-2">
-                              <input
-                                value={renameClusterName}
-                                onChange={(e) => setRenameClusterName(e.target.value)}
-                                className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
-                              />
-                              {renameClusterError && (
-                                <div className="text-[11px] text-red-300">{renameClusterError}</div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-sm font-semibold text-white flex items-center gap-2">
-                              {cluster.name}
-                              {isActive && (
-                                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                                  {tr('account.cluster.active', 'Active')}
-                                </span>
-                              )}
-                            </div>
-                          )}
+                          <div className="text-sm font-semibold text-white flex items-center gap-2">
+                            {cluster.name}
+                            {isActive && (
+                              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                {tr('account.cluster.active', 'Active')}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-slate-400">
                             {cluster.mode === 'in_cluster'
                               ? tr('account.cluster.mode.incluster', 'In-cluster')
@@ -337,67 +342,19 @@ export default function Account() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {isEditing ? (
-                            <>
-                              <button
-                                type="button"
-                                disabled={renameClusterMutation.isPending || !renameClusterName.trim()}
-                                onClick={() =>
-                                  renameClusterMutation.mutate({ id: cluster.id, name: renameClusterName })
-                                }
-                                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {renameClusterMutation.isPending ? (
-                                  tr('account.cluster.renameSaving', 'Saving...')
-                                ) : (
-                                  <Check className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRenameClusterId(null)
-                                  setRenameClusterName('')
-                                  setRenameClusterError(null)
-                                }}
-                                className="rounded-lg border border-slate-700 bg-slate-900/40 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700/40"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRenameClusterId(cluster.id)
-                                  setRenameClusterName(cluster.name)
-                                  setRenameClusterError(null)
-                                }}
-                                className="rounded-lg border border-slate-700 bg-slate-900/40 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700/40"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isActive || activateClusterMutation.isPending}
-                                onClick={() => activateClusterMutation.mutate(cluster.id)}
-                                className="rounded-lg border border-slate-700 bg-slate-900/40 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {activateClusterMutation.isPending && activateClusterMutation.variables === cluster.id
-                                  ? tr('account.cluster.activating', 'Activating...')
-                                  : tr('account.cluster.activate', 'Activate')}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={deleteClusterMutation.isPending}
-                                onClick={() => deleteClusterMutation.mutate(cluster.id)}
-                                className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
+                          <button
+                            type="button"
+                            disabled={isActive || activateClusterMutation.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              activateClusterMutation.mutate(cluster.id)
+                            }}
+                            className="rounded-lg border border-slate-700 bg-slate-900/40 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {activateClusterMutation.isPending && activateClusterMutation.variables === cluster.id
+                              ? tr('account.cluster.activating', 'Activating...')
+                              : tr('account.cluster.activate', 'Activate')}
+                          </button>
                         </div>
                       </div>
                     )
@@ -687,6 +644,105 @@ export default function Account() {
                   : tr('account.cluster.modal.save', 'Save')}
               </button>
             </div>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {clusterDetailOpen && selectedCluster && (
+        <ModalOverlay onClose={() => setClusterDetailOpen(false)}>
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950/95 p-6 shadow-2xl backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    {tr('account.cluster.detail.title', 'Cluster details')}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {selectedCluster.mode === 'in_cluster'
+                      ? tr('account.cluster.mode.incluster', 'In-cluster')
+                      : tr('account.cluster.mode.external', 'External')}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setClusterDetailOpen(false)}>
+                  <X className="h-5 w-5 text-slate-400 hover:text-white" />
+                </button>
+              </div>
+
+              <div className="grid gap-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    {tr('account.cluster.detail.name', 'Name')}
+                  </label>
+                  <input
+                    value={detailName}
+                    onChange={(e) => setDetailName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+
+                {selectedCluster.mode === 'external' && (
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">
+                      {tr('account.cluster.detail.kubeconfig', 'Kubeconfig (replace)')}
+                    </label>
+                    <textarea
+                      value={detailKubeconfig}
+                      onChange={(e) => setDetailKubeconfig(e.target.value)}
+                      className="h-40 w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
+                      placeholder={tr(
+                        'account.cluster.detail.kubeconfigHint',
+                        'Paste kubeconfig to replace the existing one.'
+                      )}
+                    />
+                  </div>
+                )}
+
+                {detailError && <div className="text-xs text-red-300">{detailError}</div>}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <div className="text-xs text-slate-500">
+                  {selectedCluster.secret_name && (
+                    <span>
+                      {tr('account.cluster.detail.secret', 'Secret')}: {selectedCluster.secret_name}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={deleteClusterMutation.isPending || Boolean(selectedCluster.is_active)}
+                    onClick={() => deleteClusterMutation.mutate(selectedCluster.id)}
+                    className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      updateClusterMutation.isPending ||
+                      (!detailName.trim() && !detailKubeconfig.trim()) ||
+                      (detailName.trim() === selectedCluster.name && !detailKubeconfig.trim())
+                    }
+                    onClick={() =>
+                      updateClusterMutation.mutate({
+                        id: selectedCluster.id,
+                        name: detailName.trim() === selectedCluster.name ? undefined : detailName.trim(),
+                        kubeconfig: detailKubeconfig.trim() ? detailKubeconfig.trim() : undefined,
+                      })
+                    }
+                    className="rounded-lg bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {updateClusterMutation.isPending
+                      ? tr('account.cluster.renameSaving', 'Saving...')
+                      : tr('account.cluster.detail.save', 'Save')}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </ModalOverlay>
