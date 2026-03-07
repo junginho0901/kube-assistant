@@ -625,6 +625,7 @@
     "noSearchResults": "\"{{query}}\"에 대한 파드를 찾을 수 없습니다",
     "nodePodsCount": "{{count}}개 Pod",
     "restarts": "재시작: {{count}}",
+    "podDeleting": "삭제 중...",
     "noPods": "파드가 없습니다",
     "tabs": {
       "summary": "요약",
