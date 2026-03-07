@@ -941,6 +941,21 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get pods for namespace {name}: {e}")
 
+    async def create_namespace(self, name: str) -> Dict[str, Any]:
+        """새 네임스페이스 생성"""
+        try:
+            body = {
+                "apiVersion": "v1",
+                "kind": "Namespace",
+                "metadata": {"name": name},
+            }
+            self.v1.create_namespace(body=body)
+            return {"status": "ok", "name": name}
+        except ApiException as e:
+            if e.status == 409:
+                raise Exception(f"Namespace '{name}' already exists")
+            raise Exception(f"Failed to create namespace: {e}")
+
     async def get_services(self, namespace: str) -> List[ServiceInfo]:
         """서비스 목록"""
         try:
