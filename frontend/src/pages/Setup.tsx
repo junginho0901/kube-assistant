@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Database, UploadCloud } from 'lucide-react'
+import { CheckCircle2, Database, Loader2, UploadCloud } from 'lucide-react'
 
 type SetupMode = 'in_cluster' | 'external'
 
@@ -16,6 +16,7 @@ export default function Setup() {
   const [mode, setMode] = useState<SetupMode>('in_cluster')
   const [kubeconfigText, setKubeconfigText] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [applyState, setApplyState] = useState<'idle' | 'applying' | 'error'>('idle')
 
   const { data: status, isLoading: isLoadingStatus } = useQuery({
     queryKey: ['setup-status'],
@@ -35,7 +36,9 @@ export default function Setup() {
         kubeconfig: mode === 'external' ? kubeconfigText.trim() : undefined,
       }),
     onSuccess: () => {
-      navigate('/login', { replace: true })
+      setApplyState('applying')
+      setError(null)
+      startHealthPolling()
     },
     onError: (err: any) => {
       setError(err?.response?.data?.detail || tr('setup.errors.failed', 'Failed to apply setup.'))
@@ -66,6 +69,39 @@ export default function Setup() {
     submitMutation.mutate()
   }
 
+  const startHealthPolling = () => {
+    const startedAt = Date.now()
+    const timeoutMs = 60000
+    const intervalMs = 2000
+    let cancelled = false
+    let timer: number | undefined
+
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const health = await api.getHealth()
+        if (health?.status) {
+          navigate('/login', { replace: true })
+          return
+        }
+      } catch {
+        // ignore until timeout
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        setApplyState('error')
+        setError(tr('setup.errors.timeout', 'Applying setup is taking longer than expected. Try again.'))
+        return
+      }
+      timer = window.setTimeout(poll, intervalMs)
+    }
+
+    poll()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="pointer-events-none absolute inset-0">
@@ -92,6 +128,7 @@ export default function Setup() {
             <button
               type="button"
               onClick={() => setMode('in_cluster')}
+              disabled={applyState === 'applying'}
               className={`rounded-2xl border px-4 py-5 text-left transition ${
                 mode === 'in_cluster'
                   ? 'border-primary-500/60 bg-primary-500/10'
@@ -110,6 +147,7 @@ export default function Setup() {
             <button
               type="button"
               onClick={() => setMode('external')}
+              disabled={applyState === 'applying'}
               className={`rounded-2xl border px-4 py-5 text-left transition ${
                 mode === 'external'
                   ? 'border-primary-500/60 bg-primary-500/10'
@@ -140,6 +178,7 @@ export default function Setup() {
                     accept=".yaml,.yml,.conf,.txt"
                     className="hidden"
                     onChange={(e) => handleFileUpload(e.target.files?.[0])}
+                    disabled={applyState === 'applying'}
                   />
                 </label>
               </div>
@@ -148,7 +187,15 @@ export default function Setup() {
                 placeholder={tr('setup.external.placeholder', 'Paste kubeconfig content here...')}
                 value={kubeconfigText}
                 onChange={(e) => setKubeconfigText(e.target.value)}
+                disabled={applyState === 'applying'}
               />
+            </div>
+          )}
+
+          {applyState === 'applying' && (
+            <div className="flex items-center gap-3 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-3 text-sm text-primary-100">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {tr('setup.applying', 'Applying cluster configuration...')}
             </div>
           )}
 
@@ -162,7 +209,7 @@ export default function Setup() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!canSubmit || isBusy || isLoadingStatus}
+              disabled={!canSubmit || isBusy || isLoadingStatus || applyState === 'applying'}
               className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isBusy ? tr('setup.submit.loading', 'Applying...') : tr('setup.submit', 'Continue')}

@@ -1072,6 +1072,33 @@ export const api = {
     return data
   },
 
+  listClusterConnections: async (): Promise<
+    { id: string; name: string; mode: string; secret_name?: string | null; is_active?: boolean }[]
+  > => {
+    const { data } = await client.get('/auth/cluster-connections')
+    return data
+  },
+
+  createClusterConnection: async (payload: { name: string; mode: 'in_cluster' | 'external'; kubeconfig?: string }) => {
+    const { data } = await client.post('/auth/cluster-connections', payload)
+    return data
+  },
+
+  activateClusterConnection: async (id: string) => {
+    const { data } = await client.patch(`/auth/cluster-connections/${id}/activate`)
+    return data
+  },
+
+  updateClusterConnection: async (id: string, payload: { name?: string; kubeconfig?: string }) => {
+    const { data } = await client.patch(`/auth/cluster-connections/${id}`, payload)
+    return data
+  },
+
+  deleteClusterConnection: async (id: string) => {
+    const { data } = await client.delete(`/auth/cluster-connections/${id}`)
+    return data
+  },
+
   // Health check
   getHealth: async (): Promise<{ status: string; kubernetes: string; openai: string }> => {
     // /health는 /api/v1가 아닌 루트에 있음
