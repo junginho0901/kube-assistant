@@ -956,6 +956,15 @@ class K8sService:
                 raise Exception(f"Namespace '{name}' already exists")
             raise Exception(f"Failed to create namespace: {e}")
 
+    async def delete_namespace(self, name: str) -> Dict[str, Any]:
+        """네임스페이스 삭제"""
+        try:
+            self.v1.delete_namespace(name=name)
+            self._invalidate_yaml_cache("namespaces", name, namespace=None)
+            return {"status": "ok", "name": name}
+        except ApiException as e:
+            raise Exception(f"Failed to delete namespace: {e}")
+
     async def get_services(self, namespace: str) -> List[ServiceInfo]:
         """서비스 목록"""
         try:
