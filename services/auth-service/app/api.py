@@ -99,7 +99,8 @@ class ClusterConnectionRequest(BaseModel):
 
 
 class ClusterConnectionUpdateRequest(BaseModel):
-    name: str
+    name: Optional[str] = None
+    kubeconfig: Optional[str] = None
 
 
 class ClusterConnectionResponse(BaseModel):
@@ -425,12 +426,45 @@ async def update_cluster_connection(
     payload: TokenPayload = Depends(require_auth),
 ):
     _require_admin(payload)
-    name = (request.name or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Name is required.")
+    if request.name is None and request.kubeconfig is None:
+        raise HTTPException(status_code=400, detail="No changes provided.")
 
     db = await get_db_service()
-    row = await db.update_cluster_connection_name(connection_id, name)
+    row = await db.get_cluster_connection(connection_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Cluster connection not found.")
+
+    name = row.name
+    if request.name is not None:
+        name = (request.name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name is required.")
+
+    secret_name = row.secret_name
+    if request.kubeconfig is not None:
+        if row.mode != "external":
+            raise HTTPException(status_code=400, detail="kubeconfig is only allowed for external clusters.")
+        kubeconfig_text = (request.kubeconfig or "").strip()
+        if not kubeconfig_text:
+            raise HTTPException(status_code=400, detail="kubeconfig is required.")
+        try:
+            data = yaml.safe_load(kubeconfig_text) or {}
+            if not data.get("clusters") or not data.get("users"):
+                raise ValueError("missing clusters/users")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid kubeconfig format.")
+
+        secret_name = secret_name or f"{settings.SETUP_KUBECONFIG_PREFIX}{row.id}"
+        try:
+            upsert_kubeconfig_secret(
+                namespace=settings.SETUP_NAMESPACE,
+                name=secret_name,
+                kubeconfig_text=kubeconfig_text,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save kubeconfig: {e}")
+
+    row = await db.update_cluster_connection(connection_id, name=name, secret_name=secret_name)
     if not row:
         raise HTTPException(status_code=404, detail="Cluster connection not found.")
 
