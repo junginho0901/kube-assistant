@@ -789,41 +789,6 @@
       "enableHint": "Show debug shell action in node details.",
       "namespace": "Namespace",
       "image": "Linux image"
-    },
-    "cluster": {
-      "title": "Cluster connections",
-      "subtitle": "Register and switch clusters managed by this UI.",
-      "add": "Add cluster",
-      "loading": "Loading clusters...",
-      "empty": "No registered clusters yet.",
-      "active": "Active",
-      "activate": "Activate",
-      "activating": "Activating...",
-      "renameSaving": "Saving...",
-      "mode": {
-        "incluster": "In-cluster",
-        "external": "External"
-      },
-      "errors": {
-        "failed": "Failed to save cluster.",
-        "rename": "Failed to rename cluster."
-      },
-      "modal": {
-        "title": "Add cluster connection",
-        "name": "Name",
-        "mode": "Mode",
-        "kubeconfig": "Kubeconfig",
-        "save": "Save",
-        "saving": "Saving..."
-      },
-      "detail": {
-        "title": "Cluster details",
-        "name": "Name",
-        "kubeconfig": "Kubeconfig (replace)",
-        "kubeconfigHint": "Paste kubeconfig to replace the existing one.",
-        "secret": "Secret",
-        "save": "Save"
-      }
     }
   },
   "storage": {
@@ -935,12 +900,10 @@
       "upload": "Upload file",
       "placeholder": "Paste kubeconfig content here..."
     },
-    "applying": "Applying cluster configuration...",
     "submit": "Continue",
     "submit.loading": "Applying...",
     "errors": {
-      "failed": "Failed to apply setup.",
-      "timeout": "Applying setup is taking longer than expected. Try again."
+      "failed": "Failed to apply setup."
     }
   }
 }
