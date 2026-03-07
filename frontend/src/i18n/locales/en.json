@@ -900,10 +900,12 @@
       "upload": "Upload file",
       "placeholder": "Paste kubeconfig content here..."
     },
+    "applying": "Applying cluster configuration...",
     "submit": "Continue",
     "submit.loading": "Applying...",
     "errors": {
-      "failed": "Failed to apply setup."
+      "failed": "Failed to apply setup.",
+      "timeout": "Applying setup is taking longer than expected. Try again."
     }
   }
 }

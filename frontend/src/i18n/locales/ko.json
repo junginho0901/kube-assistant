@@ -900,10 +900,12 @@
       "upload": "파일 업로드",
       "placeholder": "kubeconfig 내용을 붙여넣어 주세요..."
     },
+    "applying": "클러스터 설정을 적용 중입니다...",
     "submit": "계속",
     "submit.loading": "적용 중...",
     "errors": {
-      "failed": "설정 적용에 실패했습니다."
+      "failed": "설정 적용에 실패했습니다.",
+      "timeout": "설정 적용이 지연되고 있습니다. 다시 시도해 주세요."
     }
   }
 }
