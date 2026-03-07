@@ -9,7 +9,12 @@ import yaml
 
 from app.database import get_db_service
 from app.security import create_access_token, hash_password, jwks, require_auth, TokenPayload, verify_password
-from app.k8s_setup import upsert_kubeconfig_secret, patch_configmap, restart_deployment
+from app.k8s_setup import (
+    upsert_kubeconfig_secret,
+    patch_configmap,
+    restart_deployment,
+    validate_kubeconfig_connection,
+)
 from app.config import settings
 
 router = APIRouter()
@@ -214,8 +219,14 @@ async def setup_cluster(request: ClusterSetupRequest):
             data = yaml.safe_load(kubeconfig_text) or {}
             if not data.get("clusters") or not data.get("users"):
                 raise ValueError("missing clusters/users")
+            validate_kubeconfig_connection(kubeconfig=data)
+        except HTTPException:
+            raise
         except Exception:
-            raise HTTPException(status_code=400, detail="Invalid kubeconfig format.")
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to connect to the cluster with the provided kubeconfig.",
+            )
     else:
         kubeconfig_text = ""
 

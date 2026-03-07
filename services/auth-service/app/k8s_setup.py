@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Tuple
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -64,3 +64,27 @@ def restart_deployment(*, namespace: str, name: str) -> None:
         }
     }
     apps.patch_namespaced_deployment(name=name, namespace=namespace, body=patch)
+
+
+def validate_kubeconfig_connection(*, kubeconfig: dict, timeout: int = 5) -> None:
+    api_client = config.new_client_from_config_dict(kubeconfig)
+    try:
+        data, status, _ = api_client.call_api(
+            "/healthz",
+            "GET",
+            response_type="str",
+            _return_http_data_only=False,
+            _request_timeout=timeout,
+        )
+    finally:
+        api_client.close()
+
+    if status < 200 or status >= 300:
+        raise RuntimeError(f"Health check failed with status {status}")
+
+    if isinstance(data, (bytes, bytearray)):
+        data = data.decode("utf-8", errors="ignore")
+    if isinstance(data, str) and data.strip().lower() not in {"ok", "healthy"}:
+        # Some apiservers return plain "ok" for /healthz.
+        # We accept any 2xx, but also guard against unexpected content.
+        raise RuntimeError("Health check did not return ok")

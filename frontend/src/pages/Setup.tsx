@@ -26,9 +26,10 @@ export default function Setup() {
 
   useEffect(() => {
     if (status?.configured && !isApplying) {
-      navigate('/login', { replace: true })
+      setApplyMessage(tr('setup.applying.waiting', 'Waiting for cluster connection...'))
+      setIsApplying(true)
     }
-  }, [status, navigate, isApplying])
+  }, [status, isApplying, tr])
 
   const submitMutation = useMutation({
     mutationFn: () =>
