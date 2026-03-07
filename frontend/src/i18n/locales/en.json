@@ -625,6 +625,7 @@
     "noSearchResults": "No pods found for \"{{query}}\"",
     "nodePodsCount": "{{count}} Pods",
     "restarts": "Restarts: {{count}}",
+    "podDeleting": "Deleting...",
     "noPods": "No pods found",
     "tabs": {
       "summary": "Summary",
