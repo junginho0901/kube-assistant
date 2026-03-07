@@ -58,12 +58,21 @@ export interface NamespaceInfo {
   resource_count: Record<string, number>
 }
 
+export interface NamespaceCondition {
+  type?: string
+  status?: string
+  last_transition_time?: string
+  reason?: string
+  message?: string
+}
+
 export interface NamespaceDescribe {
   name: string
   status?: string
   created_at?: string
   labels: Record<string, string>
   annotations: Record<string, string>
+  conditions: NamespaceCondition[]
   events: Array<{
     type?: string
     reason?: string
@@ -72,6 +81,38 @@ export interface NamespaceDescribe {
     first_timestamp?: string
     last_timestamp?: string
   }>
+}
+
+export interface NamespaceResourceQuota {
+  name: string
+  namespace: string
+  created_at?: string
+  spec_hard: Record<string, string>
+  status_hard: Record<string, string>
+  status_used: Record<string, string>
+}
+
+export interface NamespaceLimitRange {
+  name: string
+  namespace: string
+  created_at?: string
+  limits: Array<{
+    type?: string
+    default: Record<string, string>
+    default_request: Record<string, string>
+    max: Record<string, string>
+    min: Record<string, string>
+  }>
+}
+
+export interface NamespacePod {
+  name: string
+  namespace: string
+  status: string
+  ready: string
+  restarts: number
+  node?: string
+  created_at?: string
 }
 
 export interface ServiceInfo {
