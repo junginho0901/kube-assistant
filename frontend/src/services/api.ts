@@ -1120,3 +1120,20 @@ export const api = {
     return data
   },
 }
+
+let metricsDisabled = false
+
+export const disableMetrics = (): void => {
+  metricsDisabled = true
+}
+
+export const isMetricsDisabled = (): boolean => metricsDisabled
+
+export const isMetricsUnavailableError = (err: any): boolean => {
+  const status = err?.response?.status
+  if (status === 503) return true
+  const code =
+    err?.response?.data?.detail?.code ||
+    err?.response?.data?.code
+  return status === 503 && code === 'metrics_unavailable'
+}
