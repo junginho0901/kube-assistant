@@ -23,8 +23,8 @@ data:
   REDIS_PORT: "6379"
   REDIS_DB: "0"
 
-  OPENAI_MODEL: "gpt-4-turbo-preview"
-  OPENAI_BASE_URL: "https://api.openai.com/v1"
+  OPENAI_MODEL: "gpt-4o-mini"
+  OPENAI_BASE_URL: ""
   OPENAI_OPTIMIZATION_MAX_TOKENS: "1800"
 
   IN_CLUSTER: "true"
@@ -32,7 +32,7 @@ data:
   SETUP_NAMESPACE: "kube-assistant"
   SETUP_KUBECONFIG_SECRET: "k8s-kubeconfig"
   SETUP_CONFIGMAP_NAME: "kube-assistant-config"
-  SETUP_RESTART_DEPLOYMENT: "k8s-service"
+  SETUP_RESTART_DEPLOYMENTS: "k8s-service,tool-server-admin,tool-server-write,tool-server-read"
   AUTH_JWKS_URL: "http://auth-service:8004/api/v1/auth/jwks.json"
   TOOL_SERVER_URL: "http://tool-server-read:8086"
   TOOL_SERVER_URL_READ: "http://tool-server-read:8086"
@@ -43,5 +43,3 @@ data:
 
   VITE_API_URL: "http://localhost:30080"
   VITE_WS_URL: "ws://localhost:30080"
-
-  LITELLM_LOG: "INFO"
