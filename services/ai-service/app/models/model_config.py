@@ -9,9 +9,12 @@ class ModelConfigCreate(BaseModel):
     model: str = Field(..., min_length=1)
     base_url: Optional[str] = None
 
+    api_key: Optional[str] = None          # actual API key (preferred)
+    api_key_env: Optional[str] = None      # env var name (fallback)
+
+    # Legacy — kept for backward compat
     api_key_secret_name: Optional[str] = None
     api_key_secret_key: Optional[str] = None
-    api_key_env: Optional[str] = None
 
     extra_headers: Dict[str, str] = Field(default_factory=dict)
     tls_verify: bool = True
@@ -25,9 +28,11 @@ class ModelConfigUpdate(BaseModel):
     model: Optional[str] = None
     base_url: Optional[str] = None
 
+    api_key: Optional[str] = None
+    api_key_env: Optional[str] = None
+
     api_key_secret_name: Optional[str] = None
     api_key_secret_key: Optional[str] = None
-    api_key_env: Optional[str] = None
 
     extra_headers: Optional[Dict[str, str]] = None
     tls_verify: Optional[bool] = None
@@ -44,9 +49,11 @@ class ModelConfigResponse(BaseModel):
     model: str
     base_url: Optional[str]
 
+    api_key_set: bool = False               # True if api_key is stored in DB
+    api_key_env: Optional[str]
+
     api_key_secret_name: Optional[str]
     api_key_secret_key: Optional[str]
-    api_key_env: Optional[str]
 
     extra_headers: Dict[str, str]
     tls_verify: bool
@@ -55,3 +62,14 @@ class ModelConfigResponse(BaseModel):
 
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        """Override to compute api_key_set from the raw DB object."""
+        if hasattr(obj, 'api_key'):
+            # SQLAlchemy model object
+            raw_key = getattr(obj, 'api_key', None)
+            result = super().model_validate(obj, **kwargs)
+            result.api_key_set = bool(raw_key)
+            return result
+        return super().model_validate(obj, **kwargs)

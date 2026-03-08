@@ -67,10 +67,13 @@ class ModelConfig(Base):
     model = Column(String, nullable=False)
     base_url = Column(String, nullable=True)
 
-    # K8s Secret 참조 (secret name/key) 또는 env var 키
+    # API key — stored directly (encrypted at rest by DB) or resolved from env
+    api_key = Column(String, nullable=True)        # actual key (preferred)
+    api_key_env = Column(String, nullable=True)     # env var name (fallback)
+
+    # Legacy K8s Secret ref (kept for backward compat)
     api_key_secret_name = Column(String, nullable=True)
     api_key_secret_key = Column(String, nullable=True)
-    api_key_env = Column(String, nullable=True)
 
     extra_headers = Column(JSON, nullable=False, default=dict)
     tls_verify = Column(Boolean, nullable=False, default=True)
@@ -101,6 +104,23 @@ class DatabaseService:
         """데이터베이스 초기화"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        # Migrate: add api_key column if missing (no Alembic)
+        await self._ensure_api_key_column()
+
+    async def _ensure_api_key_column(self):
+        """Add api_key column to model_configs if it doesn't exist."""
+        from sqlalchemy import text, inspect as sa_inspect
+        async with self.engine.begin() as conn:
+            def _check(sync_conn):
+                inspector = sa_inspect(sync_conn)
+                columns = [c['name'] for c in inspector.get_columns('model_configs')]
+                return 'api_key' in columns
+            has_col = await conn.run_sync(_check)
+            if not has_col:
+                await conn.execute(text(
+                    "ALTER TABLE model_configs ADD COLUMN api_key VARCHAR"
+                ))
+                print("[DB] Added api_key column to model_configs", flush=True)
     
     async def create_session(self, session_id: str, user_id: str = "default", title: str = "New Chat") -> Session:
         """새 세션 생성"""
@@ -288,6 +308,8 @@ class DatabaseService:
 
             config = ModelConfig(**data)
             db.add(config)
+            # flush to assign auto-increment id before referencing it
+            await db.flush()
 
             if config.is_default:
                 await db.execute(
@@ -338,22 +360,31 @@ class DatabaseService:
             return True
 
     async def ensure_default_model_config(self):
+        """Backward compat: create a default config only if none exist AND
+        a direct OPENAI_API_KEY env var is available."""
         async with self.async_session() as db:
             from sqlalchemy import select
+            import os
             result = await db.execute(select(func.count(ModelConfig.id)))
             count = int(result.scalar_one() or 0)
             if count > 0:
                 return
 
+            # Only create a default if an actual API key is in env
+            api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+            if not api_key or api_key == "change-me":
+                print("[DB] Skipping default model config (no valid OPENAI_API_KEY)", flush=True)
+                return
+
             from app.config import settings
+            base_url = (settings.OPENAI_BASE_URL or "").strip() or None
+
             config = ModelConfig(
                 name="default-openai",
                 provider="openai",
                 model=settings.OPENAI_MODEL,
-                base_url=(settings.OPENAI_BASE_URL or "").strip() or None,
-                api_key_secret_name="kube-assistant-secrets",
-                api_key_secret_key="OPENAI_API_KEY",
-                api_key_env=None,
+                base_url=base_url,
+                api_key=api_key,
                 extra_headers={},
                 tls_verify=True,
                 enabled=True,
@@ -361,17 +392,22 @@ class DatabaseService:
             )
             db.add(config)
             await db.commit()
+            print(f"[DB] Created default model config: {config.model}", flush=True)
 
 
 # 전역 데이터베이스 서비스 인스턴스
 db_service: Optional[DatabaseService] = None
+db_initialized: bool = False
 
 
 async def get_db_service() -> DatabaseService:
     """데이터베이스 서비스 가져오기"""
-    global db_service
+    global db_service, db_initialized
     if db_service is None:
         db_service = DatabaseService()
+        db_initialized = False
+    if not db_initialized:
         await db_service.init_db()
         await db_service.ensure_default_model_config()
+        db_initialized = True
     return db_service
