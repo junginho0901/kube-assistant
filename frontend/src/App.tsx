@@ -14,6 +14,7 @@ import Storage from './pages/Storage'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
 import AdminUsers from './pages/AdminUsers'
+import AdminAIModels from './pages/AdminAIModels'
 import Account from './pages/Account'
 import ComingSoon from './pages/ComingSoon'
 import Pods from './pages/workloads/Pods'
@@ -79,6 +80,7 @@ function App() {
             <Route path="network/:namespace" element={<NetworkPage />} />
             <Route path="ai-chat" element={<AIChat />} />
             <Route path="admin/users" element={<RequireAdmin><AdminUsers /></RequireAdmin>} />
+            <Route path="admin/ai-models" element={<RequireAdmin><AdminAIModels /></RequireAdmin>} />
           </Route>
         </Routes>
       </BrowserRouter>
