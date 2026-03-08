@@ -65,7 +65,7 @@ export default function Namespaces() {
   /* delete namespace dialog */
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-
+  
   /* pod filter */
   const [podFilter, setPodFilter] = useState('')
 
@@ -450,7 +450,7 @@ export default function Namespaces() {
       }
     } finally {
       setIsCreating(false)
-    }
+  }
   }
 
   /* ──────────── RENDER ──────────── */
@@ -532,12 +532,12 @@ export default function Namespaces() {
               const labelEntries = ns.labels ? Object.entries(ns.labels) : []
               return (
                 <tr
-                  key={ns.name}
+            key={ns.name}
                   className={`text-slate-200 hover:bg-slate-800/60 cursor-pointer ${
                     selectedNs === ns.name ? 'bg-slate-800/60' : ''
                   }`}
                   onClick={() => setSelectedNs(ns.name)}
-                >
+          >
                   <td className="py-3 px-4 font-medium text-white">
                     <div className="flex items-center gap-2">
                       <Boxes className="w-4 h-4 text-primary-400 flex-shrink-0" />
@@ -563,7 +563,7 @@ export default function Namespaces() {
                       {labelEntries.length > 2 && (
                         <span className="text-slate-500">+{labelEntries.length - 2}</span>
                       )}
-                    </div>
+                </div>
                   </td>
                   <td className="py-3 px-4 text-xs font-mono">
                     <span className="block truncate">{formatRelative(ns.created_at)}</span>
@@ -629,7 +629,7 @@ export default function Namespaces() {
               <button
                   onClick={() => setCreateDialogOpen(false)}
                   className="px-4 py-2 text-sm text-slate-300 hover:text-white border border-slate-600 rounded-lg hover:bg-slate-800"
-                >
+              >
                   {tr('namespaces.create.cancel', 'Cancel')}
               </button>
               <button
@@ -705,7 +705,7 @@ export default function Namespaces() {
                       ? 'border-slate-500 bg-slate-800 text-white'
                       : 'border-slate-800 text-slate-400 hover:text-white'
                   }`}
-                >
+              >
                   {tr('namespaces.detail.tabs.yaml', 'YAML')}
               </button>
             </div>
