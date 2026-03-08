@@ -16,6 +16,7 @@ from app.k8s_setup import (
     validate_kubeconfig_connection,
     KubeconfigValidationError,
     check_k8s_service_health,
+    check_rollout_status,
 )
 from app.config import settings
 
@@ -264,15 +265,30 @@ async def setup_cluster(request: ClusterSetupRequest):
                 "KUBECONFIG_PATH": "/app/kubeconfig.yaml",
             },
         )
-        restart_deployment(
-            namespace=settings.SETUP_NAMESPACE,
-            name=settings.SETUP_RESTART_DEPLOYMENT,
-        )
+        for dep_name in settings.setup_restart_deployment_list:
+            restart_deployment(
+                namespace=settings.SETUP_NAMESPACE,
+                name=dep_name,
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to apply cluster setup: {e}")
 
     setup = await db.set_cluster_setup(mode=mode, secret_name=settings.SETUP_KUBECONFIG_SECRET)
     return ClusterSetupStatus(configured=True, mode=setup.mode, secret_name=setup.secret_name)
+
+
+@router.get("/setup/rollout-status")
+async def get_rollout_status():
+    """롤아웃 상태 확인 — Setup에서 인증 없이 호출 가능"""
+    deployment_names = settings.setup_restart_deployment_list
+    try:
+        result = check_rollout_status(
+            namespace=settings.SETUP_NAMESPACE,
+            deployment_names=deployment_names,
+        )
+        return result
+    except Exception as e:
+        return {"ready": False, "error": str(e)[:200], "deployments": {}}
 
 
 @router.get("/me", response_model=UserResponse)

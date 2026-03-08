@@ -50,7 +50,11 @@ class Settings(BaseSettings):
     SETUP_NAMESPACE: str = "kube-assistant"
     SETUP_KUBECONFIG_SECRET: str = "k8s-kubeconfig"
     SETUP_CONFIGMAP_NAME: str = "kube-assistant-config"
-    SETUP_RESTART_DEPLOYMENT: str = "k8s-service"
+    SETUP_RESTART_DEPLOYMENTS: str = "k8s-service,tool-server-admin,tool-server-write,tool-server-read"
+
+    @property
+    def setup_restart_deployment_list(self) -> List[str]:
+        return [d.strip() for d in self.SETUP_RESTART_DEPLOYMENTS.split(",") if d.strip()]
 
     class Config:
         env_file = str(PROJECT_ROOT / ".env")
