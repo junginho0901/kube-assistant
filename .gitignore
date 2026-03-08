@@ -80,3 +80,4 @@ argo-cd/
 .tmp/
 tools/
 headlamp/
+.litellm-build/

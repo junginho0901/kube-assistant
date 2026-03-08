@@ -417,12 +417,16 @@ class DatabaseService:
 
 
 db_service: Optional[DatabaseService] = None
+db_initialized: bool = False
 
 
 async def get_db_service() -> DatabaseService:
-    global db_service
+    global db_service, db_initialized
     if db_service is None:
         db_service = DatabaseService()
+        db_initialized = False
+    if not db_initialized:
         await db_service.init_db()
         await db_service.ensure_bootstrap_admin()
+        db_initialized = True
     return db_service

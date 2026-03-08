@@ -54,9 +54,6 @@ kubectl -n kube-assistant get svc gateway
 > kind create cluster --name kube-assistant --config kind-config.yaml
 > ```
 
-## 6) LiteLLM 사용 (선택)
-`k8s/configmap.yaml`의 `OPENAI_BASE_URL`을 `http://litellm:4000/v1`로 설정 후 재적용.
-
 ## 참고
 - kind 기본 설치에는 metrics-server가 없어서 일부 메트릭 API가 실패할 수 있습니다.
 - 컨트롤러 메트릭은 `METRICS_ADDR`로 제어합니다 (`0` 기본 비활성, 활성화는 `:8080`).

@@ -224,7 +224,10 @@ export default function Layout() {
       id: 'admin',
       label: t('nav.admin'),
       adminOnly: true,
-      items: [{ name: t('nav.userManagement'), href: '/admin/users', icon: Shield }],
+      items: [
+        { name: t('nav.userManagement'), href: '/admin/users', icon: Shield },
+        { name: t('nav.aiModels'), href: '/admin/ai-models', icon: MessageSquare },
+      ],
     },
   ], [t])
 

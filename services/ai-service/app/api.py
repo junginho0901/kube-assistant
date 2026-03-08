@@ -18,20 +18,55 @@ def _require_admin(payload):
 K8S_SERVICE_URL = "http://k8s-service:8002/api/v1"
 SESSION_SERVICE_URL = "http://session-service:8003/api/v1"
 
+# ── Singleton AIService — reuse client/connection pool across requests ──
+_cached_ai_config_hash: str = ""
+_cached_ai_service = None  # Optional[AIService]
+
+
+def _invalidate_caches():
+    """Invalidate model config cache + singleton AIService after CRUD."""
+    global _cached_ai_config_hash, _cached_ai_service
+    from app.services.model_config_service import invalidate_model_config_cache
+    invalidate_model_config_cache()
+    _cached_ai_config_hash = ""
+    _cached_ai_service = None
+
 
 async def _build_ai_service(authorization: str):
+    """
+    Return an AIService that reuses the LLM client if the active model
+    config hasn't changed.  Only *role / authorization* differs per user,
+    so the heavy LLM client is shared while role-dependent parts
+    (tool_server URL) are resolved per call.
+    """
+    global _cached_ai_config_hash, _cached_ai_service
+
     from app.services.model_config_service import resolve_model_config
     from app.services.ai_service import AIService
 
     resolved = await resolve_model_config()
-    return AIService(
+
+    # Compute a cheap identity hash for the resolved config
+    config_hash = f"{resolved.provider}|{resolved.model}|{resolved.base_url}|{resolved.api_key[:8] if resolved.api_key else ''}"
+
+    if _cached_ai_service is not None and config_hash == _cached_ai_config_hash:
+        # Reuse existing LLM client, only update per-request fields
+        _cached_ai_service.update_authorization(authorization)
+        return _cached_ai_service
+
+    # Config changed or first call — create a new AIService
+    service = AIService(
         authorization=authorization,
+        provider=resolved.provider,
         model=resolved.model,
         base_url=resolved.base_url,
         api_key=resolved.api_key,
         extra_headers=resolved.extra_headers,
         tls_verify=resolved.tls_verify,
     )
+    _cached_ai_service = service
+    _cached_ai_config_hash = config_hash
+    return service
 
 
 @router.post("/chat/stream")
@@ -192,7 +227,12 @@ async def create_model_config(payload=Depends(require_auth), request: dict = Non
         config = await db.create_model_config(data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    _invalidate_caches()
     return ModelConfigResponse.model_validate(config)
+
+
+# NOTE: test_model_connection has been moved to public_router (no auth required).
+# See main.py for registration.
 
 
 @router.patch("/model-configs/{config_id}")
@@ -207,6 +247,7 @@ async def update_model_config(config_id: int, payload=Depends(require_auth), req
     config = await db.update_model_config(config_id, data)
     if not config:
         raise HTTPException(status_code=404, detail="Model config not found")
+    _invalidate_caches()
     return ModelConfigResponse.model_validate(config)
 
 
@@ -220,3 +261,4 @@ async def delete_model_config(config_id: int, payload=Depends(require_auth)):
     ok = await db.delete_model_config(config_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Model config not found")
+    _invalidate_caches()

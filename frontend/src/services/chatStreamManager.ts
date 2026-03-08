@@ -168,6 +168,17 @@ class ChatStreamManager {
           try {
             const data = JSON.parse(dataStr)
 
+            if (data.model_info) {
+              console.info(
+                '%c[AI Model] %c%s %c/ %s %c(role: %s)',
+                'color:#10b981;font-weight:bold',
+                'color:#60a5fa;font-weight:bold', String(data.model_info.provider || ''),
+                'color:#94a3b8', String(data.model_info.model || ''),
+                'color:#94a3b8', String(data.model_info.role || ''),
+              )
+              continue
+            }
+
             if (data.usage) {
               const phase = data.usage_phase ? ` (${String(data.usage_phase)})` : ''
               // console.debug 는 브라우저 설정에 따라 숨겨질 수 있어 info 로 출력

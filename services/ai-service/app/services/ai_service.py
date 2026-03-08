@@ -23,6 +23,7 @@ from app.models.ai import (
 )
 from app.services.k8s_client import K8sServiceClient
 from app.services.tool_server_client import ToolServerClient
+from app.services.provider_adapter import ProviderAdapter
 
 
 class ToolContext:
@@ -39,33 +40,50 @@ class AIService:
     def __init__(
         self,
         authorization: Optional[str] = None,
+        provider: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         tls_verify: Optional[bool] = True,
     ):
-        """OpenAI 클라이언트 초기화"""
-        resolved_base_url = (base_url if base_url is not None else settings.OPENAI_BASE_URL)
-        resolved_base_url = (resolved_base_url or "").strip() or None
+        """프로바이더별 AsyncOpenAI 어댑터 기반 클라이언트 초기화"""
         resolved_api_key = api_key if api_key is not None else settings.OPENAI_API_KEY
         resolved_model = model or settings.OPENAI_MODEL
-        headers = extra_headers or {}
+        resolved_provider = (provider or "openai").strip().lower()
+        # base_url: 사용자가 커스텀 엔드포인트를 지정한 경우만 전달
+        resolved_base_url = (base_url or "").strip() or None
 
-        http_client = httpx.AsyncClient(verify=tls_verify if tls_verify is not None else True)
-        self.client = AsyncOpenAI(
+        self.client = ProviderAdapter(
+            provider=resolved_provider,
+            model=resolved_model,
             api_key=resolved_api_key,
             base_url=resolved_base_url,
-            default_headers=headers if headers else None,
-            http_client=http_client,
+            tls_verify=tls_verify if tls_verify is not None else True,
+            default_headers=extra_headers,
         )
         self.model = resolved_model
+        self.provider = resolved_provider  # public name used in streamed model_info
+        self._provider_name = resolved_provider
         self.user_role = self._resolve_user_role(authorization)
         self.k8s_service = K8sServiceClient(authorization=authorization)
         tool_server_url = self._resolve_tool_server_url(self.user_role)
         self.tool_server = ToolServerClient(authorization=authorization, base_url=tool_server_url)
         self.tool_contexts: Dict[str, ToolContext] = {}  # {session_id: ToolContext}
-        print(f"[AI Service] 초기화 완료 - 사용 모델: {self.model}, role: {self.user_role}", flush=True)
+        print(f"[AI Service] 초기화 완료 - provider: {resolved_provider}, 모델: {self.model}, role: {self.user_role}", flush=True)
+
+    def update_authorization(self, authorization: Optional[str] = None) -> None:
+        """
+        Update per-request authorization context without recreating the
+        heavy LLM client.  This is called when the singleton AIService
+        is reused across different users.
+        """
+        new_role = self._resolve_user_role(authorization)
+        if new_role != self.user_role or True:
+            self.user_role = new_role
+            self.k8s_service = K8sServiceClient(authorization=authorization)
+            tool_server_url = self._resolve_tool_server_url(self.user_role)
+            self.tool_server = ToolServerClient(authorization=authorization, base_url=tool_server_url)
 
     def _resolve_user_role(self, authorization: Optional[str]) -> str:
         if not authorization:
@@ -803,15 +821,19 @@ JSON 형식으로 응답해주세요:
         
         try:
             print(f"[AI Service] Analyze Logs API 호출 - 요청 모델: {self.model}", flush=True)
-            response = await self.client.chat.completions.create(
+            _base_kwargs = dict(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "당신은 Kubernetes 전문가이자 DevOps 엔지니어입니다. 로그를 분석하고 문제를 해결하는 데 도움을 줍니다."},
+                    {"role": "system", "content": "당신은 Kubernetes 전문가이자 DevOps 엔지니어입니다. 로그를 분석하고 문제를 해결하는 데 도움을 줍니다. 반드시 JSON 형식으로만 응답하세요."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                response_format={"type": "json_object"}
             )
+            try:
+                response = await self.client.chat.completions.create(**_base_kwargs, response_format={"type": "json_object"})
+            except Exception:
+                # 모델이 response_format을 지원하지 않는 경우 fallback
+                response = await self.client.chat.completions.create(**_base_kwargs)
             print(f"[AI Service] Analyze Logs API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             # OpenAI 응답 전체 로그 출력
@@ -897,15 +919,18 @@ JSON 형식으로 응답해주세요:
         
         try:
             print(f"[AI Service] Troubleshoot API 호출 - 요청 모델: {self.model}", flush=True)
-            response = await self.client.chat.completions.create(
+            _base_kwargs = dict(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "당신은 Kubernetes 트러블슈팅 전문가입니다."},
+                    {"role": "system", "content": "당신은 Kubernetes 트러블슈팅 전문가입니다. 반드시 JSON 형식으로만 응답하세요."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                response_format={"type": "json_object"}
             )
+            try:
+                response = await self.client.chat.completions.create(**_base_kwargs, response_format={"type": "json_object"})
+            except Exception:
+                response = await self.client.chat.completions.create(**_base_kwargs)
             print(f"[AI Service] Troubleshoot API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             # OpenAI 응답 전체 로그 출력
@@ -1015,13 +1040,16 @@ JSON 형식으로 응답해주세요:
         try:
             # 첫 번째 GPT 호출 (function calling 포함)
             print(f"[AI Service] Chat API 호출 - 요청 모델: {self.model}", flush=True)
-            response = await self.client.chat.completions.create(
+            _chat_kwargs = dict(
                 model=self.model,
                 messages=messages,
                 tools=tools,
-                tool_choice="auto",
-                temperature=0.7
+                temperature=0.7,
             )
+            try:
+                response = await self.client.chat.completions.create(**_chat_kwargs, tool_choice="auto")
+            except Exception:
+                response = await self.client.chat.completions.create(**_chat_kwargs)
             print(f"[AI Service] Chat API 응답 - 실제 사용 모델: {response.model}", flush=True)
             
             # OpenAI 응답 전체 로그 출력
@@ -1305,7 +1333,7 @@ Draft (rules-based, keep numbers unchanged):
                     stream=True,
                     stream_options={"include_usage": True},
                 )
-            except TypeError:
+            except Exception:
                 stream = await self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -2432,14 +2460,20 @@ Draft (rules-based, keep numbers unchanged):
         tools.extend(self._get_k8s_readonly_tool_definitions())
         
         try:
+            # 모델 정보를 스트림 첫 이벤트로 전송 (브라우저 콘솔에서 확인용)
+            yield f"data: {json.dumps({'model_info': {'provider': self.provider, 'model': self.model, 'role': self.user_role}}, ensure_ascii=False)}\n\n"
+
             # 첫 번째 호출 (function calling 체크)
-            response = await self.client.chat.completions.create(
+            _opt_kwargs = dict(
                 model=self.model,
                 messages=messages,
                 tools=tools,
-                tool_choice="auto",
-                temperature=0.7
+                temperature=0.7,
             )
+            try:
+                response = await self.client.chat.completions.create(**_opt_kwargs, tool_choice="auto")
+            except Exception:
+                response = await self.client.chat.completions.create(**_opt_kwargs)
 
             # OpenAI 응답 전체 로그 출력
             import json
@@ -2523,7 +2557,7 @@ Draft (rules-based, keep numbers unchanged):
                         stream=True,
                         stream_options={"include_usage": True},
                     )
-                except TypeError:
+                except Exception:
                     # openai 라이브러리 버전에 따라 stream_options 미지원일 수 있음
                     stream = await self.client.chat.completions.create(
                         model=self.model,
@@ -2606,7 +2640,7 @@ Draft (rules-based, keep numbers unchanged):
                         stream=True,
                         stream_options={"include_usage": True},
                     )
-                except TypeError:
+                except Exception:
                     stream = await self.client.chat.completions.create(
                         model=self.model,
                         messages=messages,
@@ -3546,6 +3580,9 @@ Draft (rules-based, keep numbers unchanged):
             # YAML/WIDE 요청 시 legacy JSON-only 도구는 제외
             tools = self._filter_tools_for_output_preference(tools, message)
             
+            # 모델 정보를 스트림 첫 이벤트로 전송 (브라우저 콘솔에서 확인용)
+            yield f"data: {json.dumps({'model_info': {'provider': self.provider, 'model': self.model, 'role': self.user_role}}, ensure_ascii=False)}\n\n"
+
             # ===== Multi-turn Tool Calling Loop =====
             max_iterations = 5  # 최대 5번까지 tool call 반복 허용
             iteration = 0
@@ -3571,15 +3608,20 @@ Draft (rules-based, keep numbers unchanged):
                 print(f"[DEBUG] Messages count: {len(messages)}, Tools count: {len(tools)}", flush=True)
                 
                 try:
-                    response = await self.client.chat.completions.create(
+                    _fc_kwargs = dict(
                         model=self.model,
                         messages=messages,
                         tools=tools,
-                        tool_choice="auto",
                         temperature=0.7,
-                        max_tokens=1600,  # 답변이 길어질 수 있어 여유를 둠
-                        timeout=60.0  # tool 결과가 큰 경우를 고려해 타임아웃 상향
+                        max_tokens=1600,
+                        timeout=60.0,
                     )
+                    try:
+                        response = await self.client.chat.completions.create(**_fc_kwargs, tool_choice="auto")
+                    except Exception as tc_err:
+                        # 일부 모델은 tool_choice를 지원하지 않음 — fallback
+                        print(f"[WARN] tool_choice='auto' failed ({tc_err}), retrying without it", flush=True)
+                        response = await self.client.chat.completions.create(**_fc_kwargs)
                     print(f"[AI Service] Session Chat API 응답 (Iteration {iteration}) - 실제 사용 모델: {response.model}", flush=True)
 
                     # OpenAI 응답 전체 로그 출력
@@ -3738,7 +3780,7 @@ Draft (rules-based, keep numbers unchanged):
                             stream=True,
                             stream_options={"include_usage": True},
                         )
-                    except TypeError:
+                    except Exception:
                         stream = await self.client.chat.completions.create(
                             model=self.model,
                             messages=messages,
@@ -3817,7 +3859,7 @@ Draft (rules-based, keep numbers unchanged):
                                     stream=True,
                                     stream_options={"include_usage": True},
                                 )
-                            except TypeError:
+                            except Exception:
                                 cont_stream = await self.client.chat.completions.create(
                                     model=self.model,
                                     messages=messages,
@@ -4251,8 +4293,7 @@ Remember: You're not just answering questions - you're **solving production prob
                             },
                             "output": {
                                 "type": "string",
-                                "description": "출력 포맷 (json, wide)",
-                                "default": "wide",
+                                "description": "출력 포맷 (json, wide). 기본값: wide",
                             },
                         },
                         "required": ["resource_type"],
