@@ -7,6 +7,7 @@ from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.api import router
+from app.api_public import public_router
 from app.config import settings
 from app.security import require_auth
 import uvicorn
@@ -29,8 +30,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API 라우터 등록
+# API 라우터 등록 (인증 필요)
 app.include_router(router, prefix="/api/v1/ai", dependencies=[Depends(require_auth)])
+
+# 공개 라우터 등록 (인증 불필요 — Setup 화면 등)
+app.include_router(public_router, prefix="/api/v1/ai")
 
 
 @app.get("/")
