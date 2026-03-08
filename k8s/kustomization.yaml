@@ -18,7 +18,6 @@ resources:
   - session-service.yaml
   - frontend.yaml
   - gateway.yaml
-  - litellm.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -27,6 +26,3 @@ configMapGenerator:
   - name: gateway-nginx
     files:
       - nginx.conf=nginx.conf
-  - name: litellm-config
-    files:
-      - config.yaml=litellm-config.yaml
