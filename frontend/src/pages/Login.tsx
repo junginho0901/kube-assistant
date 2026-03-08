@@ -16,33 +16,25 @@ export default function Login() {
   const tr = (key: string, fallback: string, options?: Record<string, any>) =>
     t(key, { defaultValue: fallback, ...options })
 
-  const { data: setupStatus } = useQuery({
+  const { data: setupStatus, isFetching: isFetchingSetup } = useQuery({
     queryKey: ['setup-status'],
     queryFn: api.getSetupStatus,
-    staleTime: 10000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
-  const { data: health, isError: isHealthError } = useQuery({
-    queryKey: ['health'],
-    queryFn: api.getHealth,
-    enabled: setupStatus?.configured === true,
-    staleTime: 5000,
-    refetchInterval: setupStatus?.configured ? 5000 : false,
-    retry: 1,
-  })
+  // Health check removed from login — transient k8s failures during rollout
+  // should not redirect users back to /setup.
 
   useEffect(() => {
-    if (setupStatus && !setupStatus.configured) {
+    // Avoid redirecting based on stale cached setup status while refetching.
+    if (setupStatus && !setupStatus.configured && !isFetchingSetup) {
       navigate('/setup', { replace: true })
     }
-  }, [setupStatus, navigate])
+  }, [setupStatus, isFetchingSetup, navigate])
 
-  useEffect(() => {
-    if (!setupStatus?.configured) return
-    const kubeStatus = String(health?.kubernetes || '')
-    if (isHealthError || (health && (health.status !== 'healthy' || kubeStatus !== 'connected'))) {
-      navigate('/setup', { replace: true })
-    }
-  }, [setupStatus, health, isHealthError, navigate])
+  // NOTE: Removed aggressive redirect to /setup on transient health failures.
+  // Only redirect if setup is truly not configured (handled above).
+  // Temporary k8s disconnections during rollout should not loop back to setup.
 
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
