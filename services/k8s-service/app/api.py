@@ -109,6 +109,51 @@ async def get_resources(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/search")
+async def search_resources(
+    request: Request,
+):
+    """여러 리소스 타입을 동시에 검색 (Advanced Search 전용)"""
+    try:
+        body = await request.json()
+        resource_types: List[str] = body.get("resource_types", [])
+        namespace: Optional[str] = body.get("namespace")
+        label_selector: Optional[str] = body.get("label_selector")
+
+        if not resource_types:
+            raise HTTPException(status_code=400, detail="resource_types is required")
+
+        async def fetch_type(rt: str):
+            try:
+                return await k8s_service.get_resources(
+                    resource_type=rt,
+                    resource_name=None,
+                    namespace=namespace,
+                    all_namespaces=not namespace,
+                    output="json",
+                )
+            except Exception:
+                return {"items": [], "error": f"Failed to fetch {rt}"}
+
+        results = await asyncio.gather(*[fetch_type(rt) for rt in resource_types])
+        all_items = []
+        errors = []
+        for rt, result in zip(resource_types, results):
+            if isinstance(result, dict):
+                if "error" in result:
+                    errors.append({"resource_type": rt, "error": result["error"]})
+                elif "items" in result:
+                    all_items.extend(result["items"])
+            elif isinstance(result, list):
+                all_items.extend(result)
+
+        return {"items": all_items, "total": len(all_items), "errors": errors}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/resources/yaml")
 async def get_resource_yaml(
     resource_type: str = Query(..., description="리소스 타입"),
@@ -123,6 +168,35 @@ async def get_resource_yaml(
             namespace=namespace,
         )
         return {"yaml": yaml_content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resources/yaml/apply")
+async def apply_resource_yaml(body: dict, request: Request):
+    """범용 리소스 YAML 적용 (kubectl apply 유사)"""
+    try:
+        role = getattr(request.state, "role", "read")
+        if role not in ("admin", "write"):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+        yaml_content = body.get("yaml", "")
+        resource_type = body.get("resource_type", "")
+        resource_name = body.get("resource_name", "")
+        namespace = body.get("namespace")
+
+        if not yaml_content or not resource_type or not resource_name:
+            raise HTTPException(status_code=400, detail="yaml, resource_type, resource_name are required")
+
+        result = await k8s_service.apply_resource_yaml(
+            resource_type=resource_type,
+            resource_name=resource_name,
+            yaml_content=yaml_content,
+            namespace=namespace,
+        )
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
