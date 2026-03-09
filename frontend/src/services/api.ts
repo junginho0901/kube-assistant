@@ -1074,8 +1074,24 @@ export const api = {
     await client.delete(`/sessions/${sessionId}`)
   },
 
-  getResourceYaml: async (namespace: string, resourceType: string, name: string): Promise<{ yaml: string }> => {
-    const { data } = await client.get(`/cluster/namespaces/${namespace}/${resourceType}s/${name}/yaml`)
+  getResourceYaml: async (resourceType: string, name: string, namespace?: string): Promise<{ yaml: string }> => {
+    const { data } = await client.get('/cluster/resources/yaml', {
+      params: {
+        resource_type: resourceType,
+        resource_name: name,
+        ...(namespace && namespace !== '-' ? { namespace } : {}),
+      },
+    })
+    return typeof data === 'string' ? { yaml: data } : data
+  },
+
+  applyResourceYaml: async (resourceType: string, name: string, yaml: string, namespace?: string): Promise<{ status: string }> => {
+    const { data } = await client.post('/cluster/resources/yaml/apply', {
+      resource_type: resourceType,
+      resource_name: name,
+      namespace: namespace && namespace !== '-' ? namespace : undefined,
+      yaml,
+    })
     return data
   },
 
@@ -1278,6 +1294,36 @@ export const api = {
     azure_api_version?: string
   }): Promise<{ success: boolean; model?: string; message: string }> => {
     const { data } = await client.post('/ai/model-configs/test', payload)
+    return data
+  },
+
+  // Advanced Search
+  searchResources: async (resourceType: string, namespace?: string, signal?: AbortSignal): Promise<any> => {
+    const { data } = await client.get('/cluster/resources', {
+      params: {
+        resource_type: resourceType,
+        all_namespaces: !namespace,
+        namespace: namespace || undefined,
+        output: 'json',
+      },
+      timeout: 30000,
+      signal,
+    })
+    return data
+  },
+
+  searchMultiResources: async (resourceTypes: string[], namespace?: string): Promise<{ items: any[]; total: number; errors: any[] }> => {
+    const { data } = await client.post('/cluster/search', {
+      resource_types: resourceTypes,
+      namespace: namespace || undefined,
+    }, { timeout: 60000 })
+    return data
+  },
+
+  getApiResources: async (forceRefresh = false): Promise<any[]> => {
+    const { data } = await client.get('/cluster/api-resources', {
+      params: { force_refresh: forceRefresh },
+    })
     return data
   },
 }
