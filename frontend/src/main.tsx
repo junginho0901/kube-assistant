@@ -5,6 +5,10 @@ import App from './App'
 import './i18n'
 import './index.css'
 
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason?.type === 'cancelation') e.preventDefault()
+})
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

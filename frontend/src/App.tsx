@@ -15,8 +15,10 @@ import Login from './pages/Login'
 import Setup from './pages/Setup'
 import AdminUsers from './pages/AdminUsers'
 import AdminAIModels from './pages/AdminAIModels'
+import AdminNodeShell from './pages/AdminNodeShell'
 import Account from './pages/Account'
 import ComingSoon from './pages/ComingSoon'
+import AdvancedSearch from './pages/AdvancedSearch'
 import Pods from './pages/workloads/Pods'
 import ClusterNodes from './pages/ClusterNodes'
 import { MonacoEditorLoaderInitializer } from './components/monaco/MonacoEditorLoaderInitializer'
@@ -33,7 +35,7 @@ function App() {
             <Route path="namespaces" element={<Namespaces />} />
             <Route path="cluster/namespaces" element={<Namespaces />} />
             <Route path="cluster/nodes" element={<ClusterNodes />} />
-            <Route path="cluster/search" element={<ComingSoon title="Advanced Search (Beta)" />} />
+            <Route path="cluster/search" element={<AdvancedSearch />} />
             <Route path="workloads/pods" element={<Pods />} />
             <Route path="workloads/deployments" element={<ComingSoon title="Deployments" />} />
             <Route path="workloads/statefulsets" element={<ComingSoon title="Stateful Sets" />} />
@@ -81,6 +83,7 @@ function App() {
             <Route path="ai-chat" element={<AIChat />} />
             <Route path="admin/users" element={<RequireAdmin><AdminUsers /></RequireAdmin>} />
             <Route path="admin/ai-models" element={<RequireAdmin><AdminAIModels /></RequireAdmin>} />
+            <Route path="admin/node-shell" element={<RequireAdmin><AdminNodeShell /></RequireAdmin>} />
           </Route>
         </Routes>
       </BrowserRouter>
