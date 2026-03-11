@@ -974,6 +974,19 @@ class K8sService:
                 "name": ns.metadata.name,
                 "status": getattr(ns.status, "phase", None) if getattr(ns, "status", None) else None,
                 "created_at": created_at,
+                "uid": getattr(ns.metadata, "uid", None),
+                "resource_version": getattr(ns.metadata, "resource_version", None),
+                "deletion_timestamp": self._to_iso(getattr(ns.metadata, "deletion_timestamp", None)),
+                "finalizers": list(getattr(ns.metadata, "finalizers", None) or []),
+                "owner_references": [
+                    {
+                        "kind": getattr(ref, "kind", None),
+                        "name": getattr(ref, "name", None),
+                        "uid": getattr(ref, "uid", None),
+                        "controller": getattr(ref, "controller", None),
+                    }
+                    for ref in (getattr(ns.metadata, "owner_references", None) or [])
+                ],
                 "labels": ns.metadata.labels or {},
                 "annotations": ns.metadata.annotations or {},
                 "conditions": conditions,
@@ -2080,21 +2093,57 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get secret YAML: {e}")
     
+    def _statefulset_to_info(self, sts: Any) -> Dict[str, Any]:
+        desired = getattr(getattr(sts, "spec", None), "replicas", None) or 0
+        ready = getattr(getattr(sts, "status", None), "ready_replicas", None) or 0
+        current = getattr(getattr(sts, "status", None), "current_replicas", None) or 0
+        updated = getattr(getattr(sts, "status", None), "updated_replicas", None) or 0
+        available = getattr(getattr(sts, "status", None), "available_replicas", None) or 0
+
+        images: List[str] = []
+        try:
+            containers = list(getattr(getattr(getattr(sts, "spec", None), "template", None), "spec", None).containers or [])
+            images = [c.image for c in containers if getattr(c, "image", None)]
+        except Exception:
+            images = []
+
+        status = "Healthy"
+        if desired == 0 and ready == 0:
+            status = "Idle"
+        elif ready != desired:
+            status = "Degraded"
+        if desired > 0 and ready == 0:
+            status = "Unavailable"
+
+        return {
+            "name": getattr(getattr(sts, "metadata", None), "name", None),
+            "namespace": getattr(getattr(sts, "metadata", None), "namespace", None),
+            "replicas": desired,
+            "ready_replicas": ready,
+            "current_replicas": current,
+            "updated_replicas": updated,
+            "available_replicas": available,
+            "service_name": getattr(getattr(sts, "spec", None), "service_name", None),
+            "images": images,
+            "status": status,
+            "created_at": self._to_iso(getattr(getattr(sts, "metadata", None), "creation_timestamp", None)),
+        }
+
     async def get_statefulsets(self, namespace: str) -> List[Dict]:
         """StatefulSet 목록 조회"""
         try:
             statefulsets = self.apps_v1.list_namespaced_stateful_set(namespace)
-            result = []
-            for sts in statefulsets.items:
-                result.append({
-                    "name": sts.metadata.name,
-                    "replicas": sts.spec.replicas,
-                    "ready_replicas": sts.status.ready_replicas or 0,
-                    "current_replicas": sts.status.current_replicas or 0
-                })
-            return result
+            return [self._statefulset_to_info(sts) for sts in statefulsets.items]
         except ApiException as e:
             raise Exception(f"Failed to get statefulsets: {e}")
+
+    async def get_all_statefulsets(self) -> List[Dict]:
+        """전체 네임스페이스 StatefulSet 목록 조회"""
+        try:
+            statefulsets = self.apps_v1.list_stateful_set_for_all_namespaces()
+            return [self._statefulset_to_info(sts) for sts in statefulsets.items]
+        except ApiException as e:
+            raise Exception(f"Failed to get all statefulsets: {e}")
     
     async def get_statefulset_yaml(self, namespace: str, name: str) -> str:
         """StatefulSet YAML 조회"""
@@ -2107,6 +2156,170 @@ class K8sService:
             return yaml.dump(sts_dict, default_flow_style=False, allow_unicode=True)
         except ApiException as e:
             raise Exception(f"Failed to get statefulset YAML: {e}")
+
+    async def describe_statefulset(self, namespace: str, name: str) -> Dict[str, Any]:
+        """StatefulSet 상세 조회"""
+        try:
+            sts = self.apps_v1.read_namespaced_stateful_set(name, namespace)
+            events = self.v1.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={name},involvedObject.kind=StatefulSet",
+            )
+
+            info = self._statefulset_to_info(sts)
+            info["created_at"] = self._to_iso(getattr(sts.metadata, "creation_timestamp", None))
+            info["uid"] = getattr(sts.metadata, "uid", None)
+            info["resource_version"] = getattr(sts.metadata, "resource_version", None)
+            info["generation"] = getattr(sts.metadata, "generation", None)
+            info["observed_generation"] = getattr(getattr(sts, "status", None), "observed_generation", None)
+            info["labels"] = getattr(sts.metadata, "labels", None) or {}
+            info["annotations"] = getattr(sts.metadata, "annotations", None) or {}
+            info["selector"] = getattr(getattr(sts.spec, "selector", None), "match_labels", None) or {}
+            info["selector_expressions"] = [
+                {
+                    "key": getattr(expr, "key", None),
+                    "operator": getattr(expr, "operator", None),
+                    "values": list(getattr(expr, "values", None) or []),
+                }
+                for expr in (getattr(getattr(sts.spec, "selector", None), "match_expressions", None) or [])
+            ]
+            info["pod_management_policy"] = getattr(sts.spec, "pod_management_policy", None)
+            update_strategy = getattr(sts.spec, "update_strategy", None)
+            rolling_update = getattr(update_strategy, "rolling_update", None) if update_strategy else None
+            info["update_strategy"] = {
+                "type": getattr(update_strategy, "type", None) if update_strategy else None,
+                "rolling_update": {
+                    "partition": getattr(rolling_update, "partition", None),
+                    "max_unavailable": str(getattr(rolling_update, "max_unavailable", None))
+                    if getattr(rolling_update, "max_unavailable", None) is not None else None,
+                } if rolling_update else None,
+            }
+            info["min_ready_seconds"] = getattr(sts.spec, "min_ready_seconds", None)
+            info["revision_history_limit"] = getattr(sts.spec, "revision_history_limit", None)
+            info["current_revision"] = getattr(getattr(sts, "status", None), "current_revision", None)
+            info["update_revision"] = getattr(getattr(sts, "status", None), "update_revision", None)
+            info["collision_count"] = getattr(getattr(sts, "status", None), "collision_count", None)
+            info["replicas_status"] = {
+                "desired": getattr(getattr(sts, "spec", None), "replicas", None) or 0,
+                "current": getattr(getattr(sts, "status", None), "current_replicas", None) or 0,
+                "ready": getattr(getattr(sts, "status", None), "ready_replicas", None) or 0,
+                "available": getattr(getattr(sts, "status", None), "available_replicas", None) or 0,
+                "updated": getattr(getattr(sts, "status", None), "updated_replicas", None) or 0,
+            }
+            template_spec = getattr(getattr(sts.spec, "template", None), "spec", None)
+            info["pod_template"] = {
+                "service_account_name": getattr(template_spec, "service_account_name", None),
+                "node_selector": dict(getattr(template_spec, "node_selector", None) or {}),
+                "priority_class_name": getattr(template_spec, "priority_class_name", None),
+                "containers": [
+                    {
+                        "name": getattr(container, "name", None),
+                        "image": getattr(container, "image", None),
+                        "command": list(getattr(container, "command", None) or []),
+                        "args": list(getattr(container, "args", None) or []),
+                        "ports": [
+                            {
+                                "name": getattr(port, "name", None),
+                                "container_port": getattr(port, "container_port", None),
+                                "protocol": getattr(port, "protocol", None),
+                            }
+                            for port in (getattr(container, "ports", None) or [])
+                        ],
+                        "limits": dict(getattr(getattr(container, "resources", None), "limits", None) or {}),
+                        "requests": dict(getattr(getattr(container, "resources", None), "requests", None) or {}),
+                        "env_count": len(list(getattr(container, "env", None) or [])),
+                        "volume_mounts": [
+                            {
+                                "name": getattr(mount, "name", None),
+                                "mount_path": getattr(mount, "mount_path", None),
+                                "read_only": getattr(mount, "read_only", None),
+                            }
+                            for mount in (getattr(container, "volume_mounts", None) or [])
+                        ],
+                    }
+                    for container in (getattr(template_spec, "containers", None) or [])
+                ],
+                "tolerations": [
+                    {
+                        "key": getattr(tol, "key", None),
+                        "operator": getattr(tol, "operator", None),
+                        "value": getattr(tol, "value", None),
+                        "effect": getattr(tol, "effect", None),
+                        "toleration_seconds": getattr(tol, "toleration_seconds", None),
+                    }
+                    for tol in (getattr(template_spec, "tolerations", None) or [])
+                ],
+            }
+            info["volume_claim_templates"] = [
+                {
+                    "name": getattr(getattr(vct, "metadata", None), "name", None),
+                    "storage_class_name": getattr(getattr(vct, "spec", None), "storage_class_name", None),
+                    "access_modes": list(getattr(getattr(vct, "spec", None), "access_modes", None) or []),
+                    "requests": dict(
+                        getattr(getattr(getattr(vct, "spec", None), "resources", None), "requests", None) or {}
+                    ),
+                }
+                for vct in (getattr(sts.spec, "volume_claim_templates", None) or [])
+            ]
+            info["owner_references"] = [
+                {
+                    "kind": getattr(ref, "kind", None),
+                    "name": getattr(ref, "name", None),
+                    "uid": getattr(ref, "uid", None),
+                    "controller": getattr(ref, "controller", None),
+                }
+                for ref in (getattr(sts.metadata, "owner_references", None) or [])
+            ]
+            info["conditions"] = []
+            info["events"] = []
+
+            for condition in list(getattr(getattr(sts, "status", None), "conditions", None) or []):
+                info["conditions"].append({
+                    "type": getattr(condition, "type", None),
+                    "status": getattr(condition, "status", None),
+                    "reason": getattr(condition, "reason", None),
+                    "message": getattr(condition, "message", None),
+                    "last_transition_time": self._to_iso(getattr(condition, "last_transition_time", None)),
+                })
+
+            for event in events.items:
+                info["events"].append({
+                    "type": event.type,
+                    "reason": event.reason,
+                    "message": event.message,
+                    "count": event.count,
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
+                })
+
+            return info
+        except ApiException as e:
+            raise Exception(f"Failed to describe statefulset: {e}")
+
+    async def delete_statefulset(self, namespace: str, name: str) -> Dict[str, Any]:
+        """StatefulSet 삭제"""
+        try:
+            response = self.apps_v1.delete_namespaced_stateful_set(
+                name=name,
+                namespace=namespace,
+                body=client.V1DeleteOptions(),
+            )
+            self._invalidate_yaml_cache("statefulset", name, namespace=namespace)
+            self._invalidate_yaml_cache("statefulsets", name, namespace=namespace)
+            return {
+                "status": "deleted",
+                "name": name,
+                "namespace": namespace,
+                "details": response.to_dict() if hasattr(response, "to_dict") else response,
+            }
+        except ApiException as e:
+            if getattr(e, "status", None) == 404:
+                return {
+                    "status": "not_found",
+                    "name": name,
+                    "namespace": namespace,
+                }
+            raise Exception(f"Failed to delete statefulset: {e}")
     
     async def get_daemonsets(self, namespace: str) -> List[Dict]:
         """DaemonSet 목록 조회"""
@@ -2725,117 +2938,267 @@ class K8sService:
                 namespace=namespace,
                 field_selector=f"involvedObject.name={name},involvedObject.kind=Pod"
             )
-            
-            # Pod 상세 정보 구성
-            # Phase 가져오기 (status.phase 또는 status가 없을 수 있음)
-            phase = None
-            if hasattr(pod.status, 'phase') and pod.status.phase:
-                phase = pod.status.phase
-            elif hasattr(pod.status, 'phase'):
-                phase = str(pod.status.phase) if pod.status.phase is not None else None
-            
-            # Created at 가져오기
+
+            def _container_spec_to_dict(container: Any) -> Dict[str, Any]:
+                return {
+                    "image": getattr(container, "image", None),
+                    "command": list(getattr(container, "command", None) or []),
+                    "args": list(getattr(container, "args", None) or []),
+                    "limits": dict(getattr(getattr(container, "resources", None), "limits", None) or {}),
+                    "requests": dict(getattr(getattr(container, "resources", None), "requests", None) or {}),
+                    "ports": [
+                        {
+                            "name": getattr(port, "name", None),
+                            "container_port": getattr(port, "container_port", None),
+                            "protocol": getattr(port, "protocol", None),
+                        }
+                        for port in (getattr(container, "ports", None) or [])
+                    ],
+                    "volume_mounts": [
+                        {
+                            "name": getattr(mount, "name", None),
+                            "mount_path": getattr(mount, "mount_path", None),
+                            "read_only": getattr(mount, "read_only", None),
+                        }
+                        for mount in (getattr(container, "volume_mounts", None) or [])
+                    ],
+                    "env_count": len(list(getattr(container, "env", None) or [])),
+                }
+
+            phase = getattr(pod.status, "phase", None) if hasattr(pod, "status") else None
+
             created_at = None
-            if hasattr(pod.metadata, 'creation_timestamp') and pod.metadata.creation_timestamp:
+            if hasattr(pod.metadata, "creation_timestamp") and pod.metadata.creation_timestamp:
                 try:
-                    if hasattr(pod.metadata.creation_timestamp, 'isoformat'):
+                    if hasattr(pod.metadata.creation_timestamp, "isoformat"):
                         created_at = pod.metadata.creation_timestamp.isoformat()
                     else:
                         created_at = str(pod.metadata.creation_timestamp)
-                except Exception as e:
-                    print(f"[WARN] Failed to format creation_timestamp: {e}")
+                except Exception:
                     created_at = str(pod.metadata.creation_timestamp)
-            
-            # Node 가져오기
-            node = None
-            if hasattr(pod.spec, 'node_name') and pod.spec.node_name:
-                node = pod.spec.node_name
-            
+
+            node = getattr(getattr(pod, "spec", None), "node_name", None)
+
+            spec_containers = list(getattr(getattr(pod, "spec", None), "containers", None) or [])
+            spec_containers_by_name = {
+                getattr(container, "name", ""): _container_spec_to_dict(container)
+                for container in spec_containers
+            }
+
+            spec_init_containers = list(getattr(getattr(pod, "spec", None), "init_containers", None) or [])
+            spec_init_containers_by_name = {
+                getattr(container, "name", ""): _container_spec_to_dict(container)
+                for container in spec_init_containers
+            }
+
             describe_info = {
                 "name": pod.metadata.name,
                 "namespace": pod.metadata.namespace,
                 "status": phase,
-                "phase": phase,  # 프론트엔드에서 사용하는 필드
+                "phase": phase,
                 "status_reason": getattr(pod.status, "reason", None) if hasattr(pod, "status") else None,
                 "status_message": getattr(pod.status, "message", None) if hasattr(pod, "status") else None,
                 "node": node,
-                "pod_ip": pod.status.pod_ip if hasattr(pod.status, 'pod_ip') else None,
-                "start_time": str(pod.status.start_time) if hasattr(pod.status, 'start_time') and pod.status.start_time else None,
-                "created_at": created_at,  # 프론트엔드에서 사용하는 필드 (ISO 형식)
+                "pod_ip": getattr(pod.status, "pod_ip", None) if hasattr(pod, "status") else None,
+                "pod_ips": [
+                    getattr(ip, "ip", None)
+                    for ip in (getattr(pod.status, "pod_ips", None) or [])
+                    if getattr(ip, "ip", None)
+                ] if hasattr(pod, "status") else [],
+                "host_ip": getattr(pod.status, "host_ip", None) if hasattr(pod, "status") else None,
+                "host_ips": [
+                    getattr(ip, "ip", None)
+                    for ip in (getattr(pod.status, "host_ips", None) or [])
+                    if getattr(ip, "ip", None)
+                ] if hasattr(pod, "status") else [],
+                "nominated_node_name": getattr(pod.status, "nominated_node_name", None) if hasattr(pod, "status") else None,
+                "qos_class": getattr(pod.status, "qos_class", None) if hasattr(pod, "status") else None,
+                "start_time": self._to_iso(getattr(getattr(pod, "status", None), "start_time", None)),
+                "created_at": created_at,
+                "uid": getattr(pod.metadata, "uid", None),
+                "resource_version": getattr(pod.metadata, "resource_version", None),
+                "deletion_timestamp": self._to_iso(getattr(pod.metadata, "deletion_timestamp", None)),
+                "owner_references": [
+                    {
+                        "kind": getattr(ref, "kind", None),
+                        "name": getattr(ref, "name", None),
+                        "uid": getattr(ref, "uid", None),
+                        "controller": getattr(ref, "controller", None),
+                    }
+                    for ref in (getattr(pod.metadata, "owner_references", None) or [])
+                ],
+                "finalizers": list(getattr(pod.metadata, "finalizers", None) or []),
                 "labels": pod.metadata.labels or {},
                 "annotations": pod.metadata.annotations or {},
+                "service_account": getattr(getattr(pod, "spec", None), "service_account_name", None),
+                "priority": getattr(getattr(pod, "spec", None), "priority", None),
+                "priority_class": getattr(getattr(pod, "spec", None), "priority_class_name", None),
+                "restart_policy": getattr(getattr(pod, "spec", None), "restart_policy", None),
+                "host_network": getattr(getattr(pod, "spec", None), "host_network", None),
+                "host_pid": getattr(getattr(pod, "spec", None), "host_pid", None),
+                "host_ipc": getattr(getattr(pod, "spec", None), "host_ipc", None),
+                "preemption_policy": getattr(getattr(pod, "spec", None), "preemption_policy", None),
+                "runtime_class_name": getattr(getattr(pod, "spec", None), "runtime_class_name", None),
+                "node_selector": dict(getattr(getattr(pod, "spec", None), "node_selector", None) or {}),
+                "tolerations": [
+                    {
+                        "key": getattr(tol, "key", None),
+                        "operator": getattr(tol, "operator", None),
+                        "value": getattr(tol, "value", None),
+                        "effect": getattr(tol, "effect", None),
+                        "toleration_seconds": getattr(tol, "toleration_seconds", None),
+                    }
+                    for tol in (getattr(getattr(pod, "spec", None), "tolerations", None) or [])
+                ],
+                "volumes": [
+                    {
+                        "name": getattr(vol, "name", None),
+                        "type": next(
+                            (k for k, v in (vol.to_dict() or {}).items() if k != "name" and v is not None),
+                            None,
+                        ) if hasattr(vol, "to_dict") else None,
+                    }
+                    for vol in (getattr(getattr(pod, "spec", None), "volumes", None) or [])
+                ],
                 "containers": [],
                 "init_containers": [],
                 "conditions": [],
-                "events": []
+                "events": [],
             }
-            
-            # 디버깅용 로그
-            print(f"[DEBUG] describe_pod - name: {pod.metadata.name}, phase: {phase}, created_at: {created_at}, node: {node}")
-            print(f"[DEBUG] pod.status.phase type: {type(pod.status.phase) if hasattr(pod.status, 'phase') else 'N/A'}")
-            print(f"[DEBUG] pod.metadata.creation_timestamp: {pod.metadata.creation_timestamp if hasattr(pod.metadata, 'creation_timestamp') else 'N/A'}")
-            
-            # 컨테이너 정보
-            if pod.status.container_statuses:
-                for container in pod.status.container_statuses:
-                    container_info = {
-                        "name": container.name,
-                        "image": container.image,
-                        "ready": container.ready,
-                        "restart_count": container.restart_count,
-                        "state": {}
-                    }
-                    
-                    if container.state.running:
-                        container_info["state"] = {"running": {"started_at": str(container.state.running.started_at)}}
-                    elif container.state.waiting:
-                        container_info["state"] = {"waiting": {"reason": container.state.waiting.reason, "message": container.state.waiting.message}}
-                    elif container.state.terminated:
-                        container_info["state"] = {"terminated": {"reason": container.state.terminated.reason, "exit_code": container.state.terminated.exit_code}}
-                    
-                    describe_info["containers"].append(container_info)
 
-            if getattr(pod.status, "init_container_statuses", None):
-                for container in pod.status.init_container_statuses:
-                    container_info = {
-                        "name": container.name,
-                        "image": container.image,
-                        "ready": container.ready,
-                        "restart_count": container.restart_count,
-                        "state": {}
-                    }
+            for container_status in list(getattr(getattr(pod, "status", None), "container_statuses", None) or []):
+                spec_info = spec_containers_by_name.get(getattr(container_status, "name", ""), {})
+                state = {}
+                if getattr(container_status, "state", None):
+                    if getattr(container_status.state, "running", None):
+                        state = {"running": {"started_at": self._to_iso(getattr(container_status.state.running, "started_at", None))}}
+                    elif getattr(container_status.state, "waiting", None):
+                        state = {
+                            "waiting": {
+                                "reason": getattr(container_status.state.waiting, "reason", None),
+                                "message": getattr(container_status.state.waiting, "message", None),
+                            }
+                        }
+                    elif getattr(container_status.state, "terminated", None):
+                        state = {
+                            "terminated": {
+                                "reason": getattr(container_status.state.terminated, "reason", None),
+                                "exit_code": getattr(container_status.state.terminated, "exit_code", None),
+                                "message": getattr(container_status.state.terminated, "message", None),
+                                "started_at": self._to_iso(getattr(container_status.state.terminated, "started_at", None)),
+                                "finished_at": self._to_iso(getattr(container_status.state.terminated, "finished_at", None)),
+                            }
+                        }
 
-                    if container.state.running:
-                        container_info["state"] = {"running": {"started_at": str(container.state.running.started_at)}}
-                    elif container.state.waiting:
-                        container_info["state"] = {"waiting": {"reason": container.state.waiting.reason, "message": container.state.waiting.message}}
-                    elif container.state.terminated:
-                        container_info["state"] = {"terminated": {"reason": container.state.terminated.reason, "exit_code": container.state.terminated.exit_code}}
+                describe_info["containers"].append({
+                    "name": getattr(container_status, "name", None),
+                    "image": getattr(container_status, "image", None) or spec_info.get("image"),
+                    "ready": getattr(container_status, "ready", None),
+                    "restart_count": getattr(container_status, "restart_count", None),
+                    "state": state,
+                    "command": spec_info.get("command", []),
+                    "args": spec_info.get("args", []),
+                    "limits": spec_info.get("limits", {}),
+                    "requests": spec_info.get("requests", {}),
+                    "ports": spec_info.get("ports", []),
+                    "volume_mounts": spec_info.get("volume_mounts", []),
+                    "env_count": spec_info.get("env_count", 0),
+                })
 
-                    describe_info["init_containers"].append(container_info)
-            
-            # Conditions
-            if pod.status.conditions:
-                for condition in pod.status.conditions:
-                    describe_info["conditions"].append({
-                        "type": condition.type,
-                        "status": condition.status,
-                        "reason": condition.reason,
-                        "message": condition.message,
-                        "last_transition_time": str(condition.last_transition_time) if condition.last_transition_time else None
+            if not describe_info["containers"]:
+                for container in spec_containers:
+                    spec_info = spec_containers_by_name.get(getattr(container, "name", ""), {})
+                    describe_info["containers"].append({
+                        "name": getattr(container, "name", None),
+                        "image": getattr(container, "image", None),
+                        "ready": False,
+                        "restart_count": 0,
+                        "state": {},
+                        "command": spec_info.get("command", []),
+                        "args": spec_info.get("args", []),
+                        "limits": spec_info.get("limits", {}),
+                        "requests": spec_info.get("requests", {}),
+                        "ports": spec_info.get("ports", []),
+                        "volume_mounts": spec_info.get("volume_mounts", []),
+                        "env_count": spec_info.get("env_count", 0),
                     })
-            
-            # Events
+
+            for container_status in list(getattr(getattr(pod, "status", None), "init_container_statuses", None) or []):
+                spec_info = spec_init_containers_by_name.get(getattr(container_status, "name", ""), {})
+                state = {}
+                if getattr(container_status, "state", None):
+                    if getattr(container_status.state, "running", None):
+                        state = {"running": {"started_at": self._to_iso(getattr(container_status.state.running, "started_at", None))}}
+                    elif getattr(container_status.state, "waiting", None):
+                        state = {
+                            "waiting": {
+                                "reason": getattr(container_status.state.waiting, "reason", None),
+                                "message": getattr(container_status.state.waiting, "message", None),
+                            }
+                        }
+                    elif getattr(container_status.state, "terminated", None):
+                        state = {
+                            "terminated": {
+                                "reason": getattr(container_status.state.terminated, "reason", None),
+                                "exit_code": getattr(container_status.state.terminated, "exit_code", None),
+                                "message": getattr(container_status.state.terminated, "message", None),
+                                "started_at": self._to_iso(getattr(container_status.state.terminated, "started_at", None)),
+                                "finished_at": self._to_iso(getattr(container_status.state.terminated, "finished_at", None)),
+                            }
+                        }
+
+                describe_info["init_containers"].append({
+                    "name": getattr(container_status, "name", None),
+                    "image": getattr(container_status, "image", None) or spec_info.get("image"),
+                    "ready": getattr(container_status, "ready", None),
+                    "restart_count": getattr(container_status, "restart_count", None),
+                    "state": state,
+                    "command": spec_info.get("command", []),
+                    "args": spec_info.get("args", []),
+                    "limits": spec_info.get("limits", {}),
+                    "requests": spec_info.get("requests", {}),
+                    "ports": spec_info.get("ports", []),
+                    "volume_mounts": spec_info.get("volume_mounts", []),
+                    "env_count": spec_info.get("env_count", 0),
+                })
+
+            if not describe_info["init_containers"]:
+                for container in spec_init_containers:
+                    spec_info = spec_init_containers_by_name.get(getattr(container, "name", ""), {})
+                    describe_info["init_containers"].append({
+                        "name": getattr(container, "name", None),
+                        "image": getattr(container, "image", None),
+                        "ready": False,
+                        "restart_count": 0,
+                        "state": {},
+                        "command": spec_info.get("command", []),
+                        "args": spec_info.get("args", []),
+                        "limits": spec_info.get("limits", {}),
+                        "requests": spec_info.get("requests", {}),
+                        "ports": spec_info.get("ports", []),
+                        "volume_mounts": spec_info.get("volume_mounts", []),
+                        "env_count": spec_info.get("env_count", 0),
+                    })
+
+            for condition in list(getattr(getattr(pod, "status", None), "conditions", None) or []):
+                describe_info["conditions"].append({
+                    "type": getattr(condition, "type", None),
+                    "status": getattr(condition, "status", None),
+                    "reason": getattr(condition, "reason", None),
+                    "message": getattr(condition, "message", None),
+                    "last_transition_time": self._to_iso(getattr(condition, "last_transition_time", None)),
+                })
+
             for event in events.items:
                 describe_info["events"].append({
                     "type": event.type,
                     "reason": event.reason,
                     "message": event.message,
                     "count": event.count,
-                    "first_timestamp": str(event.first_timestamp) if event.first_timestamp else None,
-                    "last_timestamp": str(event.last_timestamp) if event.last_timestamp else None
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
                 })
-            
+
             return describe_info
         except ApiException as e:
             raise Exception(f"Failed to describe pod: {e}")
@@ -3021,24 +3384,116 @@ class K8sService:
                 namespace=namespace,
                 field_selector=f"involvedObject.name={name},involvedObject.kind=Deployment"
             )
-            
+
+            strategy = getattr(getattr(deployment, "spec", None), "strategy", None)
+            rolling_update = getattr(strategy, "rolling_update", None) if strategy else None
+
+            selector = getattr(getattr(getattr(deployment, "spec", None), "selector", None), "match_labels", None) or {}
+            selector_expressions = [
+                {
+                    "key": getattr(expr, "key", None),
+                    "operator": getattr(expr, "operator", None),
+                    "values": list(getattr(expr, "values", None) or []),
+                }
+                for expr in (getattr(getattr(getattr(deployment, "spec", None), "selector", None), "match_expressions", None) or [])
+            ]
+
+            template_spec = getattr(getattr(getattr(deployment, "spec", None), "template", None), "spec", None)
+            template_containers = [
+                {
+                    "name": getattr(container, "name", None),
+                    "image": getattr(container, "image", None),
+                    "command": list(getattr(container, "command", None) or []),
+                    "args": list(getattr(container, "args", None) or []),
+                    "ports": [
+                        {
+                            "name": getattr(port, "name", None),
+                            "container_port": getattr(port, "container_port", None),
+                            "protocol": getattr(port, "protocol", None),
+                        }
+                        for port in (getattr(container, "ports", None) or [])
+                    ],
+                    "limits": dict(getattr(getattr(container, "resources", None), "limits", None) or {}),
+                    "requests": dict(getattr(getattr(container, "resources", None), "requests", None) or {}),
+                    "env_count": len(list(getattr(container, "env", None) or [])),
+                    "volume_mounts": [
+                        {
+                            "name": getattr(mount, "name", None),
+                            "mount_path": getattr(mount, "mount_path", None),
+                            "read_only": getattr(mount, "read_only", None),
+                        }
+                        for mount in (getattr(container, "volume_mounts", None) or [])
+                    ],
+                }
+                for container in (getattr(template_spec, "containers", None) or [])
+            ]
+
+            template_tolerations = [
+                {
+                    "key": getattr(tol, "key", None),
+                    "operator": getattr(tol, "operator", None),
+                    "value": getattr(tol, "value", None),
+                    "effect": getattr(tol, "effect", None),
+                    "toleration_seconds": getattr(tol, "toleration_seconds", None),
+                }
+                for tol in (getattr(template_spec, "tolerations", None) or [])
+            ]
+
             describe_info = {
                 "name": deployment.metadata.name,
                 "namespace": deployment.metadata.namespace,
+                "created_at": self._to_iso(getattr(deployment.metadata, "creation_timestamp", None)),
+                "uid": getattr(deployment.metadata, "uid", None),
+                "resource_version": getattr(deployment.metadata, "resource_version", None),
+                "generation": getattr(deployment.metadata, "generation", None),
+                "observed_generation": getattr(getattr(deployment, "status", None), "observed_generation", None),
+                "revision": (deployment.metadata.annotations or {}).get("deployment.kubernetes.io/revision")
+                if getattr(deployment.metadata, "annotations", None) else None,
                 "replicas": {
-                    "desired": deployment.spec.replicas,
-                    "current": deployment.status.replicas or 0,
-                    "ready": deployment.status.ready_replicas or 0,
-                    "available": deployment.status.available_replicas or 0,
-                    "unavailable": deployment.status.unavailable_replicas or 0
+                    "desired": getattr(getattr(deployment, "spec", None), "replicas", None) or 0,
+                    "current": getattr(getattr(deployment, "status", None), "replicas", None) or 0,
+                    "ready": getattr(getattr(deployment, "status", None), "ready_replicas", None) or 0,
+                    "available": getattr(getattr(deployment, "status", None), "available_replicas", None) or 0,
+                    "unavailable": getattr(getattr(deployment, "status", None), "unavailable_replicas", None) or 0,
+                    "updated": getattr(getattr(deployment, "status", None), "updated_replicas", None) or 0,
                 },
-                "strategy": deployment.spec.strategy.type if deployment.spec.strategy else None,
+                "strategy": {
+                    "type": getattr(strategy, "type", None) if strategy else None,
+                    "rolling_update": {
+                        "max_unavailable": str(getattr(rolling_update, "max_unavailable", None))
+                        if getattr(rolling_update, "max_unavailable", None) is not None else None,
+                        "max_surge": str(getattr(rolling_update, "max_surge", None))
+                        if getattr(rolling_update, "max_surge", None) is not None else None,
+                    } if rolling_update else None,
+                },
+                "min_ready_seconds": getattr(getattr(deployment, "spec", None), "min_ready_seconds", None),
+                "progress_deadline_seconds": getattr(getattr(deployment, "spec", None), "progress_deadline_seconds", None),
+                "revision_history_limit": getattr(getattr(deployment, "spec", None), "revision_history_limit", None),
+                "paused": getattr(getattr(deployment, "spec", None), "paused", None),
                 "labels": deployment.metadata.labels or {},
-                "selector": deployment.spec.selector.match_labels or {},
+                "annotations": deployment.metadata.annotations or {},
+                "owner_references": [
+                    {
+                        "kind": getattr(ref, "kind", None),
+                        "name": getattr(ref, "name", None),
+                        "uid": getattr(ref, "uid", None),
+                        "controller": getattr(ref, "controller", None),
+                    }
+                    for ref in (getattr(deployment.metadata, "owner_references", None) or [])
+                ],
+                "selector": selector,
+                "selector_expressions": selector_expressions,
+                "pod_template": {
+                    "service_account_name": getattr(template_spec, "service_account_name", None),
+                    "node_selector": dict(getattr(template_spec, "node_selector", None) or {}),
+                    "priority_class_name": getattr(template_spec, "priority_class_name", None),
+                    "containers": template_containers,
+                    "tolerations": template_tolerations,
+                },
                 "conditions": [],
-                "events": []
+                "events": [],
             }
-            
+
             # Conditions
             if deployment.status.conditions:
                 for condition in deployment.status.conditions:
@@ -3046,7 +3501,8 @@ class K8sService:
                         "type": condition.type,
                         "status": condition.status,
                         "reason": condition.reason,
-                        "message": condition.message
+                        "message": condition.message,
+                        "last_transition_time": self._to_iso(getattr(condition, "last_transition_time", None)),
                     })
             
             # Events
@@ -3055,7 +3511,9 @@ class K8sService:
                     "type": event.type,
                     "reason": event.reason,
                     "message": event.message,
-                    "count": event.count
+                    "count": event.count,
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
                 })
             
             return describe_info

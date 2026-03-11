@@ -389,6 +389,18 @@ async def get_deployments(namespace: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/namespaces/{namespace}/deployments/{name}/describe")
+async def describe_deployment(namespace: str, name: str):
+    """디플로이먼트 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_deployment(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Deployment '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
 @router.delete("/namespaces/{namespace}/deployments/{deployment_name}")
 async def delete_deployment(namespace: str, deployment_name: str, request: Request):
     """디플로이먼트 삭제"""
@@ -809,6 +821,27 @@ async def get_statefulsets(namespace: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/statefulsets/all")
+async def get_all_statefulsets(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """전체 네임스페이스 StatefulSet 목록 조회"""
+    try:
+        return await k8s_service.get_all_statefulsets()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/statefulsets/{name}/describe")
+async def describe_statefulset(namespace: str, name: str):
+    """StatefulSet 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_statefulset(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"StatefulSet '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
 @router.get("/namespaces/{namespace}/statefulsets/{name}/yaml")
 async def get_statefulset_yaml(namespace: str, name: str):
     """StatefulSet YAML 조회"""
@@ -817,6 +850,21 @@ async def get_statefulset_yaml(namespace: str, name: str):
         return {"yaml": yaml_content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/namespaces/{namespace}/statefulsets/{name}")
+async def delete_statefulset(namespace: str, name: str, request: Request):
+    """StatefulSet 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        return await k8s_service.delete_statefulset(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"StatefulSet '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
 
 
 # DaemonSet

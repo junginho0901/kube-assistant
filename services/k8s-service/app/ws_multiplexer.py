@@ -143,6 +143,39 @@ class WebSocketMultiplexer:
             "count": event.count,
         }
 
+    def _statefulset_to_info(self, sts: Any) -> Dict[str, Any]:
+        desired = getattr(sts.spec, "replicas", 0) or 0
+        ready = getattr(sts.status, "ready_replicas", 0) or 0
+        current = getattr(sts.status, "current_replicas", 0) or 0
+        updated = getattr(sts.status, "updated_replicas", 0) or 0
+        available = getattr(sts.status, "available_replicas", 0) or 0
+
+        template_spec = getattr(getattr(sts.spec, "template", None), "spec", None)
+        containers = list(getattr(template_spec, "containers", None) or [])
+        images = [c.image for c in containers if getattr(c, "image", None)]
+
+        status = "Healthy"
+        if desired == 0 and ready == 0:
+            status = "Idle"
+        elif ready != desired:
+            status = "Degraded"
+        if desired > 0 and ready == 0:
+            status = "Unavailable"
+
+        return {
+            "name": sts.metadata.name,
+            "namespace": sts.metadata.namespace,
+            "replicas": desired,
+            "ready_replicas": ready,
+            "current_replicas": current,
+            "updated_replicas": updated,
+            "available_replicas": available,
+            "service_name": getattr(sts.spec, "service_name", None),
+            "images": images,
+            "status": status,
+            "created_at": self._to_iso(getattr(sts.metadata, "creation_timestamp", None)),
+        }
+
     async def handle_message(self, websocket, msg: Dict[str, Any]) -> None:
         msg_type = (msg.get("type") or "").upper()
         if msg_type == "REQUEST":
@@ -217,6 +250,7 @@ class WebSocketMultiplexer:
         resource, namespace = self._parse_path(path)
         params = self._parse_query(query)
         core = self._k8s.v1
+        apps = self._k8s.apps_v1
         w = watch.Watch()
 
         last_resource_version = params.get("resource_version")
@@ -250,6 +284,11 @@ class WebSocketMultiplexer:
                             stream = w.stream(core.list_namespaced_event, namespace, **stream_params)
                         else:
                             stream = w.stream(core.list_event_for_all_namespaces, **stream_params)
+                    elif resource == "statefulsets":
+                        if namespace:
+                            stream = w.stream(apps.list_namespaced_stateful_set, namespace, **stream_params)
+                        else:
+                            stream = w.stream(apps.list_stateful_set_for_all_namespaces, **stream_params)
                     else:
                         raise ValueError(f"unsupported watch resource: {resource}")
 
@@ -269,6 +308,8 @@ class WebSocketMultiplexer:
                             obj = self._namespace_to_info(obj)
                         elif resource == "events" and obj is not None:
                             obj = self._event_to_info(obj)
+                        elif resource == "statefulsets" and obj is not None:
+                            obj = self._statefulset_to_info(obj)
 
                         loop.call_soon_threadsafe(
                             queue.put_nowait, {"type": event.get("type"), "object": obj}
