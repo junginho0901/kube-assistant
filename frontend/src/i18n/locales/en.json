@@ -119,6 +119,44 @@
       "confirm": "Are you sure you want to delete deployment \"{{name}}\" in \"{{namespace}}\"?"
     }
   },
+  "statefulsets": {
+    "title": "Stateful Sets",
+    "subtitle": "Inspect and manage StatefulSets across namespaces.",
+    "create": "Create StatefulSet",
+    "createTitle": "Create StatefulSet from YAML",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "searchPlaceholder": "Search StatefulSets by name...",
+    "allNamespaces": "All namespaces",
+    "table": {
+      "namespace": "Namespace",
+      "name": "Name",
+      "ready": "Ready",
+      "upToDate": "Up to date",
+      "available": "Available",
+      "status": "Status",
+      "age": "Age",
+      "service": "Service"
+    },
+    "stats": {
+      "total": "Total",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable"
+    },
+    "paging": {
+      "empty": "0 items",
+      "range": "{{from}}-{{to}} / {{total}}",
+      "prev": "Prev",
+      "next": "Next"
+    },
+    "noResults": "No StatefulSets found.",
+    "delete": {
+      "button": "Delete StatefulSet",
+      "title": "Delete StatefulSet",
+      "confirm": "Are you sure you want to delete StatefulSet \"{{name}}\" in \"{{namespace}}\"?"
+    }
+  },
   "nodes": {
     "title": "Nodes",
     "subtitle": "Inspect cluster node status and capacity.",

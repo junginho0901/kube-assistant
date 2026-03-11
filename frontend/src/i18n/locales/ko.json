@@ -124,6 +124,44 @@
       "confirm": "\"{{namespace}}\" 네임스페이스의 디플로이먼트 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
     }
   },
+  "statefulsets": {
+    "title": "스테이트풀셋",
+    "subtitle": "네임스페이스 전반의 StatefulSet 상태를 확인하고 관리합니다.",
+    "create": "스테이트풀셋 생성",
+    "createTitle": "YAML로 스테이트풀셋 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "스테이트풀셋 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "ready": "준비됨",
+      "upToDate": "최신 반영",
+      "available": "가용",
+      "status": "상태",
+      "age": "생성 시각",
+      "service": "서비스"
+    },
+    "stats": {
+      "total": "전체",
+      "healthy": "정상",
+      "degraded": "저하",
+      "unavailable": "비가용"
+    },
+    "paging": {
+      "empty": "0개",
+      "range": "{{from}}-{{to}} / {{total}}",
+      "prev": "이전",
+      "next": "다음"
+    },
+    "noResults": "스테이트풀셋을 찾을 수 없습니다.",
+    "delete": {
+      "button": "스테이트풀셋 삭제",
+      "title": "스테이트풀셋 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 스테이트풀셋 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
   "nodes": {
     "title": "노드",
     "subtitle": "클러스터 노드 상태와 용량을 확인합니다.",
