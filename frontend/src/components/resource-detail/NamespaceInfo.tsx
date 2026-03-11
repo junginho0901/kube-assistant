@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { Search } from 'lucide-react'
-import { InfoSection, InfoRow, InfoGrid, KeyValueTags, ConditionsTable, EventsTable, SummaryBadge, fmtRel, fmtTs } from './DetailCommon'
+import { InfoSection, InfoRow, KeyValueTags, ConditionsTable, EventsTable, SummaryBadge, fmtRel, fmtTs } from './DetailCommon'
 
 interface Props { name: string }
 
@@ -108,23 +108,56 @@ export default function NamespaceInfo({ name }: Props) {
         <SummaryBadge label="Status" value={nsDescribe.status || '-'} color={nsDescribe.status === 'Active' ? 'green' : 'amber'} />
         <SummaryBadge label="Labels" value={Object.keys(nsDescribe.labels || {}).length} />
         <SummaryBadge label="Annotations" value={Object.keys(nsDescribe.annotations || {}).length} />
+        <SummaryBadge label="Quotas" value={Array.isArray(resourceQuotas) ? resourceQuotas.length : 0} />
+        <SummaryBadge label="LimitRanges" value={Array.isArray(limitRanges) ? limitRanges.length : 0} />
+        <SummaryBadge label="Pods" value={Array.isArray(nsPods) ? nsPods.length : 0} />
       </div>
 
       {/* Basic Info */}
       <InfoSection title={tr('namespaces.detail.basicInfo', 'Basic Information')}>
-        <InfoGrid>
+        <div className="space-y-2">
           <InfoRow label="Name" value={nsDescribe.name} />
           <InfoRow label="Status" value={nsDescribe.status || '-'} />
-          <div className="md:col-span-2">
-            <InfoRow label="Created" value={fmtTs(nsDescribe.created_at)} />
-          </div>
-        </InfoGrid>
+          <InfoRow
+            label="Created"
+            value={nsDescribe.created_at ? `${fmtTs(nsDescribe.created_at)} (${fmtRel(nsDescribe.created_at)})` : '-'}
+          />
+          {nsDescribe.uid && <InfoRow label="UID" value={<span className="font-mono text-[11px]">{nsDescribe.uid}</span>} />}
+          {nsDescribe.resource_version && <InfoRow label="Resource Version" value={<span className="font-mono text-[11px]">{nsDescribe.resource_version}</span>} />}
+          {nsDescribe.deletion_timestamp && <InfoRow label="Deletion Timestamp" value={`${fmtTs(nsDescribe.deletion_timestamp)} (${fmtRel(nsDescribe.deletion_timestamp)})`} />}
+        </div>
       </InfoSection>
 
       {/* Conditions */}
       <InfoSection title={tr('namespaces.detail.conditions', 'Conditions')}>
         <ConditionsTable conditions={nsDescribe.conditions || []} />
       </InfoSection>
+
+      {(Array.isArray(nsDescribe.finalizers) && nsDescribe.finalizers.length > 0) ||
+      (Array.isArray(nsDescribe.owner_references) && nsDescribe.owner_references.length > 0) ? (
+        <InfoSection title="Lifecycle">
+          <div className="space-y-2">
+            {Array.isArray(nsDescribe.finalizers) && nsDescribe.finalizers.length > 0 && (
+              <InfoRow label="Finalizers" value={<span className="font-mono text-[11px] break-all">{nsDescribe.finalizers.join(', ')}</span>} />
+            )}
+            {Array.isArray(nsDescribe.owner_references) && nsDescribe.owner_references.length > 0 && (
+              <InfoRow
+                label="Owner References"
+                value={
+                  <div className="text-xs text-slate-200 space-y-1">
+                    {nsDescribe.owner_references.map((ref: any, idx: number) => (
+                      <div key={`${ref.kind || 'Owner'}-${ref.name || idx}`}>
+                        <span className="font-medium">{ref.kind || '-'}</span>/{ref.name || '-'}
+                        {ref.controller ? ' (controller)' : ''}
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            )}
+          </div>
+        </InfoSection>
+      ) : null}
 
       {/* Labels & Annotations */}
       <InfoSection title={tr('namespaces.detail.labels', 'Labels')}>
