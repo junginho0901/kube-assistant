@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
@@ -42,16 +42,39 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
   const containers = useMemo(() => (
     (podDescribe?.containers ?? (spec.containers as any[]) ?? []) as any[]
   ), [podDescribe?.containers, spec.containers])
+  const initContainers = useMemo(() => (
+    (podDescribe?.init_containers ?? (spec.initContainers as any[]) ?? []) as any[]
+  ), [podDescribe?.init_containers, spec.initContainers])
   const conditions = (podDescribe?.conditions ?? (status.conditions as any[]) ?? []) as any[]
   const events = (podDescribe?.events ?? []) as any[]
 
   const phase = podDescribe?.phase || podDescribe?.status || (status.phase as string) || '-'
   const node = podDescribe?.node || (spec.nodeName as string) || '-'
   const podIP = podDescribe?.pod_ip || (status.podIP as string) || '-'
-  const hostIP = (status.hostIP as string) || '-'
+  const podIPs = (podDescribe?.pod_ips as string[] | undefined)
+    ?? ((status.podIPs as Array<{ ip?: string }> | undefined)?.map((item) => item?.ip || '').filter(Boolean))
+    ?? []
+  const hostIP = (podDescribe?.host_ip as string | undefined) || (status.hostIP as string) || '-'
+  const hostIPs = (podDescribe?.host_ips as string[] | undefined)
+    ?? ((status.hostIPs as Array<{ ip?: string }> | undefined)?.map((item) => item?.ip || '').filter(Boolean))
+    ?? []
   const serviceAccount = podDescribe?.service_account || (spec.serviceAccountName as string) || '-'
   const createdAt = podDescribe?.created_at || (meta.creationTimestamp as string)
+  const startTime = (podDescribe?.start_time as string | undefined) || (status.startTime as string | undefined)
   const restartCount = podDescribe?.restart_count ?? containers.reduce((sum: number, c: any) => sum + (c.restart_count || c.restartCount || 0), 0)
+  const qosClass = (podDescribe?.qos_class as string | undefined) || (status.qosClass as string | undefined)
+  const priority = podDescribe?.priority ?? spec.priority
+  const priorityClass = (podDescribe?.priority_class as string | undefined) || (spec.priorityClassName as string | undefined)
+  const nominatedNode = (podDescribe?.nominated_node_name as string | undefined) || (status.nominatedNodeName as string | undefined)
+  const restartPolicy = (podDescribe?.restart_policy as string | undefined) || (spec.restartPolicy as string | undefined)
+  const preemptionPolicy = (podDescribe?.preemption_policy as string | undefined) || (spec.preemptionPolicy as string | undefined)
+  const runtimeClassName = (podDescribe?.runtime_class_name as string | undefined) || (spec.runtimeClassName as string | undefined)
+  const hostNetwork = podDescribe?.host_network ?? spec.hostNetwork
+  const hostPID = podDescribe?.host_pid ?? spec.hostPID
+  const hostIPC = podDescribe?.host_ipc ?? spec.hostIPC
+  const nodeSelector = (podDescribe?.node_selector as Record<string, string> | undefined) || (spec.nodeSelector as Record<string, string> | undefined)
+  const ownerRefs = (podDescribe?.owner_references as any[] | undefined) || (meta.ownerReferences as any[] | undefined) || []
+  const finalizers = (podDescribe?.finalizers as string[] | undefined) || (meta.finalizers as string[] | undefined) || []
   const readyPair = String(podDescribe?.ready || '').match(/^(\d+)\/(\d+)$/)
   const readyContainers = readyPair ? Number(readyPair[1]) || 0 : containers.filter((c: any) => c.ready).length
   const totalContainers = readyPair ? Number(readyPair[2]) || 0 : containers.length
@@ -74,9 +97,11 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
     return cs.map((c: any) => c.name)
   }, [containers, status.containerStatuses])
 
-  if (!logContainer && containerNames.length > 0) {
-    setLogContainer(containerNames[0])
-  }
+  useEffect(() => {
+    if (!logContainer && containerNames.length > 0) {
+      setLogContainer(containerNames[0])
+    }
+  }, [logContainer, containerNames])
 
   if (isLoading) return <p className="text-slate-400">{tr('common.loading', 'Loading...')}</p>
 
@@ -121,13 +146,38 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
           <InfoRow label="Phase" value={<StatusBadge status={phase} />} />
           <InfoRow label="Node" value={node} />
           <InfoRow label="Pod IP" value={podIP} />
+          {podIPs.length > 0 && <InfoRow label="Pod IPs" value={podIPs.join(', ')} />}
           <InfoRow label="Host IP" value={hostIP} />
+          {hostIPs.length > 0 && <InfoRow label="Host IPs" value={hostIPs.join(', ')} />}
           <InfoRow label="Service Account" value={serviceAccount} />
           <InfoRow label="Created" value={createdAt ? `${fmtTs(createdAt)} (${fmtRel(createdAt)})` : '-'} />
+          {startTime && <InfoRow label="Start Time" value={`${fmtTs(startTime)} (${fmtRel(startTime)})`} />}
           <InfoRow label="Restarts" value={String(restartCount)} />
-          {typeof spec.priorityClassName === 'string' && <InfoRow label="Priority Class" value={spec.priorityClassName} />}
+          {qosClass && <InfoRow label="QoS Class" value={qosClass} />}
+          {priority != null && <InfoRow label="Priority" value={String(priority)} />}
+          {priorityClass && <InfoRow label="Priority Class" value={priorityClass} />}
+          {nominatedNode && <InfoRow label="Nominated Node" value={nominatedNode} />}
+          {podDescribe?.uid && <InfoRow label="UID" value={<span className="font-mono text-[11px] break-all">{podDescribe.uid}</span>} />}
         </div>
       </InfoSection>
+
+      {/* Spec Details */}
+      <InfoSection title="Spec">
+        <div className="space-y-2">
+          <InfoRow label="Restart Policy" value={restartPolicy || '-'} />
+          {runtimeClassName && <InfoRow label="Runtime Class" value={runtimeClassName} />}
+          {preemptionPolicy && <InfoRow label="Preemption Policy" value={preemptionPolicy} />}
+          <InfoRow label="Host Network" value={hostNetwork ? 'Enabled' : 'Disabled'} />
+          <InfoRow label="Host PID" value={hostPID ? 'Enabled' : 'Disabled'} />
+          <InfoRow label="Host IPC" value={hostIPC ? 'Enabled' : 'Disabled'} />
+        </div>
+      </InfoSection>
+
+      {nodeSelector && Object.keys(nodeSelector).length > 0 && (
+        <InfoSection title="Node Selector">
+          <KeyValueTags data={nodeSelector} />
+        </InfoSection>
+      )}
 
       {/* Container States */}
       <InfoSection title="Containers">
@@ -157,7 +207,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
                     {stateDetail.message && <div className="text-red-300 break-all">{stateDetail.message}</div>}
                     {stateDetail.started_at && <div>Started: {fmtTs(stateDetail.started_at)}</div>}
                     {c.ports && Array.isArray(c.ports) && c.ports.length > 0 && (
-                      <div>Ports: {c.ports.map((p: any) => `${p.containerPort}/${p.protocol || 'TCP'}`).join(', ')}</div>
+                      <div>Ports: {c.ports.map((p: any) => `${p.containerPort ?? p.container_port}/${p.protocol || 'TCP'}`).join(', ')}</div>
                     )}
                   </div>
                 </div>
@@ -168,23 +218,51 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
       </InfoSection>
 
       {/* Tolerations */}
-      {Array.isArray(spec.tolerations) && (spec.tolerations as any[]).length > 0 && (
+      {Array.isArray((podDescribe?.tolerations as any[]) ?? (spec.tolerations as any[])) &&
+        ((podDescribe?.tolerations as any[]) ?? (spec.tolerations as any[])).length > 0 && (
         <InfoSection title="Tolerations">
           <div className="overflow-x-auto">
             <table className="w-full text-xs table-fixed min-w-[500px]">
               <thead className="text-slate-400"><tr><th className="text-left py-1 w-[25%]">Key</th><th className="text-left py-1 w-[20%]">Operator</th><th className="text-left py-1 w-[20%]">Value</th><th className="text-left py-1 w-[20%]">Effect</th><th className="text-left py-1 w-[15%]">Seconds</th></tr></thead>
               <tbody className="divide-y divide-slate-800">
-                {(spec.tolerations as any[]).map((tol: any, i: number) => (
+                {(((podDescribe?.tolerations as any[]) ?? (spec.tolerations as any[])) as any[]).map((tol: any, i: number) => (
                   <tr key={i} className="text-slate-200">
                     <td className="py-1 pr-2">{tol.key || '*'}</td>
                     <td className="py-1 pr-2">{tol.operator || 'Equal'}</td>
                     <td className="py-1 pr-2">{tol.value || '-'}</td>
                     <td className="py-1 pr-2">{tol.effect || '-'}</td>
-                    <td className="py-1 pr-2">{tol.tolerationSeconds ?? '-'}</td>
+                    <td className="py-1 pr-2">{tol.tolerationSeconds ?? tol.toleration_seconds ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </InfoSection>
+      )}
+
+      {/* Init Containers */}
+      {initContainers.length > 0 && (
+        <InfoSection title="Init Containers">
+          <div className="space-y-3">
+            {initContainers.map((c: any, i: number) => {
+              const state = c.state || {}
+              const stateKey = Object.keys(state).find(k => state[k]) || 'unknown'
+              const stateDetail = state[stateKey] || {}
+              return (
+                <div key={`${c.name || 'init'}-${i}`} className="rounded border border-slate-800 p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-white">{c.name}</span>
+                    <span className="text-[11px] text-slate-400">{stateKey}</span>
+                  </div>
+                  <div className="text-xs text-slate-400 space-y-0.5">
+                    <div>Image: <span className="text-slate-300 font-mono">{c.image || '-'}</span></div>
+                    {c.restart_count !== undefined && <div>Restarts: {c.restart_count}</div>}
+                    {stateDetail.reason && <div>Reason: <span className="text-amber-300">{stateDetail.reason}</span></div>}
+                    {stateDetail.message && <div className="text-red-300 break-all">{stateDetail.message}</div>}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </InfoSection>
       )}
@@ -195,10 +273,11 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
       </InfoSection>
 
       {/* Volumes */}
-      {Array.isArray(spec.volumes) && (spec.volumes as any[]).length > 0 && (
+      {Array.isArray((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) &&
+        (((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) as any[]).length > 0 && (
         <InfoSection title="Volumes">
           <div className="space-y-1 text-xs">
-            {(spec.volumes as any[]).map((v: any, i: number) => {
+            {(((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) as any[]).map((v: any, i: number) => {
               const type = Object.keys(v).find(k => k !== 'name') || 'unknown'
               return (
                 <div key={i} className="flex gap-2 text-slate-200">
@@ -218,6 +297,30 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
       {Object.keys(annotations).length > 0 && (
         <InfoSection title="Annotations">
           <KeyValueTags data={annotations} />
+        </InfoSection>
+      )}
+      {(ownerRefs.length > 0 || finalizers.length > 0) && (
+        <InfoSection title="Lifecycle">
+          <div className="space-y-2">
+            {ownerRefs.length > 0 && (
+              <InfoRow
+                label="Owner References"
+                value={
+                  <div className="text-xs text-slate-200 space-y-1">
+                    {ownerRefs.map((ref: any, idx: number) => (
+                      <div key={`${ref.kind || 'Owner'}-${ref.name || idx}`}>
+                        <span className="font-medium">{ref.kind || '-'}</span>/{ref.name || '-'}
+                        {ref.controller ? ' (controller)' : ''}
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            )}
+            {finalizers.length > 0 && (
+              <InfoRow label="Finalizers" value={<span className="font-mono text-[11px] break-all">{finalizers.join(', ')}</span>} />
+            )}
+          </div>
         </InfoSection>
       )}
 
