@@ -162,6 +162,42 @@
       "confirm": "\"{{namespace}}\" 네임스페이스의 스테이트풀셋 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
     }
   },
+  "daemonsets": {
+    "title": "데몬셋",
+    "subtitle": "네임스페이스 전반의 DaemonSet 스케줄링 상태를 확인합니다.",
+    "create": "데몬셋 생성",
+    "createTitle": "YAML로 데몬셋 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "데몬셋 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개의 데몬셋이 검색되었습니다.",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "ready": "준비됨",
+      "current": "현재",
+      "desired": "목표",
+      "updated": "업데이트됨",
+      "available": "가용",
+      "status": "상태",
+      "nodeSelector": "노드 셀렉터",
+      "images": "이미지",
+      "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "healthy": "정상",
+      "degraded": "저하",
+      "unavailable": "비가용"
+    },
+    "noResults": "데몬셋을 찾을 수 없습니다.",
+    "delete": {
+      "button": "데몬셋 삭제",
+      "title": "데몬셋 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 데몬셋 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
   "nodes": {
     "title": "노드",
     "subtitle": "클러스터 노드 상태와 용량을 확인합니다.",
