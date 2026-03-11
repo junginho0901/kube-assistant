@@ -93,6 +93,26 @@
   - `write` 계정: 허용 리소스만 가능
   - `admin` 계정: 모든 기능 가능
 
+### 14. Headlamp 기반 상세 모달 커스텀 (필수)
+- `headlamp/frontend/src/components/[resource]/Details.tsx`를 참고해 리소스별 핵심 정보 섹션 반영
+- 공통 정보만으로 끝내지 말고, 리소스 특화 정보 최소 2~3개 이상 추가
+- 예시(리소스별):
+  - `Node`: Capacity/Allocatable, Addresses, Taints, Scheduling 상태
+  - `Namespace`: ResourceQuota, LimitRange, Lifecycle(finalizers/owner refs)
+  - `Pod`: QoS/Priority, PodIPs/HostIPs, Init Containers, Lifecycle
+  - `Deployment`: Strategy(rolling params), Revision/Generation, Progress 상태
+  - `StatefulSet`: ServiceName, PodManagementPolicy, UpdateStrategy(partition), VolumeClaimTemplates, Revision
+- 구현 원칙:
+  - 1차: 기존 API 응답 + `rawJson`으로 구성
+  - 2차: 부족한 필드만 백엔드 `describe` 확장
+  - 공통 컴포넌트(`DetailCommon`) 재사용, 필요 시 kind별 `*Info.tsx` 커스텀
+- UI 품질 기준:
+  - 긴 문자열/긴 조건명 줄바꿈 처리(겹침 금지)
+  - 섹션 과다 시 검색 + 페이지네이션 적용
+  - 모바일/좁은 폭에서도 레이아웃 깨짐 없음
+- 보고 항목:
+  - Headlamp 대비 추가/차이점을 리소스별 1~2줄로 요약해서 제출
+
 ## 참고할 기존 코드 / 공통 코드
 - 페이지 패턴:
   - `frontend/src/pages/workloads/Pods.tsx`
@@ -122,3 +142,9 @@
 - 번역:
   - `frontend/src/i18n/locales/ko.json`
   - `frontend/src/i18n/locales/en.json`
+- Headlamp 참고(리소스 상세):
+  - `headlamp/frontend/src/components/pod/Details.tsx`
+  - `headlamp/frontend/src/components/node/Details.tsx`
+  - `headlamp/frontend/src/components/namespace/Details.tsx`
+  - `headlamp/frontend/src/components/workload/Details.tsx`
+  - `headlamp/frontend/src/components/statefulset/Details.tsx`
