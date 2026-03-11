@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { X, Info, FileCode, Trash2 } from 'lucide-react'
@@ -56,6 +56,7 @@ export default function ResourceDetailDrawer() {
   const [applyToast, setApplyToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const contentScrollRef = useRef<HTMLDivElement | null>(null)
 
   const ns = target?.namespace
   const name = target?.name ?? ''
@@ -69,7 +70,8 @@ export default function ResourceDetailDrawer() {
   const canDeletePod = kind === 'Pod' && !!ns && isWriteRole
   const canDeleteNamespace = kind === 'Namespace' && isWriteRole
   const canDeleteDeployment = kind === 'Deployment' && !!ns && isWriteRole
-  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment
+  const canDeleteStatefulSet = kind === 'StatefulSet' && !!ns && isWriteRole
+  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment || canDeleteStatefulSet
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
     queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
@@ -136,6 +138,14 @@ export default function ResourceDetailDrawer() {
     setTab(next)
   }
 
+  useEffect(() => {
+    if (!target) return
+    const el = contentScrollRef.current
+    if (!el) return
+    el.scrollTop = 0
+    el.scrollLeft = 0
+  }, [target?.kind, target?.namespace, target?.name, tab])
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (kind === 'Pod' && ns) {
@@ -152,6 +162,10 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'Deployment' && ns) {
         await api.deleteDeployment(ns, name)
+        return
+      }
+      if (kind === 'StatefulSet' && ns) {
+        await api.deleteStatefulSet(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -183,6 +197,12 @@ export default function ResourceDetailDrawer() {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['workloads', 'deployments'] }),
           queryClient.invalidateQueries({ queryKey: ['workloads', 'deployments', ns] }),
+        ])
+      } else if (kind === 'StatefulSet' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['workloads', 'statefulsets'] }),
+          queryClient.invalidateQueries({ queryKey: ['workloads', 'statefulsets', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['statefulset-describe', ns, name] }),
         ])
       }
 
@@ -263,13 +283,15 @@ export default function ResourceDetailDrawer() {
                 ? t('pods.delete', { defaultValue: 'Delete Pod' })
                 : kind === 'Deployment'
                   ? t('deployments.delete.button', { defaultValue: 'Delete Deployment' })
+                  : kind === 'StatefulSet'
+                    ? t('statefulsets.delete.button', { defaultValue: 'Delete StatefulSet' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
           {tab === 'info' && (
             <div className="p-5 space-y-6 text-sm">
               {renderInfoContent()}
@@ -326,6 +348,8 @@ export default function ResourceDetailDrawer() {
                 ? t('pods.deleteTitle', { defaultValue: 'Delete Pod' })
                 : kind === 'Deployment'
                   ? t('deployments.delete.title', { defaultValue: 'Delete Deployment' })
+                  : kind === 'StatefulSet'
+                    ? t('statefulsets.delete.title', { defaultValue: 'Delete StatefulSet' })
                   : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
@@ -346,6 +370,12 @@ export default function ResourceDetailDrawer() {
                       name,
                       namespace: ns,
                     })
+                  : kind === 'StatefulSet'
+                    ? t('statefulsets.delete.confirm', {
+                        defaultValue: 'Are you sure you want to delete StatefulSet "{{name}}" in "{{namespace}}"?',
+                        name,
+                        namespace: ns,
+                      })
                   : t('namespaces.delete.confirm', {
                       defaultValue: 'Are you sure you want to delete namespace "{{name}}"?',
                     name,
