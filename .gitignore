@@ -81,3 +81,5 @@ argo-cd/
 tools/
 headlamp/
 .litellm-build/
+
+docs/menu-feature-prompt-template.md
