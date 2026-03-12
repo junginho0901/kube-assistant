@@ -1023,6 +1023,27 @@ async def get_jobs(namespace: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/jobs/all")
+async def get_all_jobs(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """전체 네임스페이스 Job 목록 조회"""
+    try:
+        return await k8s_service.get_all_jobs()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/jobs/{name}/describe")
+async def describe_job(namespace: str, name: str):
+    """Job 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_job(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Job '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
 @router.get("/namespaces/{namespace}/jobs/{name}/yaml")
 async def get_job_yaml(namespace: str, name: str):
     """Job YAML 조회"""
@@ -1031,6 +1052,26 @@ async def get_job_yaml(namespace: str, name: str):
         return {"yaml": yaml_content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/namespaces/{namespace}/jobs/{name}")
+async def delete_job(namespace: str, name: str, request: Request):
+    """Job 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        result = await k8s_service.delete_job(namespace, name)
+        if isinstance(result, dict) and result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"Job '{namespace}/{name}' not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Job '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
 
 
 # CronJob
