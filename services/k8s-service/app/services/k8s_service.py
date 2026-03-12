@@ -3200,22 +3200,72 @@ class K8sService:
         except ApiException as e:
             raise Exception(f"Failed to get ingress detail: {e}")
     
+    def _job_status(self, job: Any) -> str:
+        conditions = list(getattr(getattr(job, "status", None), "conditions", None) or [])
+        for condition in conditions:
+            if getattr(condition, "status", None) != "True":
+                continue
+            condition_type = str(getattr(condition, "type", "") or "")
+            if condition_type in ("Failed", "Complete", "Suspended"):
+                return condition_type
+
+        active = getattr(getattr(job, "status", None), "active", None) or 0
+        if active > 0:
+            return "Running"
+        return "Pending"
+
+    def _job_to_info(self, job: Any) -> Dict[str, Any]:
+        spec = getattr(job, "spec", None)
+        status = getattr(job, "status", None)
+        template_spec = getattr(getattr(spec, "template", None), "spec", None)
+        containers = list(getattr(template_spec, "containers", None) or [])
+        images = [container.image for container in containers if getattr(container, "image", None)]
+        container_names = [container.name for container in containers if getattr(container, "name", None)]
+
+        start_time = self._to_iso(getattr(status, "start_time", None))
+        completion_time = self._to_iso(getattr(status, "completion_time", None))
+        duration_seconds = None
+        if getattr(status, "start_time", None) and getattr(status, "completion_time", None):
+            try:
+                duration = status.completion_time - status.start_time
+                duration_seconds = int(duration.total_seconds())
+            except Exception:
+                duration_seconds = None
+
+        return {
+            "name": getattr(getattr(job, "metadata", None), "name", None),
+            "namespace": getattr(getattr(job, "metadata", None), "namespace", None),
+            "completions": getattr(spec, "completions", None),
+            "parallelism": getattr(spec, "parallelism", None),
+            "active": getattr(status, "active", None) or 0,
+            "succeeded": getattr(status, "succeeded", None) or 0,
+            "failed": getattr(status, "failed", None) or 0,
+            "status": self._job_status(job),
+            "containers": container_names,
+            "images": images,
+            "start_time": start_time,
+            "completion_time": completion_time,
+            "duration_seconds": duration_seconds,
+            "created_at": self._to_iso(getattr(getattr(job, "metadata", None), "creation_timestamp", None)),
+        }
+
     async def get_jobs(self, namespace: str) -> List[Dict]:
         """Job 목록 조회"""
         try:
             batch_v1 = client.BatchV1Api()
             jobs = batch_v1.list_namespaced_job(namespace)
-            result = []
-            for job in jobs.items:
-                result.append({
-                    "name": job.metadata.name,
-                    "completions": job.spec.completions,
-                    "succeeded": job.status.succeeded or 0,
-                    "failed": job.status.failed or 0
-                })
-            return result
+            return [self._job_to_info(job) for job in jobs.items]
         except ApiException as e:
             raise Exception(f"Failed to get jobs: {e}")
+
+    async def get_all_jobs(self) -> List[Dict]:
+        """전체 네임스페이스 Job 목록 조회"""
+        try:
+            batch_v1 = client.BatchV1Api()
+            jobs = batch_v1.list_job_for_all_namespaces()
+            return [self._job_to_info(job) for job in jobs.items]
+        except ApiException as e:
+            raise Exception(f"Failed to get all jobs: {e}")
     
     async def get_job_yaml(self, namespace: str, name: str) -> str:
         """Job YAML 조회"""
@@ -3229,6 +3279,138 @@ class K8sService:
             return yaml.dump(job_dict, default_flow_style=False, allow_unicode=True)
         except ApiException as e:
             raise Exception(f"Failed to get job YAML: {e}")
+
+    async def describe_job(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Job 상세 조회"""
+        try:
+            batch_v1 = client.BatchV1Api()
+            job = batch_v1.read_namespaced_job(name, namespace)
+            events = self.v1.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={name},involvedObject.kind=Job",
+            )
+
+            info = self._job_to_info(job)
+            spec = getattr(job, "spec", None)
+            status = getattr(job, "status", None)
+            template_spec = getattr(getattr(spec, "template", None), "spec", None)
+
+            info["uid"] = getattr(job.metadata, "uid", None)
+            info["resource_version"] = getattr(job.metadata, "resource_version", None)
+            info["generation"] = getattr(job.metadata, "generation", None)
+            info["observed_generation"] = getattr(status, "observed_generation", None)
+            info["labels"] = getattr(job.metadata, "labels", None) or {}
+            info["annotations"] = getattr(job.metadata, "annotations", None) or {}
+            info["selector"] = getattr(getattr(spec, "selector", None), "match_labels", None) or {}
+            info["selector_expressions"] = [
+                {
+                    "key": getattr(expr, "key", None),
+                    "operator": getattr(expr, "operator", None),
+                    "values": list(getattr(expr, "values", None) or []),
+                }
+                for expr in (getattr(getattr(spec, "selector", None), "match_expressions", None) or [])
+            ]
+            info["backoff_limit"] = getattr(spec, "backoff_limit", None)
+            info["active_deadline_seconds"] = getattr(spec, "active_deadline_seconds", None)
+            info["ttl_seconds_after_finished"] = getattr(spec, "ttl_seconds_after_finished", None)
+            info["completion_mode"] = getattr(spec, "completion_mode", None)
+            info["suspend"] = getattr(spec, "suspend", None)
+            info["manual_selector"] = getattr(spec, "manual_selector", None)
+
+            info["pod_template"] = {
+                "service_account_name": getattr(template_spec, "service_account_name", None),
+                "node_selector": dict(getattr(template_spec, "node_selector", None) or {}),
+                "priority_class_name": getattr(template_spec, "priority_class_name", None),
+                "containers": [
+                    {
+                        "name": getattr(container, "name", None),
+                        "image": getattr(container, "image", None),
+                        "command": list(getattr(container, "command", None) or []),
+                        "args": list(getattr(container, "args", None) or []),
+                        "ports": [
+                            {
+                                "name": getattr(port, "name", None),
+                                "container_port": getattr(port, "container_port", None),
+                                "protocol": getattr(port, "protocol", None),
+                            }
+                            for port in (getattr(container, "ports", None) or [])
+                        ],
+                        "limits": dict(getattr(getattr(container, "resources", None), "limits", None) or {}),
+                        "requests": dict(getattr(getattr(container, "resources", None), "requests", None) or {}),
+                        "env_count": len(list(getattr(container, "env", None) or [])),
+                        "volume_mounts": [
+                            {
+                                "name": getattr(mount, "name", None),
+                                "mount_path": getattr(mount, "mount_path", None),
+                                "read_only": getattr(mount, "read_only", None),
+                            }
+                            for mount in (getattr(container, "volume_mounts", None) or [])
+                        ],
+                    }
+                    for container in (getattr(template_spec, "containers", None) or [])
+                ],
+                "tolerations": [
+                    {
+                        "key": getattr(tol, "key", None),
+                        "operator": getattr(tol, "operator", None),
+                        "value": getattr(tol, "value", None),
+                        "effect": getattr(tol, "effect", None),
+                        "toleration_seconds": getattr(tol, "toleration_seconds", None),
+                    }
+                    for tol in (getattr(template_spec, "tolerations", None) or [])
+                ],
+            }
+
+            info["conditions"] = []
+            for condition in list(getattr(status, "conditions", None) or []):
+                info["conditions"].append({
+                    "type": getattr(condition, "type", None),
+                    "status": getattr(condition, "status", None),
+                    "reason": getattr(condition, "reason", None),
+                    "message": getattr(condition, "message", None),
+                    "last_transition_time": self._to_iso(getattr(condition, "last_transition_time", None)),
+                })
+
+            info["events"] = []
+            for event in events.items:
+                info["events"].append({
+                    "type": event.type,
+                    "reason": event.reason,
+                    "message": event.message,
+                    "count": event.count,
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
+                })
+
+            return info
+        except ApiException as e:
+            raise Exception(f"Failed to describe job: {e}")
+
+    async def delete_job(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Job 삭제"""
+        try:
+            batch_v1 = client.BatchV1Api()
+            response = batch_v1.delete_namespaced_job(
+                name=name,
+                namespace=namespace,
+                body=client.V1DeleteOptions(),
+            )
+            self._invalidate_yaml_cache("job", name, namespace=namespace)
+            self._invalidate_yaml_cache("jobs", name, namespace=namespace)
+            return {
+                "status": "deleted",
+                "name": name,
+                "namespace": namespace,
+                "details": response.to_dict() if hasattr(response, "to_dict") else response,
+            }
+        except ApiException as e:
+            if getattr(e, "status", None) == 404:
+                return {
+                    "status": "not_found",
+                    "name": name,
+                    "namespace": namespace,
+                }
+            raise Exception(f"Failed to delete job: {e}")
     
     async def get_cronjobs(self, namespace: str) -> List[Dict]:
         """CronJob 목록 조회"""

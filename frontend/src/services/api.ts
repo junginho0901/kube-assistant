@@ -409,6 +409,23 @@ export interface DaemonSetInfo {
   created_at?: string | null
 }
 
+export interface JobInfo {
+  name: string
+  namespace: string
+  completions?: number | null
+  parallelism?: number | null
+  active: number
+  succeeded: number
+  failed: number
+  status: string
+  containers?: string[]
+  images?: string[]
+  start_time?: string | null
+  completion_time?: string | null
+  duration_seconds?: number | null
+  created_at?: string | null
+}
+
 export interface HPAInfo {
   name: string
   namespace: string
@@ -873,6 +890,20 @@ export const api = {
     return data
   },
 
+  getJobs: async (namespace: string, forceRefresh = false): Promise<JobInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/jobs`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllJobs: async (forceRefresh = false): Promise<JobInfo[]> => {
+    const { data } = await client.get('/cluster/jobs/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
   deleteDeployment: async (namespace: string, deploymentName: string): Promise<void> => {
     await client.delete(`/cluster/namespaces/${namespace}/deployments/${deploymentName}`)
   },
@@ -958,6 +989,15 @@ export const api = {
 
   deleteDaemonSet: async (namespace: string, name: string): Promise<void> => {
     await client.delete(`/cluster/namespaces/${namespace}/daemonsets/${name}`)
+  },
+
+  describeJob: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/jobs/${name}/describe`)
+    return data
+  },
+
+  deleteJob: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/jobs/${name}`)
   },
 
   getPodRbac: async (

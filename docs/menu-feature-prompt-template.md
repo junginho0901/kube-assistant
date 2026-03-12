@@ -29,6 +29,7 @@
 
 ### 6. 상세 Info 컴포넌트
 - 기존 Info 컴포넌트 재사용 우선
+- `Pod`는 런타임 정보(컨테이너 상태/로그/재시작/Init Container)가 많아 `WorkloadInfo`와 분리된 `PodInfo` 커스텀 유지 권장
 - 새 Kind가 필요하면 `resource-detail/[Kind]Info.tsx` 생성
 - `ResourceDetailDrawer.tsx`의 `renderInfoContent`에 등록
 
