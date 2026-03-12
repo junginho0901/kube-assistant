@@ -193,6 +193,39 @@
       "confirm": "Are you sure you want to delete DaemonSet \"{{name}}\" in \"{{namespace}}\"?"
     }
   },
+  "jobs": {
+    "title": "Jobs",
+    "subtitle": "Inspect and manage Jobs across namespaces.",
+    "create": "Create Job",
+    "createTitle": "Create Job from YAML",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "searchPlaceholder": "Search jobs by name...",
+    "allNamespaces": "All namespaces",
+    "matchCount": "{{count}} job{{suffix}} match.",
+    "table": {
+      "namespace": "Namespace",
+      "name": "Name",
+      "completions": "Completions",
+      "status": "Status",
+      "duration": "Duration",
+      "containers": "Containers",
+      "images": "Images",
+      "age": "Age"
+    },
+    "stats": {
+      "total": "Total",
+      "completed": "Completed",
+      "running": "Running",
+      "failed": "Failed"
+    },
+    "noResults": "No jobs found.",
+    "delete": {
+      "button": "Delete Job",
+      "title": "Delete Job",
+      "confirm": "Are you sure you want to delete Job \"{{name}}\" in \"{{namespace}}\"?"
+    }
+  },
   "nodes": {
     "title": "Nodes",
     "subtitle": "Inspect cluster node status and capacity.",
