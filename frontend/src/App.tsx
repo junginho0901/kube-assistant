@@ -48,7 +48,7 @@ function App() {
             <Route path="workloads/daemonsets" element={<DaemonSets />} />
             <Route path="workloads/replicasets" element={<ReplicaSets />} />
             <Route path="workloads/jobs" element={<Jobs />} />
-            <Route path="workloads/cronjobs" element={<ComingSoon title="CronJobs" />} />
+            <Route path="workloads/cronjobs" element={<CronJobs />} />
             <Route path="storage" element={<Storage />} />
             <Route path="network/services" element={<ComingSoon title="Services" />} />
             <Route path="network/endpoints" element={<ComingSoon title="Endpoints" />} />
