@@ -3644,18 +3644,106 @@ class K8sService:
         try:
             batch_v1 = client.BatchV1Api()
             cronjobs = batch_v1.list_namespaced_cron_job(namespace)
-            result = []
-            for cj in cronjobs.items:
-                result.append({
-                    "name": cj.metadata.name,
-                    "schedule": cj.spec.schedule,
-                    "suspend": cj.spec.suspend or False,
-                    "last_schedule": str(cj.status.last_schedule_time) if cj.status.last_schedule_time else None
-                })
-            return result
+            return [self._cronjob_to_info(cj) for cj in cronjobs.items]
         except ApiException as e:
             raise Exception(f"Failed to get cronjobs: {e}")
-    
+
+    async def get_all_cronjobs(self) -> List[Dict]:
+        """전체 네임스페이스 CronJob 목록 조회"""
+        try:
+            batch_v1 = client.BatchV1Api()
+            cronjobs = batch_v1.list_cron_job_for_all_namespaces()
+            return [self._cronjob_to_info(cj) for cj in cronjobs.items]
+        except ApiException as e:
+            raise Exception(f"Failed to get all cronjobs: {e}")
+
+    async def describe_cronjob(self, namespace: str, name: str) -> Dict[str, Any]:
+        """CronJob 상세 조회"""
+        try:
+            batch_v1 = client.BatchV1Api()
+            cronjob = batch_v1.read_namespaced_cron_job(name, namespace)
+            events = self.v1.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={name},involvedObject.kind=CronJob",
+            )
+
+            info = self._cronjob_to_info(cronjob)
+            metadata = getattr(cronjob, "metadata", None)
+            spec = getattr(cronjob, "spec", None)
+            status = getattr(cronjob, "status", None)
+            job_template_spec = getattr(getattr(spec, "job_template", None), "spec", None)
+            pod_template_spec = getattr(getattr(job_template_spec, "template", None), "spec", None)
+
+            info["uid"] = getattr(metadata, "uid", None)
+            info["resource_version"] = getattr(metadata, "resource_version", None)
+            info["generation"] = getattr(metadata, "generation", None)
+            info["observed_generation"] = getattr(status, "observed_generation", None)
+            info["labels"] = dict(getattr(metadata, "labels", None) or {})
+            info["annotations"] = dict(getattr(metadata, "annotations", None) or {})
+            info["starting_deadline_seconds"] = getattr(spec, "starting_deadline_seconds", None)
+            info["successful_jobs_history_limit"] = getattr(spec, "successful_jobs_history_limit", None)
+            info["failed_jobs_history_limit"] = getattr(spec, "failed_jobs_history_limit", None)
+            info["time_zone"] = getattr(spec, "time_zone", None)
+
+            info["pod_template"] = {
+                "service_account_name": getattr(pod_template_spec, "service_account_name", None),
+                "node_selector": dict(getattr(pod_template_spec, "node_selector", None) or {}),
+                "priority_class_name": getattr(pod_template_spec, "priority_class_name", None),
+                "containers": [
+                    {
+                        "name": getattr(container, "name", None),
+                        "image": getattr(container, "image", None),
+                        "command": list(getattr(container, "command", None) or []),
+                        "args": list(getattr(container, "args", None) or []),
+                        "ports": [
+                            {
+                                "name": getattr(port, "name", None),
+                                "container_port": getattr(port, "container_port", None),
+                                "protocol": getattr(port, "protocol", None),
+                            }
+                            for port in (getattr(container, "ports", None) or [])
+                        ],
+                        "limits": dict(getattr(getattr(container, "resources", None), "limits", None) or {}),
+                        "requests": dict(getattr(getattr(container, "resources", None), "requests", None) or {}),
+                        "env_count": len(list(getattr(container, "env", None) or [])),
+                        "volume_mounts": [
+                            {
+                                "name": getattr(mount, "name", None),
+                                "mount_path": getattr(mount, "mount_path", None),
+                                "read_only": getattr(mount, "read_only", None),
+                            }
+                            for mount in (getattr(container, "volume_mounts", None) or [])
+                        ],
+                    }
+                    for container in (getattr(pod_template_spec, "containers", None) or [])
+                ],
+                "tolerations": [
+                    {
+                        "key": getattr(tol, "key", None),
+                        "operator": getattr(tol, "operator", None),
+                        "value": getattr(tol, "value", None),
+                        "effect": getattr(tol, "effect", None),
+                        "toleration_seconds": getattr(tol, "toleration_seconds", None),
+                    }
+                    for tol in (getattr(pod_template_spec, "tolerations", None) or [])
+                ],
+            }
+
+            info["events"] = []
+            for event in events.items:
+                info["events"].append({
+                    "type": event.type,
+                    "reason": event.reason,
+                    "message": event.message,
+                    "count": event.count,
+                    "first_timestamp": self._to_iso(getattr(event, "first_timestamp", None)),
+                    "last_timestamp": self._to_iso(getattr(event, "last_timestamp", None)),
+                })
+
+            return info
+        except ApiException as e:
+            raise Exception(f"Failed to describe cronjob: {e}")
+
     async def get_cronjob_yaml(self, namespace: str, name: str) -> str:
         """CronJob YAML 조회"""
         try:
