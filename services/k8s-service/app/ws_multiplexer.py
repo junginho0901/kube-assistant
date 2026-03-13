@@ -519,6 +519,8 @@ class WebSocketMultiplexer:
                             obj = self._namespace_to_info(obj)
                         elif resource == "events" and obj is not None:
                             obj = self._event_to_info(obj)
+                        elif resource == "pvcs" and obj is not None:
+                            obj = self._pvc_to_info(obj)
                         elif resource == "statefulsets" and obj is not None:
                             obj = self._statefulset_to_info(obj)
                         elif resource == "daemonsets" and obj is not None:
@@ -527,6 +529,8 @@ class WebSocketMultiplexer:
                             obj = self._replicaset_to_info(obj)
                         elif resource == "jobs" and obj is not None:
                             obj = self._job_to_info(obj)
+                        elif resource == "cronjobs" and obj is not None:
+                            obj = self._cronjob_to_info(obj)
 
                         loop.call_soon_threadsafe(
                             queue.put_nowait, {"type": event.get("type"), "object": obj}
