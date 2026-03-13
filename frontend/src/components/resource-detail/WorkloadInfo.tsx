@@ -73,7 +73,7 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
   const { t } = useTranslation()
   const tr = (key: string, fallback: string) => t(key, { defaultValue: fallback })
 
-  const needsDescribe = (kind === 'Deployment' || kind === 'StatefulSet' || kind === 'DaemonSet' || kind === 'ReplicaSet' || kind === 'Job') && !!namespace && !!name
+  const needsDescribe = (kind === 'Deployment' || kind === 'StatefulSet' || kind === 'DaemonSet' || kind === 'ReplicaSet' || kind === 'Job' || kind === 'CronJob') && !!namespace && !!name
   const { data: describe, isLoading, isError } = useQuery({
     queryKey: ['workload-describe', kind, namespace, name],
     queryFn: () => {
@@ -81,6 +81,7 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
       if (kind === 'StatefulSet') return api.describeStatefulSet(namespace as string, name)
       if (kind === 'DaemonSet') return api.describeDaemonSet(namespace as string, name)
       if (kind === 'ReplicaSet') return api.describeReplicaSet(namespace as string, name)
+      if (kind === 'CronJob') return api.describeCronJob(namespace as string, name)
       return api.describeJob(namespace as string, name)
     },
     enabled: needsDescribe,
