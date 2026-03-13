@@ -121,8 +121,10 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
   const podTemplate = useMemo(() => {
     const fromDescribe = describe?.pod_template
     if (fromDescribe && typeof fromDescribe === 'object') return fromDescribe as Record<string, any>
-
-    const fromRaw = (spec.template as Record<string, any> | undefined)?.spec
+    const rawTemplateSpec = isCronJob
+      ? (spec.jobTemplate as Record<string, any> | undefined)?.spec?.template?.spec
+      : (spec.template as Record<string, any> | undefined)?.spec
+    const fromRaw = rawTemplateSpec
     if (fromRaw && typeof fromRaw === 'object') {
       return {
         service_account_name: fromRaw.serviceAccountName,
@@ -137,19 +139,14 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
       service_account_name: undefined,
       node_selector: {},
       priority_class_name: undefined,
-      containers: [],
-      tolerations: [],
+        containers: [],
+        tolerations: [],
     }
-  }, [describe?.pod_template, spec.template])
+  }, [describe?.pod_template, isCronJob, spec.jobTemplate, spec.template])
 
   const containers = useMemo(() => {
-    if (isCronJob) {
-      const cronSpec = (spec.jobTemplate as Record<string, any> | undefined)?.spec
-      const cronContainers = (cronSpec?.template as Record<string, any> | undefined)?.spec?.containers
-      return Array.isArray(cronContainers) ? cronContainers : []
-    }
     return Array.isArray(podTemplate.containers) ? podTemplate.containers : []
-  }, [isCronJob, spec.jobTemplate, podTemplate.containers])
+  }, [podTemplate.containers])
 
   const tolerations = Array.isArray(podTemplate.tolerations) ? podTemplate.tolerations : []
   const nodeSelector = (podTemplate.node_selector as Record<string, string> | undefined) ?? {}
