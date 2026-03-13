@@ -1189,6 +1189,18 @@ async def get_pod_yaml(namespace: str, name: str):
 
 
 # PVC
+@router.get("/namespaces/{namespace}/pvcs/{name}/describe")
+async def describe_pvc(namespace: str, name: str):
+    """PVC 상세 조회"""
+    try:
+        return await k8s_service.describe_pvc(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"PVC '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
 @router.get("/namespaces/{namespace}/pvcs/{name}/yaml")
 async def get_pvc_yaml(namespace: str, name: str):
     """PVC YAML 조회"""
@@ -1197,6 +1209,26 @@ async def get_pvc_yaml(namespace: str, name: str):
         return {"yaml": yaml_content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/namespaces/{namespace}/pvcs/{name}")
+async def delete_pvc(namespace: str, name: str, request: Request):
+    """PVC 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        result = await k8s_service.delete_pvc(namespace, name)
+        if isinstance(result, dict) and result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"PVC '{namespace}/{name}' not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"PVC '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
 
 
 # PV
