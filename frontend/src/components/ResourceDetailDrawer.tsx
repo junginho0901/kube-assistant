@@ -253,6 +253,19 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['replicasets', ns] }),
           queryClient.invalidateQueries({ queryKey: ['workload-describe', 'ReplicaSet', ns, name] }),
         ])
+      } else if (kind === 'CronJob' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['workloads', 'cronjobs'] }),
+          queryClient.invalidateQueries({ queryKey: ['workloads', 'cronjobs', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['workload-describe', 'CronJob', ns, name] }),
+        ])
+      } else if (kind === 'PersistentVolumeClaim' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs'] }),
+          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs', 'all'] }),
+          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['pvc-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -340,6 +353,10 @@ export default function ResourceDetailDrawer() {
                         ? t('jobs.delete.button', { defaultValue: 'Delete Job' })
                       : kind === 'ReplicaSet'
                         ? t('replicasets.delete.button', { defaultValue: 'Delete ReplicaSet' })
+                      : kind === 'CronJob'
+                        ? t('cronjobs.delete.button', { defaultValue: 'Delete CronJob' })
+                      : kind === 'PersistentVolumeClaim'
+                        ? t('pvcs.delete.button', { defaultValue: 'Delete PVC' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
