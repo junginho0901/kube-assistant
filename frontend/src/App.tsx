@@ -25,6 +25,7 @@ import StatefulSets from './pages/workloads/StatefulSets'
 import DaemonSets from './pages/workloads/DaemonSets'
 import Jobs from './pages/workloads/Jobs'
 import ReplicaSets from './pages/workloads/ReplicaSets'
+import CronJobs from './pages/workloads/CronJobs'
 import ClusterNodes from './pages/ClusterNodes'
 import { MonacoEditorLoaderInitializer } from './components/monaco/MonacoEditorLoaderInitializer'
 
