@@ -426,6 +426,20 @@ export interface JobInfo {
   created_at?: string | null
 }
 
+export interface CronJobInfo {
+  name: string
+  namespace: string
+  schedule: string
+  suspend: boolean
+  concurrency_policy?: string | null
+  active: number
+  last_schedule_time?: string | null
+  last_successful_time?: string | null
+  containers?: string[]
+  images?: string[]
+  created_at?: string | null
+}
+
 export interface HPAInfo {
   name: string
   namespace: string
@@ -899,6 +913,20 @@ export const api = {
 
   getAllJobs: async (forceRefresh = false): Promise<JobInfo[]> => {
     const { data } = await client.get('/cluster/jobs/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getCronJobs: async (namespace: string, forceRefresh = false): Promise<CronJobInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/cronjobs`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllCronJobs: async (forceRefresh = false): Promise<CronJobInfo[]> => {
+    const { data } = await client.get('/cluster/cronjobs/all', {
       params: { force_refresh: forceRefresh },
     })
     return data
