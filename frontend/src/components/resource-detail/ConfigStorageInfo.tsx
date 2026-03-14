@@ -671,7 +671,116 @@ function StorageClassDetail({ name, rawJson }: { name: string; rawJson?: Record<
           <KeyValueTags data={parameters} />
         </InfoSection>
       )}
-
+      {mountOptions.length > 0 && (
+        <InfoSection title="Mount Options">
+          <div className="flex flex-wrap gap-2">
+            {mountOptions.map((opt, idx) => (
+              <span key={`${opt}-${idx}`} className="text-[11px] rounded-full border border-slate-700 bg-slate-800/80 px-2 py-1">{String(opt)}</span>
+            ))}
+          </div>
+        </InfoSection>
+      )}
+      {allowedTopologies.length > 0 && (
+        <InfoSection title="Allowed Topologies">
+          <div className="space-y-1 text-xs text-slate-200">
+            {allowedTopologies.map((topology, idx) => (
+              <div key={`${topology}-${idx}`} className="break-words">{String(topology)}</div>
+            ))}
+          </div>
+        </InfoSection>
+      )}
+      {relatedPVs.length > 0 && (
+        <InfoSection title={`Related PersistentVolumes (${relatedPVs.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[620px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-2 w-[34%]">Name</th>
+                  <th className="text-left py-2 w-[14%]">Status</th>
+                  <th className="text-left py-2 w-[14%]">Capacity</th>
+                  <th className="text-left py-2 w-[22%]">Claim</th>
+                  <th className="text-left py-2 w-[16%]">Age</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {relatedPVs.slice(0, 50).map((pv, idx) => {
+                  const claimText = pv.claim_ref?.name
+                    ? `${pv.claim_ref?.namespace || '-'}/${pv.claim_ref?.name}`
+                    : '-'
+                  return (
+                    <tr
+                      key={`${pv.name || '-'}-${idx}`}
+                      className="text-slate-200 hover:bg-slate-800/40 cursor-pointer"
+                      onClick={() => {
+                        if (!pv.name) return
+                        openDetail({ kind: 'PersistentVolume', name: String(pv.name) })
+                      }}
+                    >
+                      <td className="py-2 pr-2">
+                        <span className="block truncate font-mono" title={String(pv.name || '-')}>{String(pv.name || '-')}</span>
+                      </td>
+                      <td className="py-2 pr-2"><StatusBadge status={String(pv.status || '-')} /></td>
+                      <td className="py-2 pr-2">{String(pv.capacity || '-')}</td>
+                      <td className="py-2 pr-2"><span className="block truncate">{claimText}</span></td>
+                      <td className="py-2 pr-2">{fmtRel(pv.created_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      )}
+      {relatedPVCs.length > 0 && (
+        <InfoSection title={`Related PersistentVolumeClaims (${relatedPVCs.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[760px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-2 w-[26%]">PVC</th>
+                  <th className="text-left py-2 w-[12%]">Status</th>
+                  <th className="text-left py-2 w-[14%]">Requested</th>
+                  <th className="text-left py-2 w-[14%]">Capacity</th>
+                  <th className="text-left py-2 w-[20%]">Volume</th>
+                  <th className="text-left py-2 w-[14%]">Age</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {relatedPVCs.slice(0, 50).map((pvc, idx) => (
+                  <tr
+                    key={`${pvc.namespace || '-'}-${pvc.name || '-'}-${idx}`}
+                    className="text-slate-200 hover:bg-slate-800/40 cursor-pointer"
+                    onClick={() => {
+                      if (!pvc.name || !pvc.namespace) return
+                      openDetail({ kind: 'PersistentVolumeClaim', name: String(pvc.name), namespace: String(pvc.namespace) })
+                    }}
+                  >
+                    <td className="py-2 pr-2">
+                      <span className="block truncate font-mono" title={`${pvc.namespace || '-'}/${pvc.name || '-'}`}>
+                        {`${pvc.namespace || '-'}/${pvc.name || '-'}`}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-2"><StatusBadge status={String(pvc.status || '-')} /></td>
+                    <td className="py-2 pr-2">{String(pvc.requested || '-')}</td>
+                    <td className="py-2 pr-2">{String(pvc.capacity || '-')}</td>
+                    <td className="py-2 pr-2"><span className="block truncate">{String(pvc.volume_name || '-')}</span></td>
+                    <td className="py-2 pr-2">{fmtRel(pvc.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      )}
+      {finalizers.length > 0 && (
+        <InfoSection title="Finalizers">
+          <div className="space-y-1 text-xs text-slate-200">
+            {finalizers.map((finalizer: string, idx: number) => (
+              <div key={`${finalizer}-${idx}`} className="font-mono break-all">{finalizer}</div>
+            ))}
+          </div>
+        </InfoSection>
+      )}
       {Object.keys(labels).length > 0 && <InfoSection title="Labels"><KeyValueTags data={labels} /></InfoSection>}
     </>
   )
