@@ -296,14 +296,40 @@ function PVDetail({ name, rawJson }: { name: string; rawJson?: Record<string, un
       <InfoSection title="PersistentVolume Info">
         <div className="space-y-2">
           <InfoRow label="Name" value={name} />
-          <InfoRow label="Status" value={<StatusBadge status={String(status.phase ?? '-')} />} />
-          <InfoRow label="Capacity" value={capacity.storage || '-'} />
+          <InfoRow label="Status" value={<StatusBadge status={statusPhase} />} />
+          <InfoRow label="Capacity" value={capacity} />
           <InfoRow label="Access Modes" value={accessModes.join(', ') || '-'} />
-          <InfoRow label="Reclaim Policy" value={String(spec.persistentVolumeReclaimPolicy ?? '-')} />
-          <InfoRow label="Storage Class" value={String(spec.storageClassName ?? '-')} />
-          <InfoRow label="Volume Mode" value={String(spec.volumeMode ?? 'Filesystem')} />
-          {spec.claimRef != null && <InfoRow label="Claim" value={`${(spec.claimRef as Record<string, unknown>).namespace ?? ''}/${(spec.claimRef as Record<string, unknown>).name ?? ''}`} />}
-          <InfoRow label="Created" value={meta.creationTimestamp ? `${fmtTs(meta.creationTimestamp as string)} (${fmtRel(meta.creationTimestamp as string)})` : '-'} />
+          <InfoRow label="Reclaim Policy" value={reclaimPolicy} />
+          <InfoRow label="Storage Class" value={storageClass} />
+          <InfoRow label="Volume Mode" value={volumeMode} />
+          <InfoRow
+            label="Claim"
+            value={claimRef?.name && claimRef?.namespace ? (
+              <button
+                type="button"
+                className="text-cyan-300 hover:text-cyan-200 underline underline-offset-2 break-all text-left"
+                onClick={() => openDetail({
+                  kind: 'PersistentVolumeClaim',
+                  name: String(claimRef.name),
+                  namespace: String(claimRef.namespace),
+                })}
+              >
+                {claimText}
+              </button>
+            ) : claimText}
+          />
+          <InfoRow label="Source" value={sourceText} />
+          <InfoRow label="Volume Handle" value={volumeHandle !== '-' ? <span className="font-mono break-all text-[11px]">{volumeHandle}</span> : '-'} />
+          <InfoRow label="Node Affinity" value={nodeAffinity} />
+          {describe?.uid && <InfoRow label="UID" value={<span className="font-mono text-[11px] break-all">{String(describe.uid)}</span>} />}
+          {describe?.resource_version && <InfoRow label="Resource Version" value={<span className="font-mono text-[11px] break-all">{String(describe.resource_version)}</span>} />}
+          <InfoRow label="Created" value={createdAt ? `${fmtTs(createdAt)} (${fmtRel(createdAt)})` : '-'} />
+          {lastPhaseTransitionTime && (
+            <InfoRow
+              label="Last Phase Transition"
+              value={`${fmtTs(lastPhaseTransitionTime)} (${fmtRel(lastPhaseTransitionTime)})`}
+            />
+          )}
         </div>
       </InfoSection>
       {Object.keys(labels).length > 0 && <InfoSection title="Labels"><KeyValueTags data={labels} /></InfoSection>}
