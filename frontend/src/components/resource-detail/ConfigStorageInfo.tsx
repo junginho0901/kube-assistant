@@ -332,7 +332,108 @@ function PVDetail({ name, rawJson }: { name: string; rawJson?: Record<string, un
           )}
         </div>
       </InfoSection>
+      {isLoading && <p className="text-xs text-slate-400">Loading details...</p>}
+      {isError && <p className="text-xs text-amber-300">Some detailed PV fields are unavailable right now.</p>}
+      {boundClaim?.name && (
+        <InfoSection title="Bound PersistentVolumeClaim">
+          <div className="space-y-2">
+            <InfoRow
+              label="Name"
+              value={boundClaim.namespace ? (
+                <button
+                  type="button"
+                  className="text-cyan-300 hover:text-cyan-200 underline underline-offset-2 break-all text-left"
+                  onClick={() => openDetail({
+                    kind: 'PersistentVolumeClaim',
+                    name: String(boundClaim.name),
+                    namespace: String(boundClaim.namespace),
+                  })}
+                >
+                  {`${boundClaim.namespace}/${boundClaim.name}`}
+                </button>
+              ) : String(boundClaim.name)}
+            />
+            <InfoRow label="Status" value={<StatusBadge status={String(boundClaim.status ?? '-')} />} />
+            <InfoRow label="Requested" value={String(boundClaim.requested ?? '-')} />
+            <InfoRow label="Capacity" value={String(boundClaim.capacity ?? '-')} />
+            <InfoRow label="Storage Class" value={String(boundClaim.storage_class ?? '-')} />
+            <InfoRow label="Volume Mode" value={String(boundClaim.volume_mode ?? '-')} />
+            <InfoRow label="Access Modes" value={Array.isArray(boundClaim.access_modes) ? boundClaim.access_modes.join(', ') || '-' : '-'} />
+          </div>
+        </InfoSection>
+      )}
+      {usedByPods.length > 0 && (
+        <InfoSection title={`Used By Pods (${usedByPods.length})`}>
+          {usedByPods.length > displayedUsedByPods.length && (
+            <p className="text-[11px] text-slate-400 mb-2">
+              Showing first {displayedUsedByPods.length} pods.
+            </p>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[760px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-2 w-[24%]">Pod</th>
+                  <th className="text-left py-2 w-[12%]">Status</th>
+                  <th className="text-left py-2 w-[8%]">Ready</th>
+                  <th className="text-left py-2 w-[10%]">Restarts</th>
+                  <th className="text-left py-2 w-[18%]">Node</th>
+                  <th className="text-left py-2 w-[18%]">Mounted As</th>
+                  <th className="text-left py-2 w-[10%]">Age</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {displayedUsedByPods.map((pod, idx) => (
+                  <tr
+                    key={`${pod.namespace ?? claimRef?.namespace ?? '-'}-${pod.name ?? '-'}-${idx}`}
+                    className="text-slate-200 hover:bg-slate-800/40 cursor-pointer"
+                    onClick={() => {
+                      const podNamespace = pod.namespace || claimRef?.namespace
+                      if (!pod.name || !podNamespace) return
+                      openDetail({ kind: 'Pod', name: String(pod.name), namespace: String(podNamespace) })
+                    }}
+                  >
+                    <td className="py-2 pr-2">
+                      <span className="block truncate font-mono" title={String(pod.name ?? '-')}>{String(pod.name ?? '-')}</span>
+                    </td>
+                    <td className="py-2 pr-2">
+                      <StatusBadge status={String(pod.phase ?? '-')} />
+                    </td>
+                    <td className="py-2 pr-2">{pod.ready || '-'}</td>
+                    <td className="py-2 pr-2">{String(pod.restart_count ?? 0)}</td>
+                    <td className="py-2 pr-2"><span className="block truncate">{pod.node_name || '-'}</span></td>
+                    <td className="py-2 pr-2">
+                      <span className="block truncate">{Array.isArray(pod.volume_names) ? pod.volume_names.join(', ') || '-' : '-'}</span>
+                    </td>
+                    <td className="py-2 pr-2">{fmtRel(pod.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      )}
+      {finalizers.length > 0 && (
+        <InfoSection title="Finalizers">
+          <div className="space-y-1 text-xs text-slate-200">
+            {finalizers.map((finalizer: string, idx: number) => (
+              <div key={`${finalizer}-${idx}`} className="font-mono break-all">{finalizer}</div>
+            ))}
+          </div>
+        </InfoSection>
+      )}
+      {conditions.length > 0 && (
+        <InfoSection title="Conditions">
+          <ConditionsTable conditions={conditions} />
+        </InfoSection>
+      )}
       {Object.keys(labels).length > 0 && <InfoSection title="Labels"><KeyValueTags data={labels} /></InfoSection>}
+      {Object.keys(annotations).length > 0 && <InfoSection title="Annotations"><KeyValueTags data={annotations} /></InfoSection>}
+      {events.length > 0 && (
+        <InfoSection title="Events">
+          <EventsTable events={events} />
+        </InfoSection>
+      )}
     </>
   )
 }
