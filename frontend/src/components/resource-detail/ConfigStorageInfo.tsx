@@ -651,11 +651,16 @@ function StorageClassDetail({ name, rawJson }: { name: string; rawJson?: Record<
       <InfoSection title="StorageClass Info">
         <div className="space-y-2">
           <InfoRow label="Name" value={name} />
-          <InfoRow label="Provisioner" value={String(rawJson?.provisioner ?? '-')} />
-          <InfoRow label="Reclaim Policy" value={String(rawJson?.reclaimPolicy ?? '-')} />
-          <InfoRow label="Volume Binding Mode" value={String(rawJson?.volumeBindingMode ?? '-')} />
-          <InfoRow label="Allow Expansion" value={rawJson?.allowVolumeExpansion ? 'Yes' : 'No'} />
-          <InfoRow label="Created" value={meta.creationTimestamp ? `${fmtTs(meta.creationTimestamp as string)} (${fmtRel(meta.creationTimestamp as string)})` : '-'} />
+          <InfoRow label="Provisioner" value={String(describe?.provisioner ?? rawJson?.provisioner ?? '-')} />
+          <InfoRow label="Default Class" value={describe?.is_default ? 'Yes' : 'No'} />
+          <InfoRow label="Reclaim Policy" value={String(describe?.reclaim_policy ?? rawJson?.reclaimPolicy ?? '-')} />
+          <InfoRow label="Volume Binding Mode" value={String(describe?.volume_binding_mode ?? rawJson?.volumeBindingMode ?? '-')} />
+          <InfoRow label="Allow Expansion" value={(describe?.allow_volume_expansion ?? rawJson?.allowVolumeExpansion) ? 'Yes' : 'No'} />
+          <InfoRow label="Bound PVs / Total PVs" value={pvRatio} />
+          <InfoRow label="Bound PVCs / Total PVCs" value={pvcRatio} />
+          {describe?.uid && <InfoRow label="UID" value={<span className="font-mono text-[11px] break-all">{String(describe.uid)}</span>} />}
+          {describe?.resource_version && <InfoRow label="Resource Version" value={<span className="font-mono text-[11px] break-all">{String(describe.resource_version)}</span>} />}
+          <InfoRow label="Created" value={createdAt ? `${fmtTs(createdAt)} (${fmtRel(createdAt)})` : '-'} />
         </div>
       </InfoSection>
 
