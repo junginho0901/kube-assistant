@@ -244,12 +244,52 @@ interface PVDescribeResponse {
 }
 
 function PVDetail({ name, rawJson }: { name: string; rawJson?: Record<string, unknown> }) {
+  const { open: openDetail } = useResourceDetail()
+  const { data: describe, isLoading, isError } = useQuery({
+    queryKey: ['pv-describe', name],
+    queryFn: () => api.describePV(name) as Promise<PVDescribeResponse>,
+    enabled: !!name,
+    retry: false,
+  })
+
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
   const spec = (rawJson?.spec ?? {}) as Record<string, unknown>
   const status = (rawJson?.status ?? {}) as Record<string, unknown>
-  const labels = (meta.labels ?? {}) as Record<string, string>
-  const capacity = (spec.capacity as Record<string, string>) ?? {}
-  const accessModes = (spec.accessModes ?? []) as string[]
+  const rawClaimRef = (spec.claimRef as Record<string, unknown> | undefined) ?? undefined
+  const claimRef = (describe?.claim_ref ?? {
+    namespace: rawClaimRef?.namespace as string | undefined,
+    name: rawClaimRef?.name as string | undefined,
+  }) as PVClaimRef | null
+
+  const labels = (describe?.labels ?? (meta.labels as Record<string, string> | undefined) ?? {})
+  const annotations = (describe?.annotations ?? (meta.annotations as Record<string, string> | undefined) ?? {})
+  const statusPhase = String(describe?.status ?? status.phase ?? '-')
+  const capacity = String(describe?.capacity ?? (spec.capacity as Record<string, string> | undefined)?.storage ?? '-')
+  const accessModes = (describe?.access_modes ?? (spec.accessModes as string[] | undefined) ?? [])
+  const storageClass = String(describe?.storage_class ?? spec.storageClassName ?? '-')
+  const reclaimPolicy = String(describe?.reclaim_policy ?? spec.persistentVolumeReclaimPolicy ?? '-')
+  const volumeMode = String(describe?.volume_mode ?? spec.volumeMode ?? 'Filesystem')
+  const source = describe?.source ?? String(rawJson?.source ?? '-')
+  const driver = describe?.driver ?? String(rawJson?.driver ?? '-')
+  const volumeHandle = describe?.volume_handle ?? String(rawJson?.volume_handle ?? '-')
+  const nodeAffinity = describe?.node_affinity ?? String(rawJson?.node_affinity ?? '-')
+  const createdAt = describe?.created_at ?? (meta.creationTimestamp as string | undefined)
+  const lastPhaseTransitionTime = describe?.last_phase_transition_time ?? null
+  const finalizers = Array.isArray(describe?.finalizers) ? describe.finalizers : []
+  const conditions = Array.isArray(describe?.conditions)
+    ? describe.conditions
+    : (Array.isArray(status.conditions) ? status.conditions : [])
+  const events = Array.isArray(describe?.events) ? describe.events : []
+  const boundClaim = describe?.bound_claim ?? null
+  const usedByPods = Array.isArray(describe?.used_by_pods) ? describe.used_by_pods : []
+  const displayedUsedByPods = usedByPods.slice(0, 50)
+  const claimText = claimRef?.name
+    ? (claimRef.namespace ? `${claimRef.namespace}/${claimRef.name}` : String(claimRef.name))
+    : '-'
+
+  const sourceText = source && source !== '-'
+    ? `${source}${driver && driver !== '-' ? ` (${driver})` : ''}`
+    : (driver && driver !== '-' ? driver : '-')
 
   return (
     <>
