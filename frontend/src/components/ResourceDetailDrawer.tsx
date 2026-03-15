@@ -12,13 +12,14 @@ import NamespaceInfo from './resource-detail/NamespaceInfo'
 import PodInfo from './resource-detail/PodInfo'
 import WorkloadInfo from './resource-detail/WorkloadInfo'
 import NetworkInfo from './resource-detail/NetworkInfo'
+import ServiceInfo from './resource-detail/ServiceInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
 
 const WORKLOAD_KINDS = new Set(['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob'])
-const NETWORK_KINDS = new Set(['Service', 'Ingress', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
+const NETWORK_KINDS = new Set(['Ingress', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
 const CONFIG_STORAGE_KINDS = new Set(['ConfigMap', 'Secret', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'HorizontalPodAutoscaler'])
 
 function kindToPlural(kind: string): string {
@@ -78,7 +79,8 @@ export default function ResourceDetailDrawer() {
   const canDeletePVC = kind === 'PersistentVolumeClaim' && !!ns && isWriteRole
   const canDeletePV = kind === 'PersistentVolume' && isWriteRole
   const canDeleteStorageClass = kind === 'StorageClass' && isWriteRole
-  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment || canDeleteStatefulSet || canDeleteDaemonSet || canDeleteJob || canDeleteReplicaSet || canDeleteCronJob || canDeletePVC || canDeletePV || canDeleteStorageClass
+  const canDeleteService = kind === 'Service' && !!ns && isWriteRole
+  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment || canDeleteStatefulSet || canDeleteDaemonSet || canDeleteJob || canDeleteReplicaSet || canDeleteCronJob || canDeletePVC || canDeletePV || canDeleteStorageClass || canDeleteService
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
     queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
@@ -213,6 +215,10 @@ export default function ResourceDetailDrawer() {
         await api.deleteStorageClass(name)
         return
       }
+      if (kind === 'Service' && ns) {
+        await api.deleteService(ns, name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
@@ -292,6 +298,12 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['storage', 'storageclasses'] }),
           queryClient.invalidateQueries({ queryKey: ['storageclass-describe', name] }),
         ])
+      } else if (kind === 'Service' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['network', 'services'] }),
+          queryClient.invalidateQueries({ queryKey: ['network', 'services', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['service-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -309,6 +321,7 @@ export default function ResourceDetailDrawer() {
     if (kind === 'Node') return <NodeInfo name={name} />
     if (kind === 'Namespace') return <NamespaceInfo name={name} />
     if (kind === 'Pod' && ns) return <PodInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'Service' && ns) return <ServiceInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
@@ -387,6 +400,8 @@ export default function ResourceDetailDrawer() {
                         ? t('pvs.delete.button', { defaultValue: 'Delete PV' })
                       : kind === 'StorageClass'
                         ? t('storageclasses.delete.button', { defaultValue: 'Delete StorageClass' })
+                      : kind === 'Service'
+                        ? t('servicesPage.delete.button', { defaultValue: 'Delete Service' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
@@ -466,6 +481,8 @@ export default function ResourceDetailDrawer() {
                         ? t('pvs.delete.title', { defaultValue: 'Delete PV' })
                       : kind === 'StorageClass'
                         ? t('storageclasses.delete.title', { defaultValue: 'Delete StorageClass' })
+                      : kind === 'Service'
+                        ? t('servicesPage.delete.title', { defaultValue: 'Delete Service' })
                   : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
@@ -531,6 +548,12 @@ export default function ResourceDetailDrawer() {
                     ? t('storageclasses.delete.confirm', {
                         defaultValue: 'Are you sure you want to delete StorageClass "{{name}}"?',
                         name,
+                      })
+                  : kind === 'Service'
+                    ? t('servicesPage.delete.confirm', {
+                        defaultValue: 'Are you sure you want to delete service "{{name}}" in "{{namespace}}"?',
+                        name,
+                        namespace: ns,
                       })
                   : t('namespaces.delete.confirm', {
                       defaultValue: 'Are you sure you want to delete namespace "{{name}}"?',
