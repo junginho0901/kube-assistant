@@ -7,6 +7,18 @@ interface Props {
   rawJson?: Record<string, unknown>
 }
 
+function renderConditionBadge(label: string, value: unknown) {
+  const isOn = value === true
+  const isUnknown = value == null
+  const cls = isUnknown
+    ? 'border-slate-700 bg-slate-800/70 text-slate-300'
+    : isOn
+      ? 'border-emerald-700/60 bg-emerald-900/20 text-emerald-300'
+      : 'border-amber-700/60 bg-amber-900/20 text-amber-300'
+  const text = isUnknown ? 'Unknown' : isOn ? 'True' : 'False'
+  return <span className={`inline-flex items-center rounded px-2 py-0.5 border ${cls}`}>{label}: {text}</span>
+}
+
 export default function NetworkInfo({ name, namespace, kind, rawJson }: Props) {
   if (kind === 'Service') return <ServiceDetail name={name} namespace={namespace} rawJson={rawJson} />
   if (kind === 'Ingress') return <IngressDetail name={name} namespace={namespace} rawJson={rawJson} />
@@ -217,18 +229,6 @@ function EndpointSliceDetail({ name, namespace, rawJson }: { name: string; names
   const ready = Number(rawJson?.endpoints_ready ?? endpoints.filter((ep: any) => ep?.conditions?.ready !== false).length ?? 0)
   const notReady = Number(rawJson?.endpoints_not_ready ?? Math.max(total - ready, 0))
 
-  const toStatusBadge = (label: string, value: unknown) => {
-    const isOn = value === true
-    const isUnknown = value == null
-    const cls = isUnknown
-      ? 'border-slate-700 bg-slate-800/70 text-slate-300'
-      : isOn
-        ? 'border-emerald-700/60 bg-emerald-900/20 text-emerald-300'
-        : 'border-amber-700/60 bg-amber-900/20 text-amber-300'
-    const text = isUnknown ? 'Unknown' : isOn ? 'True' : 'False'
-    return <span className={`inline-flex items-center rounded px-2 py-0.5 border ${cls}`}>{label}: {text}</span>
-  }
-
   return (
     <>
       <InfoSection title="EndpointSlice Info">
@@ -290,9 +290,9 @@ function EndpointSliceDetail({ name, namespace, rawJson }: { name: string; names
                     <div className="text-slate-200 break-all"><span className="text-slate-400">TargetRef:</span> {refText}</div>
                   </div>
                   <div className="flex flex-wrap gap-1.5 text-[11px]">
-                    {toStatusBadge('Ready', ep?.conditions?.ready)}
-                    {toStatusBadge('Serving', ep?.conditions?.serving)}
-                    {toStatusBadge('Terminating', ep?.conditions?.terminating)}
+                    {renderConditionBadge('Ready', ep?.conditions?.ready)}
+                    {renderConditionBadge('Serving', ep?.conditions?.serving)}
+                    {renderConditionBadge('Terminating', ep?.conditions?.terminating)}
                   </div>
                 </div>
               )
