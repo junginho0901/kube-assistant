@@ -550,16 +550,16 @@ spec:
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {([
-          ['Total', podStats.total, 'text-white'],
-          ['Ready', podStats.ready, 'text-emerald-300'],
-          ['NotReady', podStats.notReady, 'text-amber-300'],
-          ['Pending', podStats.pending, 'text-yellow-300'],
-          ['Error', podStats.error, 'text-red-300'],
-          ['Restarting', podStats.restarting, 'text-sky-300'],
-        ] as Array<[string, number, string]>).map(([label, value, color]) => (
-          <div key={label} className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2.5">
-            <div className="text-[11px] text-slate-400">{label}</div>
-            <div className={`mt-1 text-lg font-semibold ${color}`}>{value}</div>
+          [tr('pods.stats.total', 'Total'), podStats.total, 'border-slate-700 bg-slate-900/50', 'text-slate-400'],
+          [tr('pods.stats.ready', 'Ready'), podStats.ready, 'border-emerald-700/40 bg-emerald-900/10', 'text-emerald-300'],
+          [tr('pods.stats.notReady', 'Not Ready'), podStats.notReady, 'border-amber-700/40 bg-amber-900/10', 'text-amber-300'],
+          [tr('pods.stats.pending', 'Pending'), podStats.pending, 'border-yellow-700/40 bg-yellow-900/10', 'text-yellow-300'],
+          [tr('pods.stats.error', 'Error'), podStats.error, 'border-rose-700/40 bg-rose-900/10', 'text-rose-300'],
+          [tr('pods.stats.restarting', 'Restarting'), podStats.restarting, 'border-cyan-700/40 bg-cyan-900/10', 'text-cyan-300'],
+        ] as Array<[string, number, string, string]>).map(([label, value, boxClass, labelColor]) => (
+          <div key={label} className={`rounded-lg border px-3 py-2.5 ${boxClass}`}>
+            <div className={`text-[11px] sm:text-xs leading-4 whitespace-nowrap ${labelColor}`}>{label}</div>
+            <div className="mt-1 text-lg font-semibold text-white">{value}</div>
           </div>
         ))}
       </div>
