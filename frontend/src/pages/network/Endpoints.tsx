@@ -43,6 +43,10 @@ function formatAddresses(row: EndpointInfo): string {
   return `${ready.join(', ')} | not-ready: ${notReady.join(', ')}`
 }
 
+function getEndpointAddressCount(row: EndpointInfo): number {
+  return (row.ready_count || 0) + (row.not_ready_count || 0)
+}
+
 function normalizeWatchEndpointObject(obj: any): EndpointInfo {
   if (
     typeof obj?.name === 'string' &&
@@ -278,7 +282,7 @@ export default function Endpoints() {
     for (const ep of filteredEndpoints) {
       if ((ep.ready_count || 0) > 0) withReady += 1
       if ((ep.not_ready_count || 0) > 0) withNotReady += 1
-      totalAddresses += (ep.ready_count || 0) + (ep.not_ready_count || 0)
+      totalAddresses += getEndpointAddressCount(ep)
     }
 
     return { total, withReady, withNotReady, totalAddresses }
@@ -329,7 +333,7 @@ export default function Endpoints() {
         case 'notReady':
           return ep.not_ready_count || 0
         case 'addresses':
-          return formatAddresses(ep)
+          return getEndpointAddressCount(ep)
         case 'ports':
           return formatPorts(ep.ports)
         case 'age':
