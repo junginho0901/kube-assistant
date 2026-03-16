@@ -85,7 +85,24 @@ export default function ResourceDetailDrawer() {
   const canDeleteService = kind === 'Service' && !!ns && isWriteRole
   const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
   const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
-  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment || canDeleteStatefulSet || canDeleteDaemonSet || canDeleteJob || canDeleteReplicaSet || canDeleteCronJob || canDeletePVC || canDeletePV || canDeleteStorageClass || canDeleteVolumeAttachment || canDeleteService || canDeleteEndpoints || canDeleteEndpointSlice
+  const canDelete = [
+    canDeleteNode,
+    canDeletePod,
+    canDeleteNamespace,
+    canDeleteDeployment,
+    canDeleteStatefulSet,
+    canDeleteDaemonSet,
+    canDeleteJob,
+    canDeleteReplicaSet,
+    canDeleteCronJob,
+    canDeletePVC,
+    canDeletePV,
+    canDeleteStorageClass,
+    canDeleteVolumeAttachment,
+    canDeleteService,
+    canDeleteEndpoints,
+    canDeleteEndpointSlice,
+  ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
     queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
