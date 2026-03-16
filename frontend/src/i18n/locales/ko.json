@@ -141,7 +141,7 @@
   "servicesPage": {
     "title": "서비스",
     "subtitle": "네임스페이스 전반의 서비스를 조회하고 관리합니다.",
-    "create": "생성",
+    "create": "서비스 생성",
     "createTitle": "YAML로 서비스 생성",
     "refresh": "새로고침",
     "refreshTitle": "새로고침 (강제)",
@@ -174,7 +174,7 @@
   "endpointsPage": {
     "title": "엔드포인트",
     "subtitle": "네임스페이스 전반의 엔드포인트를 조회하고 관리합니다.",
-    "create": "생성",
+    "create": "엔드포인트 생성",
     "createTitle": "YAML로 엔드포인트 생성",
     "refresh": "새로고침",
     "refreshTitle": "새로고침 (강제)",
@@ -206,7 +206,7 @@
   "endpointSlicesPage": {
     "title": "엔드포인트 슬라이스",
     "subtitle": "네임스페이스 전반의 EndpointSlice를 조회하고 관리합니다.",
-    "create": "생성",
+    "create": "엔드포인트 슬라이스 생성",
     "createTitle": "YAML로 EndpointSlice 생성",
     "refresh": "새로고침",
     "refreshTitle": "새로고침 (강제)",
@@ -520,7 +520,7 @@
   "volumeattachments": {
     "title": "볼륨 어태치먼트",
     "subtitle": "클러스터 전반의 볼륨 attach 상태와 문제 신호를 확인합니다.",
-    "create": "생성",
+    "create": "VolumeAttachment 생성",
     "createTitle": "YAML로 VolumeAttachment 생성",
     "refresh": "새로고침",
     "refreshTitle": "새로고침 (강제)",

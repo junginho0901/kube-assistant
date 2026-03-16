@@ -136,7 +136,7 @@
   "servicesPage": {
     "title": "Services",
     "subtitle": "Inspect and manage Services across namespaces.",
-    "create": "Create",
+    "create": "Create Service",
     "createTitle": "Create Service from YAML",
     "refresh": "Refresh",
     "refreshTitle": "Force refresh",
@@ -169,7 +169,7 @@
   "endpointsPage": {
     "title": "Endpoints",
     "subtitle": "Inspect and manage Endpoints across namespaces.",
-    "create": "Create",
+    "create": "Create Endpoints",
     "createTitle": "Create Endpoints from YAML",
     "refresh": "Refresh",
     "refreshTitle": "Force refresh",
@@ -201,7 +201,7 @@
   "endpointSlicesPage": {
     "title": "Endpoint Slices",
     "subtitle": "Inspect and manage EndpointSlices across namespaces.",
-    "create": "Create",
+    "create": "Create EndpointSlice",
     "createTitle": "Create EndpointSlice from YAML",
     "refresh": "Refresh",
     "refreshTitle": "Force refresh",
@@ -515,7 +515,7 @@
   "volumeattachments": {
     "title": "Volume Attachments",
     "subtitle": "Inspect cluster-wide volume attachment state and troubleshooting signals.",
-    "create": "Create",
+    "create": "Create VolumeAttachment",
     "createTitle": "Create VolumeAttachment from YAML",
     "refresh": "Refresh",
     "refreshTitle": "Force refresh",

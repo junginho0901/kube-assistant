@@ -390,7 +390,7 @@ spec:
               className="btn btn-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {tr('servicesPage.create', 'Create')}
+              {tr('servicesPage.create', 'Create Service')}
             </button>
           )}
           <button
