@@ -139,6 +139,22 @@ export default function Namespaces() {
     return (namespaces as NamespaceInfo[]).filter((ns) => ns.name.toLowerCase().includes(q))
   }, [namespaces, searchQuery])
 
+  const namespaceStats = useMemo(() => {
+    const total = filteredNamespaces.length
+    let active = 0
+    let terminating = 0
+    let withLabels = 0
+
+    for (const ns of filteredNamespaces) {
+      const status = String(ns.status || '').toLowerCase()
+      if (status === 'active') active += 1
+      if (status.includes('terminating')) terminating += 1
+      if (Object.keys(ns.labels || {}).length > 0) withLabels += 1
+    }
+
+    return { total, active, terminating, withLabels }
+  }, [filteredNamespaces])
+
   const sortedNamespaces = useMemo(() => {
     if (!sortKey) return filteredNamespaces
     const list = [...filteredNamespaces]
@@ -267,6 +283,25 @@ export default function Namespaces() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3">
+          <p className="text-[11px] sm:text-xs leading-4 whitespace-nowrap text-slate-400">{tr('namespaces.stats.total', 'Total')}</p>
+          <p className="mt-1 text-lg font-semibold text-white">{namespaceStats.total}</p>
+        </div>
+        <div className="rounded-lg border border-emerald-700/40 bg-emerald-900/10 px-4 py-3">
+          <p className="text-[11px] sm:text-xs leading-4 whitespace-nowrap text-emerald-300">{tr('namespaces.stats.active', 'Active')}</p>
+          <p className="mt-1 text-lg font-semibold text-white">{namespaceStats.active}</p>
+        </div>
+        <div className="rounded-lg border border-amber-700/40 bg-amber-900/10 px-4 py-3">
+          <p className="text-[11px] sm:text-xs leading-4 whitespace-nowrap text-amber-300">{tr('namespaces.stats.terminating', 'Terminating')}</p>
+          <p className="mt-1 text-lg font-semibold text-white">{namespaceStats.terminating}</p>
+        </div>
+        <div className="rounded-lg border border-cyan-700/40 bg-cyan-900/10 px-4 py-3">
+          <p className="text-[11px] sm:text-xs leading-4 whitespace-nowrap text-cyan-300">{tr('namespaces.stats.withLabels', 'With Labels')}</p>
+          <p className="mt-1 text-lg font-semibold text-white">{namespaceStats.withLabels}</p>
+        </div>
       </div>
 
       {/* table */}
