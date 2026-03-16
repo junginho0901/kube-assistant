@@ -1138,6 +1138,47 @@ async def get_endpoints(namespace: str, force_refresh: bool = Query(False, descr
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/endpoints/all")
+async def get_all_endpoints(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """전체 네임스페이스 Endpoints 목록 조회"""
+    try:
+        return await k8s_service.get_all_endpoints(force_refresh=force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/endpoints/{name}/describe")
+async def describe_endpoint(namespace: str, name: str):
+    """Endpoints 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_endpoint(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Endpoints '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.delete("/namespaces/{namespace}/endpoints/{name}")
+async def delete_endpoint(namespace: str, name: str, request: Request):
+    """Endpoints 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        result = await k8s_service.delete_endpoint(namespace, name)
+        if isinstance(result, dict) and result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"Endpoints '{namespace}/{name}' not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Endpoints '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
 @router.get("/namespaces/{namespace}/endpointslices")
 async def get_endpointslices(namespace: str, force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
     """EndpointSlice 목록 조회"""
@@ -1145,6 +1186,47 @@ async def get_endpointslices(namespace: str, force_refresh: bool = Query(False, 
         return await k8s_service.get_endpointslices(namespace)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/endpointslices/all")
+async def get_all_endpointslices(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """전체 네임스페이스 EndpointSlice 목록 조회"""
+    try:
+        return await k8s_service.get_all_endpointslices(force_refresh=force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/endpointslices/{name}/describe")
+async def describe_endpointslice(namespace: str, name: str):
+    """EndpointSlice 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_endpointslice(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"EndpointSlice '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.delete("/namespaces/{namespace}/endpointslices/{name}")
+async def delete_endpointslice(namespace: str, name: str, request: Request):
+    """EndpointSlice 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        result = await k8s_service.delete_endpointslice(namespace, name)
+        if isinstance(result, dict) and result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"EndpointSlice '{namespace}/{name}' not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"EndpointSlice '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/namespaces/{namespace}/services/{service_name}/connectivity")
