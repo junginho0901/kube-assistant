@@ -59,6 +59,10 @@ function formatEndpointPreview(row: EndpointSliceInfo): string {
   return `${preview} +${addresses.length - 3}`
 }
 
+function resolveNotReadyCount(slice: EndpointSliceInfo): number {
+  return slice.endpoints_not_ready ?? Math.max((slice.endpoints_total || 0) - (slice.endpoints_ready || 0), 0)
+}
+
 function normalizeWatchEndpointSliceObject(obj: any): EndpointSliceInfo {
   if (
     typeof obj?.name === 'string' &&
@@ -283,7 +287,7 @@ export default function EndpointSlices() {
       || formatPorts(es.ports).toLowerCase().includes(q)
       || String(es.endpoints_total).includes(q)
       || String(es.endpoints_ready).includes(q)
-      || String(es.endpoints_not_ready ?? Math.max((es.endpoints_total || 0) - (es.endpoints_ready || 0), 0)).includes(q)
+      || String(resolveNotReadyCount(es)).includes(q)
     ))
   }, [endpointSlices, searchQuery])
 
@@ -295,7 +299,7 @@ export default function EndpointSlices() {
 
     for (const es of filteredEndpointSlices) {
       const ready = es.endpoints_ready || 0
-      const notReady = es.endpoints_not_ready ?? Math.max((es.endpoints_total || 0) - ready, 0)
+      const notReady = resolveNotReadyCount(es)
       if (ready > 0) withReady += 1
       if (notReady > 0) withNotReady += 1
       totalEndpoints += (es.endpoints_total || 0)
@@ -353,7 +357,7 @@ export default function EndpointSlices() {
         case 'ready':
           return es.endpoints_ready || 0
         case 'notReady':
-          return es.endpoints_not_ready ?? Math.max((es.endpoints_total || 0) - (es.endpoints_ready || 0), 0)
+          return resolveNotReadyCount(es)
         case 'ports':
           return formatPorts(es.ports)
         case 'age':
@@ -581,7 +585,7 @@ endpoints:
             </thead>
             <tbody className="divide-y divide-slate-700">
               {pagedEndpointSlices.map((es) => {
-                const notReady = es.endpoints_not_ready ?? Math.max((es.endpoints_total || 0) - (es.endpoints_ready || 0), 0)
+                const notReady = resolveNotReadyCount(es)
                 return (
                   <tr
                     key={`${es.namespace}/${es.name}`}
