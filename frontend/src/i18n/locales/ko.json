@@ -95,6 +95,14 @@
       "node": "노드",
       "podIp": "파드 IP"
     },
+    "stats": {
+      "total": "전체",
+      "ready": "준비됨",
+      "notReady": "준비 안 됨",
+      "pending": "대기",
+      "error": "오류",
+      "restarting": "재시작 중"
+    },
     "noResults": "파드가 없습니다."
   },
   "deployments": {
@@ -161,6 +169,73 @@
       "button": "서비스 삭제",
       "title": "서비스 삭제",
       "confirm": "\"{{namespace}}\" 네임스페이스의 서비스 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
+  "endpointsPage": {
+    "title": "엔드포인트",
+    "subtitle": "네임스페이스 전반의 엔드포인트를 조회하고 관리합니다.",
+    "create": "생성",
+    "createTitle": "YAML로 엔드포인트 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "엔드포인트 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개의 엔드포인트가 검색되었습니다.",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "addresses": "주소",
+      "ports": "포트",
+      "ready": "준비됨",
+      "notReady": "준비 안 됨",
+      "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "withReady": "Ready 포함",
+      "withNotReady": "NotReady 포함",
+      "totalAddresses": "전체 주소 수"
+    },
+    "noResults": "엔드포인트를 찾을 수 없습니다.",
+    "delete": {
+      "button": "엔드포인트 삭제",
+      "title": "엔드포인트 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 엔드포인트 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
+  "endpointSlicesPage": {
+    "title": "엔드포인트 슬라이스",
+    "subtitle": "네임스페이스 전반의 EndpointSlice를 조회하고 관리합니다.",
+    "create": "생성",
+    "createTitle": "YAML로 EndpointSlice 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "엔드포인트 슬라이스 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개의 엔드포인트 슬라이스가 검색되었습니다.",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "service": "서비스",
+      "addressType": "주소 타입",
+      "ports": "포트",
+      "endpoints": "엔드포인트",
+      "total": "전체",
+      "ready": "준비됨",
+      "notReady": "준비 안 됨",
+      "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "withReady": "Ready 포함",
+      "withNotReady": "NotReady 포함",
+      "totalEndpoints": "전체 엔드포인트 수"
+    },
+    "noResults": "엔드포인트 슬라이스를 찾을 수 없습니다.",
+    "delete": {
+      "button": "엔드포인트 슬라이스 삭제",
+      "title": "엔드포인트 슬라이스 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 엔드포인트 슬라이스 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
     }
   },
   "statefulsets": {
@@ -1114,6 +1189,12 @@
       "status": "상태",
       "labels": "라벨",
       "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "active": "활성",
+      "terminating": "종료 중",
+      "withLabels": "라벨 있음"
     },
     "detail": {
       "title": "네임스페이스 상세",

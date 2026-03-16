@@ -555,6 +555,7 @@ class WebSocketMultiplexer:
         apps = self._k8s.apps_v1
         batch = client.BatchV1Api(api_client=getattr(self._k8s, "api_client", None))
         storage_v1 = client.StorageV1Api(api_client=getattr(self._k8s, "api_client", None))
+        custom_api = client.CustomObjectsApi(api_client=getattr(self._k8s, "api_client", None))
         w = watch.Watch()
 
         last_resource_version = params.get("resource_version")
@@ -588,6 +589,29 @@ class WebSocketMultiplexer:
                             stream = w.stream(core.list_namespaced_service, namespace, **stream_params)
                         else:
                             stream = w.stream(core.list_service_for_all_namespaces, **stream_params)
+                    elif resource == "endpoints":
+                        if namespace:
+                            stream = w.stream(core.list_namespaced_endpoints, namespace, **stream_params)
+                        else:
+                            stream = w.stream(core.list_endpoints_for_all_namespaces, **stream_params)
+                    elif resource == "endpointslices":
+                        if namespace:
+                            stream = w.stream(
+                                custom_api.list_namespaced_custom_object,
+                                group="discovery.k8s.io",
+                                version="v1",
+                                namespace=namespace,
+                                plural="endpointslices",
+                                **stream_params,
+                            )
+                        else:
+                            stream = w.stream(
+                                custom_api.list_cluster_custom_object,
+                                group="discovery.k8s.io",
+                                version="v1",
+                                plural="endpointslices",
+                                **stream_params,
+                            )
                     elif resource == "events":
                         if namespace:
                             stream = w.stream(core.list_namespaced_event, namespace, **stream_params)
@@ -639,6 +663,11 @@ class WebSocketMultiplexer:
                         obj = event.get("object")
                         if obj is not None and hasattr(obj, "metadata"):
                             last_resource_version = getattr(obj.metadata, "resource_version", last_resource_version)
+                        elif isinstance(obj, dict):
+                            last_resource_version = (
+                                (obj.get("metadata", {}) or {}).get("resourceVersion")
+                                or last_resource_version
+                            )
 
                         if resource == "pods" and obj is not None:
                             obj = self._k8s._pod_to_info(obj).dict()
@@ -648,6 +677,10 @@ class WebSocketMultiplexer:
                             obj = self._namespace_to_info(obj)
                         elif resource == "services" and obj is not None:
                             obj = self._service_to_info(obj)
+                        elif resource == "endpoints" and obj is not None:
+                            obj = self._k8s._endpoint_to_info(obj)
+                        elif resource == "endpointslices" and obj is not None:
+                            obj = self._k8s._endpointslice_to_info(obj, include_endpoints=True)
                         elif resource == "events" and obj is not None:
                             obj = self._event_to_info(obj)
                         elif resource == "pvcs" and obj is not None:

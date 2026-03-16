@@ -42,6 +42,7 @@ function kindIcon(kind: string): string {
     Node: '🖥️', Namespace: '📦', Pod: '🔵', Deployment: '🚀', StatefulSet: '📊',
     DaemonSet: '👾', ReplicaSet: '📋', Job: '⚡', CronJob: '⏰',
     Service: '🌐', Ingress: '🔀', NetworkPolicy: '🛡️',
+    EndpointSlice: '🧩',
     ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈',
   }
@@ -82,7 +83,26 @@ export default function ResourceDetailDrawer() {
   const canDeleteStorageClass = kind === 'StorageClass' && isWriteRole
   const canDeleteVolumeAttachment = kind === 'VolumeAttachment' && isWriteRole
   const canDeleteService = kind === 'Service' && !!ns && isWriteRole
-  const canDelete = canDeleteNode || canDeletePod || canDeleteNamespace || canDeleteDeployment || canDeleteStatefulSet || canDeleteDaemonSet || canDeleteJob || canDeleteReplicaSet || canDeleteCronJob || canDeletePVC || canDeletePV || canDeleteStorageClass || canDeleteVolumeAttachment || canDeleteService
+  const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
+  const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
+  const canDelete = [
+    canDeleteNode,
+    canDeletePod,
+    canDeleteNamespace,
+    canDeleteDeployment,
+    canDeleteStatefulSet,
+    canDeleteDaemonSet,
+    canDeleteJob,
+    canDeleteReplicaSet,
+    canDeleteCronJob,
+    canDeletePVC,
+    canDeletePV,
+    canDeleteStorageClass,
+    canDeleteVolumeAttachment,
+    canDeleteService,
+    canDeleteEndpoints,
+    canDeleteEndpointSlice,
+  ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
     queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
@@ -131,6 +151,14 @@ export default function ResourceDetailDrawer() {
     } else if (kind === 'VolumeAttachment') {
       queryClient.invalidateQueries({ queryKey: ['storage', 'volumeattachments'] })
       queryClient.invalidateQueries({ queryKey: ['volumeattachment-describe', name] })
+    } else if (kind === 'Endpoints' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['network', 'endpoints'] })
+      queryClient.invalidateQueries({ queryKey: ['network', 'endpoints', ns] })
+      queryClient.invalidateQueries({ queryKey: ['endpoint-describe', ns, name] })
+    } else if (kind === 'EndpointSlice' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices'] })
+      queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices', ns] })
+      queryClient.invalidateQueries({ queryKey: ['endpointslice-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -228,6 +256,14 @@ export default function ResourceDetailDrawer() {
         await api.deleteService(ns, name)
         return
       }
+      if (kind === 'Endpoints' && ns) {
+        await api.deleteEndpoint(ns, name)
+        return
+      }
+      if (kind === 'EndpointSlice' && ns) {
+        await api.deleteEndpointSlice(ns, name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
@@ -317,6 +353,18 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['network', 'services'] }),
           queryClient.invalidateQueries({ queryKey: ['network', 'services', ns] }),
           queryClient.invalidateQueries({ queryKey: ['service-describe', ns, name] }),
+        ])
+      } else if (kind === 'Endpoints' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['network', 'endpoints'] }),
+          queryClient.invalidateQueries({ queryKey: ['network', 'endpoints', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['endpoint-describe', ns, name] }),
+        ])
+      } else if (kind === 'EndpointSlice' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices'] }),
+          queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['endpointslice-describe', ns, name] }),
         ])
       }
 
@@ -418,6 +466,10 @@ export default function ResourceDetailDrawer() {
                         ? t('volumeattachments.delete.button', { defaultValue: 'Delete VolumeAttachment' })
                       : kind === 'Service'
                         ? t('servicesPage.delete.button', { defaultValue: 'Delete Service' })
+                      : kind === 'Endpoints'
+                        ? t('endpointsPage.delete.button', { defaultValue: 'Delete Endpoints' })
+                      : kind === 'EndpointSlice'
+                        ? t('endpointSlicesPage.delete.button', { defaultValue: 'Delete EndpointSlice' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
@@ -501,6 +553,10 @@ export default function ResourceDetailDrawer() {
                         ? t('volumeattachments.delete.title', { defaultValue: 'Delete VolumeAttachment' })
                       : kind === 'Service'
                         ? t('servicesPage.delete.title', { defaultValue: 'Delete Service' })
+                      : kind === 'Endpoints'
+                        ? t('endpointsPage.delete.title', { defaultValue: 'Delete Endpoints' })
+                      : kind === 'EndpointSlice'
+                        ? t('endpointSlicesPage.delete.title', { defaultValue: 'Delete EndpointSlice' })
                   : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
@@ -575,6 +631,18 @@ export default function ResourceDetailDrawer() {
                   : kind === 'Service'
                     ? t('servicesPage.delete.confirm', {
                         defaultValue: 'Are you sure you want to delete service "{{name}}" in "{{namespace}}"?',
+                        name,
+                        namespace: ns,
+                      })
+                  : kind === 'Endpoints'
+                    ? t('endpointsPage.delete.confirm', {
+                        defaultValue: 'Are you sure you want to delete endpoints "{{name}}" in "{{namespace}}"?',
+                        name,
+                        namespace: ns,
+                      })
+                  : kind === 'EndpointSlice'
+                    ? t('endpointSlicesPage.delete.confirm', {
+                        defaultValue: 'Are you sure you want to delete endpoint slice "{{name}}" in "{{namespace}}"?',
                         name,
                         namespace: ns,
                       })

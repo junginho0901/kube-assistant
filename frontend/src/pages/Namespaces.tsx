@@ -16,6 +16,7 @@ interface NamespaceInfo {
   labels: Record<string, string>
   resource_count: Record<string, number>
 }
+type SummaryCard = [label: string, value: number, boxClass: string, labelClass: string]
 
 /* ──────────── component ──────────── */
 export default function Namespaces() {
@@ -139,6 +140,32 @@ export default function Namespaces() {
     return (namespaces as NamespaceInfo[]).filter((ns) => ns.name.toLowerCase().includes(q))
   }, [namespaces, searchQuery])
 
+  const namespaceStats = useMemo(() => {
+    const total = filteredNamespaces.length
+    let active = 0
+    let terminating = 0
+    let withLabels = 0
+
+    for (const ns of filteredNamespaces) {
+      const status = String(ns.status || '').toLowerCase()
+      if (status === 'active') active += 1
+      if (status.includes('terminating')) terminating += 1
+      if (Object.keys(ns.labels || {}).length > 0) withLabels += 1
+    }
+
+    return { total, active, terminating, withLabels }
+  }, [filteredNamespaces])
+
+  const summaryCards = useMemo<SummaryCard[]>(
+    () => [
+      [tr('namespaces.stats.total', 'Total'), namespaceStats.total, 'border-slate-700 bg-slate-900/50', 'text-slate-400'],
+      [tr('namespaces.stats.active', 'Active'), namespaceStats.active, 'border-emerald-700/40 bg-emerald-900/10', 'text-emerald-300'],
+      [tr('namespaces.stats.terminating', 'Terminating'), namespaceStats.terminating, 'border-amber-700/40 bg-amber-900/10', 'text-amber-300'],
+      [tr('namespaces.stats.withLabels', 'With Labels'), namespaceStats.withLabels, 'border-cyan-700/40 bg-cyan-900/10', 'text-cyan-300'],
+    ],
+    [namespaceStats.active, namespaceStats.terminating, namespaceStats.total, namespaceStats.withLabels, tr],
+  )
+
   const sortedNamespaces = useMemo(() => {
     if (!sortKey) return filteredNamespaces
     const list = [...filteredNamespaces]
@@ -245,15 +272,15 @@ export default function Namespaces() {
               {tr('namespaces.create.button', 'Create Namespace')}
             </button>
           )}
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
             title={tr('namespaces.refresh', 'Refresh')}
-            className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {tr('namespaces.refresh', 'Refresh')}
-        </button>
+            className="btn btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {tr('namespaces.refresh', 'Refresh')}
+          </button>
         </div>
       </div>
 
@@ -267,6 +294,15 @@ export default function Namespaces() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {summaryCards.map(([label, value, boxClass, labelClass]) => (
+          <div key={label} className={`rounded-lg border px-4 py-3 ${boxClass}`}>
+            <p className={`text-[11px] sm:text-xs leading-4 whitespace-nowrap ${labelClass}`}>{label}</p>
+            <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+          </div>
+        ))}
       </div>
 
       {/* table */}
