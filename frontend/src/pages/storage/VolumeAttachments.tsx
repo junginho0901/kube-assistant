@@ -388,7 +388,7 @@ spec:
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="btn btn-secondary inline-flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             title={tr('volumeattachments.refreshTitle', 'Force refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
