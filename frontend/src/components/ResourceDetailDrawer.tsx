@@ -13,6 +13,7 @@ import PodInfo from './resource-detail/PodInfo'
 import WorkloadInfo from './resource-detail/WorkloadInfo'
 import NetworkInfo from './resource-detail/NetworkInfo'
 import ServiceInfo from './resource-detail/ServiceInfo'
+import GatewayInfo from './resource-detail/GatewayInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
@@ -32,6 +33,7 @@ function kindToPlural(kind: string): string {
     PersistentVolume: 'persistentvolume', HorizontalPodAutoscaler: 'horizontalpodautoscaler',
     Endpoints: 'endpoints', EndpointSlice: 'endpointslice',
     IngressClass: 'ingressclass',
+    Gateway: 'gateway',
     StorageClass: 'storageclass',
     VolumeAttachment: 'volumeattachment',
   }
@@ -45,6 +47,7 @@ function kindIcon(kind: string): string {
     Service: '🌐', Ingress: '🔀', NetworkPolicy: '🛡️',
     IngressClass: '🧩',
     EndpointSlice: '🧩',
+    Gateway: '🚪',
     ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈',
   }
@@ -88,6 +91,7 @@ export default function ResourceDetailDrawer() {
   const canDeleteIngress = kind === 'Ingress' && !!ns && isWriteRole
   const canDeleteIngressClass = kind === 'IngressClass' && isWriteRole
   const canDeleteNetworkPolicy = kind === 'NetworkPolicy' && !!ns && isWriteRole
+  const canDeleteGateway = kind === 'Gateway' && !!ns && isWriteRole
   const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
   const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
   const canDelete = [
@@ -108,6 +112,7 @@ export default function ResourceDetailDrawer() {
     canDeleteIngress,
     canDeleteIngressClass,
     canDeleteNetworkPolicy,
+    canDeleteGateway,
     canDeleteEndpoints,
     canDeleteEndpointSlice,
   ].some(Boolean)
@@ -178,6 +183,10 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies'] })
       queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies', ns] })
       queryClient.invalidateQueries({ queryKey: ['networkpolicy-describe', ns, name] })
+    } else if (kind === 'Gateway' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways'] })
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways', ns] })
+      queryClient.invalidateQueries({ queryKey: ['gateway-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -293,6 +302,10 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'NetworkPolicy' && ns) {
         await api.deleteNetworkPolicy(ns, name)
+        return
+      }
+      if (kind === 'Gateway' && ns) {
+        await api.deleteGateway(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -414,6 +427,12 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies', ns] }),
           queryClient.invalidateQueries({ queryKey: ['networkpolicy-describe', ns, name] }),
         ])
+      } else if (kind === 'Gateway' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways'] }),
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['gateway-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -432,6 +451,7 @@ export default function ResourceDetailDrawer() {
     if (kind === 'Namespace') return <NamespaceInfo name={name} />
     if (kind === 'Pod' && ns) return <PodInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'Service' && ns) return <ServiceInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'Gateway' && ns) return <GatewayInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
@@ -524,6 +544,8 @@ export default function ResourceDetailDrawer() {
                         ? t('ingressClassesPage.delete.button', { defaultValue: 'Delete IngressClass' })
                       : kind === 'NetworkPolicy'
                         ? t('networkPoliciesPage.delete.button', { defaultValue: 'Delete NetworkPolicy' })
+                      : kind === 'Gateway'
+                        ? t('gatewaysPage.delete.button', { defaultValue: 'Delete Gateway' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
@@ -617,6 +639,8 @@ export default function ResourceDetailDrawer() {
                         ? t('ingressClassesPage.delete.title', { defaultValue: 'Delete IngressClass' })
                       : kind === 'NetworkPolicy'
                         ? t('networkPoliciesPage.delete.title', { defaultValue: 'Delete NetworkPolicy' })
+                      : kind === 'Gateway'
+                        ? t('gatewaysPage.delete.title', { defaultValue: 'Delete Gateway' })
                   : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
@@ -720,6 +744,12 @@ export default function ResourceDetailDrawer() {
                       : kind === 'NetworkPolicy'
                         ? t('networkPoliciesPage.delete.confirm', {
                             defaultValue: 'Are you sure you want to delete network policy "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'Gateway'
+                        ? t('gatewaysPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete gateway "{{name}}" in "{{namespace}}"?',
                             name,
                             namespace: ns,
                           })
