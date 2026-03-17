@@ -77,6 +77,8 @@ class K8sService:
             self._yaml_cache: Dict[str, Dict[str, Any]] = {}
             # Drain status cache
             self._drain_status: Dict[str, Dict[str, Any]] = {}
+            # Gateway API version cache
+            self._gateway_api_version_cache: Optional[str] = None
             
         except Exception as e:
             print(f"Warning: Kubernetes client initialization failed: {e}")
@@ -85,6 +87,7 @@ class K8sService:
             self.api_client = None
             self.autoscaling_v2 = None
             self.policy_v1 = None
+            self._gateway_api_version_cache = None
             
     def get_fresh_core_v1_api(self):
         """로그 스트리밍용 독립 CoreV1Api 클라이언트 생성 (연결 풀 고갈 방지)"""
@@ -4018,6 +4021,195 @@ class K8sService:
                     "name": name,
                 }
             raise Exception(f"Failed to delete ingressclass: {e}")
+
+    def _resolve_gateway_api_version(self, force_refresh: bool = False) -> str:
+        if self._gateway_api_version_cache and not force_refresh:
+            return self._gateway_api_version_cache
+
+        candidates = ["v1", "v1beta1", "v1alpha2"]
+
+        # 1) Prefer API discovery first.
+        try:
+            discovery = self._raw_get_json("/apis/gateway.networking.k8s.io")
+            versions = [
+                str(v.get("version"))
+                for v in (discovery.get("versions", []) or [])
+                if v.get("version")
+            ]
+            for candidate in candidates:
+                if candidate in versions:
+                    self._gateway_api_version_cache = candidate
+                    return candidate
+            preferred = (discovery.get("preferredVersion") or {}).get("version")
+            if preferred:
+                self._gateway_api_version_cache = str(preferred)
+                return str(preferred)
+        except Exception:
+            pass
+
+        # 2) Fallback: probe CR API directly.
+        custom_api = client.CustomObjectsApi(api_client=self.api_client)
+        for candidate in candidates:
+            try:
+                custom_api.list_cluster_custom_object(
+                    group="gateway.networking.k8s.io",
+                    version=candidate,
+                    plural="gateways",
+                    limit=1,
+                )
+                self._gateway_api_version_cache = candidate
+                return candidate
+            except ApiException as e:
+                if getattr(e, "status", None) in (400, 404):
+                    continue
+                # permission errors imply API exists; use candidate
+                if getattr(e, "status", None) in (401, 403):
+                    self._gateway_api_version_cache = candidate
+                    return candidate
+                continue
+
+        raise Exception("Gateway API not available (gateway.networking.k8s.io)")
+
+    def _gateway_to_info(self, item: Any) -> Dict[str, Any]:
+        obj = item if isinstance(item, dict) else self.api_client.sanitize_for_serialization(item)
+        metadata = obj.get("metadata", {}) if isinstance(obj, dict) else {}
+        spec = obj.get("spec", {}) if isinstance(obj, dict) else {}
+        status = obj.get("status", {}) if isinstance(obj, dict) else {}
+
+        listeners = list(spec.get("listeners", []) or [])
+        status_listeners = list(status.get("listeners", []) or [])
+        addresses = list(status.get("addresses", []) or [])
+        conditions = list(status.get("conditions", []) or [])
+
+        attached_routes = 0
+        for listener in status_listeners:
+            value = listener.get("attachedRoutes", 0)
+            try:
+                attached_routes += int(value or 0)
+            except Exception:
+                continue
+
+        def condition_true(cond_type: str) -> bool:
+            for condition in conditions:
+                if str(condition.get("type", "")) == cond_type and str(condition.get("status", "")).lower() == "true":
+                    return True
+            return False
+
+        status_text = "Unknown"
+        true_condition = next((c.get("type") for c in conditions if str(c.get("status", "")).lower() == "true"), None)
+        false_condition = next((c.get("type") for c in conditions if str(c.get("status", "")).lower() == "false"), None)
+        if condition_true("Programmed"):
+            status_text = "Programmed"
+        elif condition_true("Accepted"):
+            status_text = "Accepted"
+        elif true_condition:
+            status_text = str(true_condition)
+        elif false_condition:
+            status_text = f"{false_condition}(False)"
+
+        return {
+            "name": metadata.get("name"),
+            "namespace": metadata.get("namespace"),
+            "gateway_class_name": spec.get("gatewayClassName"),
+            "listeners_count": len(listeners),
+            "attached_routes": attached_routes,
+            "addresses_count": len(addresses),
+            "status": status_text,
+            "programmed": condition_true("Programmed"),
+            "accepted": condition_true("Accepted"),
+            "listeners": listeners,
+            "status_listeners": status_listeners,
+            "addresses": addresses,
+            "conditions": conditions,
+            "labels": dict(metadata.get("labels") or {}),
+            "annotations": dict(metadata.get("annotations") or {}),
+            "finalizers": list(metadata.get("finalizers") or []),
+            "created_at": metadata.get("creationTimestamp"),
+            "api_version": obj.get("apiVersion"),
+        }
+
+    async def get_gateways(self, namespace: str) -> List[Dict[str, Any]]:
+        """Gateway 목록 조회"""
+        try:
+            version = self._resolve_gateway_api_version()
+            custom_api = client.CustomObjectsApi(api_client=self.api_client)
+            data = custom_api.list_namespaced_custom_object(
+                group="gateway.networking.k8s.io",
+                version=version,
+                namespace=namespace,
+                plural="gateways",
+            )
+            return [self._gateway_to_info(item) for item in (data.get("items", []) or [])]
+        except ApiException as e:
+            raise Exception(f"Failed to get gateways: {e}")
+
+    async def get_all_gateways(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """전체 네임스페이스 Gateway 목록 조회"""
+        try:
+            version = self._resolve_gateway_api_version(force_refresh=force_refresh)
+            custom_api = client.CustomObjectsApi(api_client=self.api_client)
+            data = custom_api.list_cluster_custom_object(
+                group="gateway.networking.k8s.io",
+                version=version,
+                plural="gateways",
+            )
+            return [self._gateway_to_info(item) for item in (data.get("items", []) or [])]
+        except ApiException as e:
+            raise Exception(f"Failed to get all gateways: {e}")
+
+    async def describe_gateway(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Gateway 상세 조회"""
+        try:
+            version = self._resolve_gateway_api_version()
+            custom_api = client.CustomObjectsApi(api_client=self.api_client)
+            data = custom_api.get_namespaced_custom_object(
+                group="gateway.networking.k8s.io",
+                version=version,
+                namespace=namespace,
+                plural="gateways",
+                name=name,
+            )
+            info = self._gateway_to_info(data)
+            return {
+                **info,
+                "apiVersion": data.get("apiVersion", f"gateway.networking.k8s.io/{version}"),
+                "kind": data.get("kind", "Gateway"),
+                "metadata": data.get("metadata", {}),
+                "spec": data.get("spec", {}),
+                "status_detail": data.get("status", {}),
+            }
+        except ApiException as e:
+            raise Exception(f"Failed to describe gateway: {e}")
+
+    async def delete_gateway(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Gateway 삭제"""
+        try:
+            version = self._resolve_gateway_api_version()
+            custom_api = client.CustomObjectsApi(api_client=self.api_client)
+            response = custom_api.delete_namespaced_custom_object(
+                group="gateway.networking.k8s.io",
+                version=version,
+                namespace=namespace,
+                plural="gateways",
+                name=name,
+                body=client.V1DeleteOptions(),
+            )
+            self._invalidate_yaml_cache("gateway", name, namespace=namespace)
+            self._invalidate_yaml_cache("gateways", name, namespace=namespace)
+            return {
+                "status": "deleted",
+                "name": name,
+                "namespace": namespace,
+                "details": response,
+            }
+        except ApiException as e:
+            if getattr(e, "status", None) == 404:
+                return {
+                    "status": "not_found",
+                    "name": name,
+                    "namespace": namespace,
+                }
+            raise Exception(f"Failed to delete gateway: {e}")
 
     async def get_endpoints(self, namespace: str) -> List[Dict]:
         """Endpoints 목록 조회"""
