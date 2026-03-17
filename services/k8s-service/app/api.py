@@ -1355,6 +1355,55 @@ async def delete_networkpolicy(namespace: str, name: str, request: Request):
             raise HTTPException(status_code=404, detail=f"NetworkPolicy '{namespace}/{name}' not found")
         raise HTTPException(status_code=500, detail=detail)
 
+@router.get("/namespaces/{namespace}/gateways")
+async def get_gateways(namespace: str, force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """Gateway 목록 조회"""
+    try:
+        return await k8s_service.get_gateways(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/gateways/all")
+async def get_all_gateways(force_refresh: bool = Query(False, description="캐시 무시하고 강제 갱신")):
+    """전체 네임스페이스 Gateway 목록 조회"""
+    try:
+        return await k8s_service.get_all_gateways(force_refresh=force_refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/namespaces/{namespace}/gateways/{name}/describe")
+async def describe_gateway(namespace: str, name: str):
+    """Gateway 상세 정보 조회"""
+    try:
+        return await k8s_service.describe_gateway(namespace, name)
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Gateway '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.delete("/namespaces/{namespace}/gateways/{name}")
+async def delete_gateway(namespace: str, name: str, request: Request):
+    """Gateway 삭제"""
+    role = getattr(request.state, "role", "read")
+    if role not in ("admin", "write"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        result = await k8s_service.delete_gateway(namespace, name)
+        if isinstance(result, dict) and result.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail=f"Gateway '{namespace}/{name}' not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = str(e)
+        if "404" in detail or "not found" in detail.lower():
+            raise HTTPException(status_code=404, detail=f"Gateway '{namespace}/{name}' not found")
+        raise HTTPException(status_code=500, detail=detail)
+
 
 # Job
 @router.get("/namespaces/{namespace}/jobs")
