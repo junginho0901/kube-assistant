@@ -6,8 +6,33 @@ KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kube-assistant}"
 NAMESPACE="${NAMESPACE:-kube-assistant}"
 IMAGE_TAG="${IMAGE_TAG:-dev}"
 WAIT="${WAIT:-true}"
-KUBECONFIG_PATH="${KUBECONFIG_PATH:-/tmp/kube-assistant-kubeconfig}"
+DEFAULT_KUBECONFIG_PATH="/tmp/kube-assistant-kubeconfig"
 
+resolve_kubeconfig_path() {
+  # Priority:
+  # 1) explicit KUBECONFIG_PATH
+  # 2) explicit KUBECONFIG (single file path only)
+  # 3) repo-local .kubeconfig-kind
+  # 4) legacy default path
+  if [[ -n "${KUBECONFIG_PATH:-}" ]]; then
+    printf '%s\n' "${KUBECONFIG_PATH}"
+    return
+  fi
+
+  if [[ -n "${KUBECONFIG:-}" && "${KUBECONFIG}" != *:* ]]; then
+    printf '%s\n' "${KUBECONFIG}"
+    return
+  fi
+
+  if [[ -f "${ROOT}/.kubeconfig-kind" ]]; then
+    printf '%s\n' "${ROOT}/.kubeconfig-kind"
+    return
+  fi
+
+  printf '%s\n' "${DEFAULT_KUBECONFIG_PATH}"
+}
+
+KUBECONFIG_PATH="$(resolve_kubeconfig_path)"
 export KUBECONFIG="${KUBECONFIG_PATH}"
 
 usage() {
@@ -54,7 +79,8 @@ if ! command -v kubectl >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$KUBECONFIG_PATH" ]]; then
-  echo "KUBECONFIG not found at ${KUBECONFIG_PATH}. Set KUBECONFIG_PATH or export KUBECONFIG." >&2
+  echo "KUBECONFIG not found at ${KUBECONFIG_PATH}." >&2
+  echo "Set KUBECONFIG_PATH, or export KUBECONFIG to a single file path, or place .kubeconfig-kind at repo root." >&2
   exit 1
 fi
 
