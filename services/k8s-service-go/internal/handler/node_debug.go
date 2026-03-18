@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/transport"
 )
 
 var debugUpgrader = websocket.Upgrader{
@@ -176,37 +176,27 @@ func (h *Handler) NodeDebugShellWS(w http.ResponseWriter, r *http.Request) {
 	}
 	k8sURL := fmt.Sprintf("%s%s?%s", wsBase, attachPath, params.Encode())
 
-	// Build TLS config from REST config (load CA cert to verify K8s API server)
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: restConfig.TLSClientConfig.Insecure, //nolint:gosec
-	}
-	// Load CA certificate
-	if len(restConfig.TLSClientConfig.CAData) > 0 {
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(restConfig.TLSClientConfig.CAData)
-		tlsConfig.RootCAs = caCertPool
-	} else if restConfig.TLSClientConfig.CAFile != "" {
-		caCert, err := os.ReadFile(restConfig.TLSClientConfig.CAFile)
-		if err == nil {
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(caCert)
-			tlsConfig.RootCAs = caCertPool
-		}
-	}
-	// Load client certificate
-	if restConfig.TLSClientConfig.CertData != nil && restConfig.TLSClientConfig.KeyData != nil {
-		cert, err := tls.X509KeyPair(restConfig.TLSClientConfig.CertData, restConfig.TLSClientConfig.KeyData)
-		if err == nil {
-			tlsConfig.Certificates = []tls.Certificate{cert}
-		}
-	} else if restConfig.TLSClientConfig.CertFile != "" && restConfig.TLSClientConfig.KeyFile != "" {
-		cert, err := tls.LoadX509KeyPair(restConfig.TLSClientConfig.CertFile, restConfig.TLSClientConfig.KeyFile)
-		if err == nil {
-			tlsConfig.Certificates = []tls.Certificate{cert}
-		}
+	// Build TLS config using client-go's transport (reuses exact same TLS as all other K8s API calls)
+	transportConfig, err := restConfig.TransportConfig()
+	if err != nil {
+		msg := fmt.Sprintf("failed to get transport config: %v", err)
+		slog.Error(msg)
+		conn.WriteMessage(websocket.TextMessage, []byte(msg+"\r\n"))
+		return
 	}
 
-	// Build auth headers
+	tlsConfig, err := transport.TLSConfigFor(transportConfig)
+	if err != nil {
+		msg := fmt.Sprintf("failed to build TLS config: %v", err)
+		slog.Error(msg)
+		conn.WriteMessage(websocket.TextMessage, []byte(msg+"\r\n"))
+		return
+	}
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{} //nolint:gosec
+	}
+
+	// Build auth headers using round tripper wrapper
 	k8sHeaders := http.Header{}
 	if restConfig.BearerToken != "" {
 		k8sHeaders.Set("Authorization", "Bearer "+restConfig.BearerToken)

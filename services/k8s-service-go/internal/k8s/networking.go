@@ -270,14 +270,20 @@ func (s *Service) DescribeEndpointSlice(ctx context.Context, namespace, name str
 		e := map[string]interface{}{
 			"addresses": ep.Addresses,
 		}
+		// Conditions as nested object (frontend expects ep.conditions.ready)
+		conditions := map[string]interface{}{}
 		if ep.Conditions.Ready != nil {
-			e["ready"] = *ep.Conditions.Ready
+			conditions["ready"] = *ep.Conditions.Ready
 		}
 		if ep.Conditions.Serving != nil {
-			e["serving"] = *ep.Conditions.Serving
+			conditions["serving"] = *ep.Conditions.Serving
 		}
 		if ep.Conditions.Terminating != nil {
-			e["terminating"] = *ep.Conditions.Terminating
+			conditions["terminating"] = *ep.Conditions.Terminating
+		}
+		e["conditions"] = conditions
+		if ep.Hostname != nil {
+			e["hostname"] = *ep.Hostname
 		}
 		if ep.TargetRef != nil {
 			e["target_ref"] = map[string]interface{}{
