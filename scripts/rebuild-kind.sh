@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kube-assistant}"
 NAMESPACE="${NAMESPACE:-kube-assistant}"
-IMAGE_TAG="${IMAGE_TAG:-dev}"
+IMAGE_TAG="${IMAGE_TAG:-local}"
 WAIT="${WAIT:-true}"
 DEFAULT_KUBECONFIG_PATH="/tmp/kube-assistant-kubeconfig"
 
@@ -62,7 +62,7 @@ list_services() {
     "  auth-service" \
     "  ai-service" \
     "  k8s-service" \
-    "  session-service" \
+    "  session-service (Go)" \
     "  frontend" \
     "  tool-server" \
     "  model-config-controller-go"
@@ -86,13 +86,22 @@ fi
 
 get_context() {
   case "$1" in
-    auth-service) echo "services/auth-service" ;;
+    auth-service) echo "services" ;;
     ai-service) echo "services/ai-service" ;;
     k8s-service) echo "services/k8s-service" ;;
-    session-service) echo "services/session-service" ;;
+    session-service) echo "services" ;;
     frontend) echo "frontend" ;;
     tool-server) echo "services/tool-server" ;;
     model-config-controller-go) echo "services/model-config-controller-go" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Returns a custom Dockerfile path relative to context, if needed.
+get_dockerfile() {
+  case "$1" in
+    auth-service) echo "auth-service-go/Dockerfile" ;;
+    session-service) echo "session-service-go/Dockerfile" ;;
     *) echo "" ;;
   esac
 }
@@ -170,8 +179,15 @@ build_and_load() {
     exit 1
   fi
 
+  local dockerfile
+  dockerfile="$(get_dockerfile "$svc")"
+
   echo "═══ Building ${image} ═══"
-  docker build -t "$image" "$ROOT/$ctx"
+  if [[ -n "$dockerfile" ]]; then
+    docker build -t "$image" -f "$ROOT/$ctx/$dockerfile" "$ROOT/$ctx"
+  else
+    docker build -t "$image" "$ROOT/$ctx"
+  fi
   echo "═══ Loading ${image} into kind (${KIND_CLUSTER_NAME}) ═══"
   kind load docker-image "$image" --name "$KIND_CLUSTER_NAME"
 

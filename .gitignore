@@ -59,6 +59,10 @@ logs/
 build/
 dist/
 
+# Go binaries
+services/session-service-go/server
+services/*-go/server
+
 # Database
 *.db
 *.sqlite
