@@ -35,11 +35,11 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Auth Service
+  # Auth Service (Go)
   auth-service:
     build:
-      context: ./services/auth-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: auth-service-go/Dockerfile
     ports:
       - "8004:8004"
     env_file:
@@ -125,11 +125,11 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Session Service
+  # Session Service (Go)
   session-service:
     build:
-      context: ./services/session-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: session-service-go/Dockerfile
     ports:
       - "8003:8003"
     env_file:
