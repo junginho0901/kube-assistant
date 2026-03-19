@@ -3602,7 +3602,7 @@ Draft (rules-based, keep numbers unchanged):
                         messages=messages,
                         tools=tools,
                         temperature=0.7,
-                        max_tokens=1600,
+                        max_tokens=4096,
                         timeout=60.0,
                     )
                     try:
