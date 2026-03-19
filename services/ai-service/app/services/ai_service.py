@@ -8,6 +8,7 @@ import re
 import json
 import os
 import sys
+import time
 from app.config import settings
 from datetime import datetime
 from app.security import decode_access_token
@@ -26,12 +27,36 @@ from app.services.tool_server_client import ToolServerClient
 from app.services.provider_adapter import ProviderAdapter
 
 
+class TTLCache(dict):
+    """dict 호환 캐시 — 5분 TTL 자동 만료"""
+    TTL = 300
+
+    def __contains__(self, key):
+        if not super().__contains__(key):
+            return False
+        ts, _ = super().__getitem__(key)
+        if time.time() - ts > self.TTL:
+            self.pop(key, None)
+            return False
+        return True
+
+    def __getitem__(self, key):
+        ts, val = super().__getitem__(key)
+        if time.time() - ts > self.TTL:
+            self.pop(key, None)
+            raise KeyError(key)
+        return val
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, (time.time(), value))
+
+
 class ToolContext:
     """Tool 실행 컨텍스트"""
     def __init__(self, session_id: str):
         self.session_id = session_id
         self.state = {}  # 실행 상태
-        self.cache = {}  # 결과 캐시
+        self.cache = TTLCache()  # 결과 캐시 (5분 TTL)
 
 
 class AIService:
