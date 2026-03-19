@@ -4301,8 +4301,8 @@ Remember: You're not just answering questions - you're **solving production prob
                                 "description": "네임스페이스 (선택)",
                             },
                             "all_namespaces": {
-                                "type": "string",
-                                "description": "모든 네임스페이스 조회 (true/false)",
+                                "type": "boolean",
+                                "description": "모든 네임스페이스 조회",
                             },
                             "output": {
                                 "type": "string",
