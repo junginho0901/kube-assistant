@@ -168,11 +168,12 @@ fi
 # ═══════════════════════════════════════════════════
 step "Building Docker images"
 
+# format: name:context[:dockerfile]
 IMAGES=(
-  "auth-service:services/auth-service"
+  "auth-service:services:auth-service-go/Dockerfile"
   "ai-service:services/ai-service"
-  "k8s-service:services/k8s-service"
-  "session-service:services/session-service"
+  "k8s-service:services:k8s-service-go/Dockerfile"
+  "session-service:services:session-service-go/Dockerfile"
   "frontend:frontend"
   "tool-server:services/tool-server"
   "model-config-controller-go:services/model-config-controller-go"
@@ -180,11 +181,14 @@ IMAGES=(
 
 BUILT_IMAGES=()
 for entry in "${IMAGES[@]}"; do
-  name="${entry%%:*}"
-  ctx="${entry#*:}"
+  IFS=':' read -r name ctx dockerfile <<< "$entry"
   img="kube-assistant/${name}:${TAG}"
   echo -e "  Building ${YELLOW}${img}${NC} ..."
-  docker build -t "$img" "$ROOT/$ctx" 2>&1 | tail -1
+  if [[ -n "$dockerfile" ]]; then
+    docker build -t "$img" -f "$ROOT/$ctx/$dockerfile" "$ROOT/$ctx" 2>&1 | tail -1
+  else
+    docker build -t "$img" "$ROOT/$ctx" 2>&1 | tail -1
+  fi
   BUILT_IMAGES+=("$img")
   ok "$img"
 done
