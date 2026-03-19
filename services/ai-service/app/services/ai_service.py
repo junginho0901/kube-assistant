@@ -3573,7 +3573,7 @@ Draft (rules-based, keep numbers unchanged):
             yield f"data: {json.dumps({'model_info': {'provider': self.provider, 'model': self.model, 'role': self.user_role}}, ensure_ascii=False)}\n\n"
 
             # ===== Multi-turn Tool Calling Loop =====
-            max_iterations = 5  # 최대 5번까지 tool call 반복 허용
+            max_iterations = 10  # 최대 10번까지 tool call 반복 허용
             iteration = 0
             assistant_content = ""
             tool_calls_log = []  # Tool call 정보 저장
