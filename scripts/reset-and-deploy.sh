@@ -128,8 +128,7 @@ if [[ "$MODE" == "--keep" || "$MODE" == "--db" ]]; then
       deployment/frontend deployment/k8s-service \
       deployment/session-service -n "$NS" 2>/dev/null || true
     # tool-server도 재시작 (kubeconfig 시크릿 삭제됨)
-    kubectl rollout restart deployment/tool-server-read deployment/tool-server-write \
-      deployment/tool-server-admin -n "$NS" 2>/dev/null || true
+    kubectl rollout restart deployment/tool-server -n "$NS" 2>/dev/null || true
     kubectl rollout status deployment/auth-service deployment/ai-service \
       deployment/frontend -n "$NS" --timeout=90s 2>/dev/null || warn "Some deployments slow"
     ok "All services restarted"
