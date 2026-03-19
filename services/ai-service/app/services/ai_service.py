@@ -3354,11 +3354,21 @@ Draft (rules-based, keep numbers unchanged):
                     {"error": "YAML 생성은 비활성화되었습니다."},
                     ensure_ascii=False,
                 )
-            
+
+            elif function_name == "get_pod_metrics":
+                namespace = function_args.get("namespace")
+                return await self._call_tool_server(
+                    function_name,
+                    {"namespace": namespace} if namespace else {},
+                )
+
+            elif function_name == "get_node_metrics":
+                return await self._call_tool_server(function_name, {})
+
             elif function_name == "get_node_list":
                 nodes = await self.k8s_service.get_node_list()
                 return json.dumps(nodes, ensure_ascii=False)
-            
+
             elif function_name == "describe_node":
                 result = await self.k8s_service.describe_node(function_args["name"])
                 return json.dumps(result, ensure_ascii=False)
