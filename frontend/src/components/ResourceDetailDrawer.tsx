@@ -628,6 +628,10 @@ export default function ResourceDetailDrawer() {
                         ? t('gatewayClassesPage.delete.button', { defaultValue: 'Delete GatewayClass' })
                       : kind === 'HTTPRoute'
                         ? t('httpRoutesPage.delete.button', { defaultValue: 'Delete HTTPRoute' })
+                      : kind === 'GRPCRoute'
+                        ? t('grpcRoutesPage.delete.button', { defaultValue: 'Delete GRPCRoute' })
+                      : kind === 'ReferenceGrant'
+                        ? t('referenceGrantsPage.delete.button', { defaultValue: 'Delete ReferenceGrant' })
                   : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
             </button>
           )}
@@ -727,6 +731,10 @@ export default function ResourceDetailDrawer() {
                         ? t('gatewayClassesPage.delete.title', { defaultValue: 'Delete GatewayClass' })
                       : kind === 'HTTPRoute'
                         ? t('httpRoutesPage.delete.title', { defaultValue: 'Delete HTTPRoute' })
+                      : kind === 'GRPCRoute'
+                        ? t('grpcRoutesPage.delete.title', { defaultValue: 'Delete GRPCRoute' })
+                      : kind === 'ReferenceGrant'
+                        ? t('referenceGrantsPage.delete.title', { defaultValue: 'Delete ReferenceGrant' })
                   : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
