@@ -442,6 +442,53 @@ func (s *Service) DeleteHTTPRoute(ctx context.Context, namespace, name string) e
 
 // ========== Helper ==========
 
+func formatReferenceGrantList(list *unstructured.UnstructuredList) []map[string]interface{} {
+	if list == nil {
+		return []map[string]interface{}{}
+	}
+	result := make([]map[string]interface{}, 0, len(list.Items))
+	for _, item := range list.Items {
+		entry := map[string]interface{}{
+			"name":       item.GetName(),
+			"namespace":  item.GetNamespace(),
+			"labels":     item.GetLabels(),
+			"created_at": toISO(&metav1.Time{Time: item.GetCreationTimestamp().Time}),
+		}
+
+		spec := mapMap(item.Object, "spec")
+		if spec != nil {
+			from := mapSlice(spec, "from")
+			fromList := make([]map[string]interface{}, 0, len(from))
+			for _, f := range from {
+				if fm, ok := f.(map[string]interface{}); ok {
+					fromList = append(fromList, map[string]interface{}{
+						"group":     mapStr(fm, "group"),
+						"kind":      mapStr(fm, "kind"),
+						"namespace": mapStr(fm, "namespace"),
+					})
+				}
+			}
+			entry["from"] = fromList
+
+			to := mapSlice(spec, "to")
+			toList := make([]map[string]interface{}, 0, len(to))
+			for _, t := range to {
+				if tm, ok := t.(map[string]interface{}); ok {
+					toList = append(toList, map[string]interface{}{
+						"group": mapStr(tm, "group"),
+						"kind":  mapStr(tm, "kind"),
+						"name":  mapStr(tm, "name"),
+					})
+				}
+			}
+			entry["to"] = toList
+		}
+
+		result = append(result, entry)
+	}
+	return result
+}
+
 func formatUnstructuredList(list *unstructured.UnstructuredList) []map[string]interface{} {
 	if list == nil {
 		return []map[string]interface{}{}
