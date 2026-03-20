@@ -16,6 +16,8 @@ import ServiceInfo from './resource-detail/ServiceInfo'
 import GatewayInfo from './resource-detail/GatewayInfo'
 import GatewayClassInfo from './resource-detail/GatewayClassInfo'
 import HTTPRouteInfo from './resource-detail/HTTPRouteInfo'
+import GRPCRouteInfo from './resource-detail/GRPCRouteInfo'
+import ReferenceGrantInfo from './resource-detail/ReferenceGrantInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
@@ -526,6 +528,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'Gateway' && ns) return <GatewayInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'GatewayClass') return <GatewayClassInfo name={name} rawJson={target.rawJson} />
     if (kind === 'HTTPRoute' && ns) return <HTTPRouteInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'GRPCRoute' && ns) return <GRPCRouteInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'ReferenceGrant' && ns) return <ReferenceGrantInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
