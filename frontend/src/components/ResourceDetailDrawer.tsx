@@ -858,6 +858,18 @@ export default function ResourceDetailDrawer() {
                             name,
                             namespace: ns,
                           })
+                      : kind === 'GRPCRoute'
+                        ? t('grpcRoutesPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete GRPCRoute "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'ReferenceGrant'
+                        ? t('referenceGrantsPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete ReferenceGrant "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
                   : t('namespaces.delete.confirm', {
                       defaultValue: 'Are you sure you want to delete namespace "{{name}}"?',
                       name,
