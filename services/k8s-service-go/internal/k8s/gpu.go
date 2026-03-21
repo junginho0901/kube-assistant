@@ -334,22 +334,37 @@ func (s *Service) DeleteResourceSlice(ctx context.Context, name string) error {
 // ========== GPU Dashboard ==========
 
 func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, error) {
+	// Use a bounded context so slow external calls don't block the whole request
+	dashCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	var (
-		nodeList *corev1.NodeList
-		podList  *corev1.PodList
-		nodeErr  error
-		podErr   error
+		nodeList           *corev1.NodeList
+		podList            *corev1.PodList
+		nodeErr            error
+		podErr             error
+		devicePluginStatus map[string]interface{}
+		timeSlicingConfig  map[string]interface{}
 	)
 
+	// Fetch nodes, pods, device plugin, and time-slicing config all in parallel
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		nodeList, nodeErr = s.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		nodeList, nodeErr = s.clientset.CoreV1().Nodes().List(dashCtx, metav1.ListOptions{})
 	}()
 	go func() {
 		defer wg.Done()
-		podList, podErr = s.clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		podList, podErr = s.clientset.CoreV1().Pods("").List(dashCtx, metav1.ListOptions{})
+	}()
+	go func() {
+		defer wg.Done()
+		devicePluginStatus = getDevicePluginStatus(dashCtx, s)
+	}()
+	go func() {
+		defer wg.Done()
+		timeSlicingConfig = getTimeSlicingConfig(dashCtx, s)
 	}()
 	wg.Wait()
 
@@ -423,9 +438,6 @@ func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, 
 		})
 	}
 
-	// Device plugin DaemonSet
-	devicePluginStatus := getDevicePluginStatus(ctx, s)
-
 	// MIG / Time-Slicing detection
 	migEnabled := false
 	timeSlicingEnabled := false
@@ -435,7 +447,6 @@ func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, 
 			break
 		}
 	}
-	timeSlicingConfig := getTimeSlicingConfig(ctx, s)
 	if timeSlicingConfig != nil {
 		timeSlicingEnabled = true
 	}
