@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,13 +33,17 @@ func (s *Service) resolveDRAAPIVersion(ctx context.Context) string {
 		return s.draAPIVersionCache
 	}
 
+	// Use a short timeout so version probing doesn't block requests
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	// Try v1beta1 first (Kubernetes 1.32+)
 	gvr := schema.GroupVersionResource{
 		Group:    "resource.k8s.io",
 		Version:  "v1beta1",
 		Resource: "deviceclasses",
 	}
-	_, err := s.dynamic.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err := s.dynamic.Resource(gvr).List(probeCtx, metav1.ListOptions{Limit: 1})
 	if err == nil {
 		s.draAPIVersionCache = "v1beta1"
 		slog.Info("DRA API version detected", "version", "v1beta1")
@@ -46,26 +51,34 @@ func (s *Service) resolveDRAAPIVersion(ctx context.Context) string {
 	}
 
 	// Fall back to v1alpha3 (Kubernetes 1.31)
+	probeCtx2, cancel2 := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel2()
 	gvr.Version = "v1alpha3"
-	_, err = s.dynamic.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err = s.dynamic.Resource(gvr).List(probeCtx2, metav1.ListOptions{Limit: 1})
 	if err == nil {
 		s.draAPIVersionCache = "v1alpha3"
 		slog.Info("DRA API version detected", "version", "v1alpha3")
 		return "v1alpha3"
 	}
 
-	// Default to v1beta1
-	s.draAPIVersionCache = "v1beta1"
-	slog.Warn("DRA API not detected, defaulting to v1beta1")
-	return "v1beta1"
+	// Mark as unavailable so we don't probe again
+	s.draAPIVersionCache = "unavailable"
+	slog.Warn("DRA API not detected (cluster may be < v1.31)")
+	return "unavailable"
 }
 
+// draGVR returns the GVR for DRA resources. If DRA is unavailable, version will be "unavailable".
 func (s *Service) draGVR(ctx context.Context, resource string) schema.GroupVersionResource {
 	return schema.GroupVersionResource{
 		Group:    "resource.k8s.io",
 		Version:  s.resolveDRAAPIVersion(ctx),
 		Resource: resource,
 	}
+}
+
+// isDRAUnavailable returns true if DRA API was probed and not found.
+func (s *Service) isDRAUnavailable(ctx context.Context) bool {
+	return s.resolveDRAAPIVersion(ctx) == "unavailable"
 }
 
 // ========== DeviceClasses (cluster-scoped) ==========
