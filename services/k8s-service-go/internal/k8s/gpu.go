@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,13 +33,17 @@ func (s *Service) resolveDRAAPIVersion(ctx context.Context) string {
 		return s.draAPIVersionCache
 	}
 
+	// Use a short timeout so version probing doesn't block requests
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	// Try v1beta1 first (Kubernetes 1.32+)
 	gvr := schema.GroupVersionResource{
 		Group:    "resource.k8s.io",
 		Version:  "v1beta1",
 		Resource: "deviceclasses",
 	}
-	_, err := s.dynamic.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err := s.dynamic.Resource(gvr).List(probeCtx, metav1.ListOptions{Limit: 1})
 	if err == nil {
 		s.draAPIVersionCache = "v1beta1"
 		slog.Info("DRA API version detected", "version", "v1beta1")
@@ -46,20 +51,23 @@ func (s *Service) resolveDRAAPIVersion(ctx context.Context) string {
 	}
 
 	// Fall back to v1alpha3 (Kubernetes 1.31)
+	probeCtx2, cancel2 := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel2()
 	gvr.Version = "v1alpha3"
-	_, err = s.dynamic.Resource(gvr).List(ctx, metav1.ListOptions{Limit: 1})
+	_, err = s.dynamic.Resource(gvr).List(probeCtx2, metav1.ListOptions{Limit: 1})
 	if err == nil {
 		s.draAPIVersionCache = "v1alpha3"
 		slog.Info("DRA API version detected", "version", "v1alpha3")
 		return "v1alpha3"
 	}
 
-	// Default to v1beta1
-	s.draAPIVersionCache = "v1beta1"
-	slog.Warn("DRA API not detected, defaulting to v1beta1")
-	return "v1beta1"
+	// Mark as unavailable so we don't probe again
+	s.draAPIVersionCache = "unavailable"
+	slog.Warn("DRA API not detected (cluster may be < v1.31)")
+	return "unavailable"
 }
 
+// draGVR returns the GVR for DRA resources. If DRA is unavailable, version will be "unavailable".
 func (s *Service) draGVR(ctx context.Context, resource string) schema.GroupVersionResource {
 	return schema.GroupVersionResource{
 		Group:    "resource.k8s.io",
@@ -68,9 +76,17 @@ func (s *Service) draGVR(ctx context.Context, resource string) schema.GroupVersi
 	}
 }
 
+// isDRAUnavailable returns true if DRA API was probed and not found.
+func (s *Service) isDRAUnavailable(ctx context.Context) bool {
+	return s.resolveDRAAPIVersion(ctx) == "unavailable"
+}
+
 // ========== DeviceClasses (cluster-scoped) ==========
 
 func (s *Service) GetDeviceClasses(ctx context.Context) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "deviceclasses")
 	list, err := s.ListResources(ctx, gvr, "", metav1.ListOptions{})
 	if err != nil {
@@ -80,6 +96,9 @@ func (s *Service) GetDeviceClasses(ctx context.Context) ([]map[string]interface{
 }
 
 func (s *Service) DescribeDeviceClass(ctx context.Context, name string) (map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return nil, fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "deviceclasses")
 	obj, err := s.GetResource(ctx, gvr, "", name)
 	if err != nil {
@@ -110,6 +129,9 @@ func (s *Service) DescribeDeviceClass(ctx context.Context, name string) (map[str
 }
 
 func (s *Service) DeleteDeviceClass(ctx context.Context, name string) error {
+	if s.isDRAUnavailable(ctx) {
+		return fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "deviceclasses")
 	return s.DeleteResource(ctx, gvr, "", name)
 }
@@ -117,6 +139,9 @@ func (s *Service) DeleteDeviceClass(ctx context.Context, name string) error {
 // ========== ResourceClaims (namespace-scoped) ==========
 
 func (s *Service) GetResourceClaims(ctx context.Context, namespace string) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "resourceclaims")
 	list, err := s.ListResources(ctx, gvr, namespace, metav1.ListOptions{})
 	if err != nil {
@@ -126,6 +151,9 @@ func (s *Service) GetResourceClaims(ctx context.Context, namespace string) ([]ma
 }
 
 func (s *Service) GetAllResourceClaims(ctx context.Context) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "resourceclaims")
 	list, err := s.ListResources(ctx, gvr, "", metav1.ListOptions{})
 	if err != nil {
@@ -135,6 +163,9 @@ func (s *Service) GetAllResourceClaims(ctx context.Context) ([]map[string]interf
 }
 
 func (s *Service) DescribeResourceClaim(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return nil, fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceclaims")
 	obj, err := s.GetResource(ctx, gvr, namespace, name)
 	if err != nil {
@@ -173,6 +204,9 @@ func (s *Service) DescribeResourceClaim(ctx context.Context, namespace, name str
 }
 
 func (s *Service) DeleteResourceClaim(ctx context.Context, namespace, name string) error {
+	if s.isDRAUnavailable(ctx) {
+		return fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceclaims")
 	return s.DeleteResource(ctx, gvr, namespace, name)
 }
@@ -180,6 +214,9 @@ func (s *Service) DeleteResourceClaim(ctx context.Context, namespace, name strin
 // ========== ResourceClaimTemplates (namespace-scoped) ==========
 
 func (s *Service) GetResourceClaimTemplates(ctx context.Context, namespace string) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "resourceclaimtemplates")
 	list, err := s.ListResources(ctx, gvr, namespace, metav1.ListOptions{})
 	if err != nil {
@@ -189,6 +226,9 @@ func (s *Service) GetResourceClaimTemplates(ctx context.Context, namespace strin
 }
 
 func (s *Service) GetAllResourceClaimTemplates(ctx context.Context) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "resourceclaimtemplates")
 	list, err := s.ListResources(ctx, gvr, "", metav1.ListOptions{})
 	if err != nil {
@@ -198,6 +238,9 @@ func (s *Service) GetAllResourceClaimTemplates(ctx context.Context) ([]map[strin
 }
 
 func (s *Service) DescribeResourceClaimTemplate(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return nil, fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceclaimtemplates")
 	obj, err := s.GetResource(ctx, gvr, namespace, name)
 	if err != nil {
@@ -223,6 +266,9 @@ func (s *Service) DescribeResourceClaimTemplate(ctx context.Context, namespace, 
 }
 
 func (s *Service) DeleteResourceClaimTemplate(ctx context.Context, namespace, name string) error {
+	if s.isDRAUnavailable(ctx) {
+		return fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceclaimtemplates")
 	return s.DeleteResource(ctx, gvr, namespace, name)
 }
@@ -230,6 +276,9 @@ func (s *Service) DeleteResourceClaimTemplate(ctx context.Context, namespace, na
 // ========== ResourceSlices (cluster-scoped) ==========
 
 func (s *Service) GetResourceSlices(ctx context.Context) ([]map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return []map[string]interface{}{}, nil
+	}
 	gvr := s.draGVR(ctx, "resourceslices")
 	list, err := s.ListResources(ctx, gvr, "", metav1.ListOptions{})
 	if err != nil {
@@ -239,6 +288,9 @@ func (s *Service) GetResourceSlices(ctx context.Context) ([]map[string]interface
 }
 
 func (s *Service) DescribeResourceSlice(ctx context.Context, name string) (map[string]interface{}, error) {
+	if s.isDRAUnavailable(ctx) {
+		return nil, fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceslices")
 	obj, err := s.GetResource(ctx, gvr, "", name)
 	if err != nil {
@@ -272,6 +324,9 @@ func (s *Service) DescribeResourceSlice(ctx context.Context, name string) (map[s
 }
 
 func (s *Service) DeleteResourceSlice(ctx context.Context, name string) error {
+	if s.isDRAUnavailable(ctx) {
+		return fmt.Errorf("DRA API not available")
+	}
 	gvr := s.draGVR(ctx, "resourceslices")
 	return s.DeleteResource(ctx, gvr, "", name)
 }
@@ -279,22 +334,37 @@ func (s *Service) DeleteResourceSlice(ctx context.Context, name string) error {
 // ========== GPU Dashboard ==========
 
 func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, error) {
+	// Use a bounded context so slow external calls don't block the whole request
+	dashCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	var (
-		nodeList *corev1.NodeList
-		podList  *corev1.PodList
-		nodeErr  error
-		podErr   error
+		nodeList           *corev1.NodeList
+		podList            *corev1.PodList
+		nodeErr            error
+		podErr             error
+		devicePluginStatus map[string]interface{}
+		timeSlicingConfig  map[string]interface{}
 	)
 
+	// Fetch nodes, pods, device plugin, and time-slicing config all in parallel
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		nodeList, nodeErr = s.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		nodeList, nodeErr = s.clientset.CoreV1().Nodes().List(dashCtx, metav1.ListOptions{})
 	}()
 	go func() {
 		defer wg.Done()
-		podList, podErr = s.clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		podList, podErr = s.clientset.CoreV1().Pods("").List(dashCtx, metav1.ListOptions{})
+	}()
+	go func() {
+		defer wg.Done()
+		devicePluginStatus = getDevicePluginStatus(dashCtx, s)
+	}()
+	go func() {
+		defer wg.Done()
+		timeSlicingConfig = getTimeSlicingConfig(dashCtx, s)
 	}()
 	wg.Wait()
 
@@ -368,9 +438,6 @@ func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, 
 		})
 	}
 
-	// Device plugin DaemonSet
-	devicePluginStatus := getDevicePluginStatus(ctx, s)
-
 	// MIG / Time-Slicing detection
 	migEnabled := false
 	timeSlicingEnabled := false
@@ -380,7 +447,6 @@ func (s *Service) GetGPUDashboard(ctx context.Context) (map[string]interface{}, 
 			break
 		}
 	}
-	timeSlicingConfig := getTimeSlicingConfig(ctx, s)
 	if timeSlicingConfig != nil {
 		timeSlicingEnabled = true
 	}
@@ -505,35 +571,54 @@ func formatResourceSliceList(list *unstructured.UnstructuredList) []map[string]i
 // ========== GPU helpers ==========
 
 func getGPUQuantity(resources corev1.ResourceList) int {
-	for key, qty := range resources {
-		k := string(key)
-		if k == "nvidia.com/gpu" || strings.HasPrefix(k, "nvidia.com/mig-") {
-			val, _ := qty.AsInt64()
+	// Check nvidia.com/gpu first (primary GPU resource)
+	if qty, ok := resources["nvidia.com/gpu"]; ok {
+		val, _ := qty.AsInt64()
+		if val > 0 {
 			return int(val)
 		}
 	}
-	return 0
+	// Fall back to MIG resources
+	total := 0
+	for key, qty := range resources {
+		k := string(key)
+		if strings.HasPrefix(k, "nvidia.com/mig-") {
+			val, _ := qty.AsInt64()
+			total += int(val)
+		}
+	}
+	return total
 }
 
 func getPodGPURequest(pod *corev1.Pod) int {
 	total := 0
 	for _, c := range pod.Spec.Containers {
+		containerGPU := 0
+		// Check requests first
+		if qty, ok := c.Resources.Requests["nvidia.com/gpu"]; ok {
+			val, _ := qty.AsInt64()
+			containerGPU += int(val)
+		}
 		for key, qty := range c.Resources.Requests {
-			k := string(key)
-			if k == "nvidia.com/gpu" || strings.HasPrefix(k, "nvidia.com/mig-") {
+			if strings.HasPrefix(string(key), "nvidia.com/mig-") {
 				val, _ := qty.AsInt64()
-				total += int(val)
+				containerGPU += int(val)
 			}
 		}
-		for key, qty := range c.Resources.Limits {
-			k := string(key)
-			if k == "nvidia.com/gpu" || strings.HasPrefix(k, "nvidia.com/mig-") {
+		// Fall back to limits if no requests found
+		if containerGPU == 0 {
+			if qty, ok := c.Resources.Limits["nvidia.com/gpu"]; ok {
 				val, _ := qty.AsInt64()
-				if val > 0 && total == 0 {
-					total += int(val)
+				containerGPU += int(val)
+			}
+			for key, qty := range c.Resources.Limits {
+				if strings.HasPrefix(string(key), "nvidia.com/mig-") {
+					val, _ := qty.AsInt64()
+					containerGPU += int(val)
 				}
 			}
 		}
+		total += containerGPU
 	}
 	return total
 }
@@ -563,7 +648,10 @@ func getDevicePluginStatus(ctx context.Context, s *Service) map[string]interface
 	}
 
 	for _, c := range candidates {
-		ds, err := s.clientset.AppsV1().DaemonSets(c.namespace).Get(ctx, c.name, metav1.GetOptions{})
+		// Short timeout per candidate so we don't block if the namespace doesn't exist
+		tryCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		ds, err := s.clientset.AppsV1().DaemonSets(c.namespace).Get(tryCtx, c.name, metav1.GetOptions{})
+		cancel()
 		if err != nil {
 			continue
 		}
@@ -585,7 +673,9 @@ func getTimeSlicingConfig(ctx context.Context, s *Service) map[string]interface{
 
 	for _, ns := range namespaces {
 		for _, name := range names {
-			cm, err := s.clientset.CoreV1().ConfigMaps(ns).Get(ctx, name, metav1.GetOptions{})
+			tryCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			cm, err := s.clientset.CoreV1().ConfigMaps(ns).Get(tryCtx, name, metav1.GetOptions{})
+			cancel()
 			if err != nil {
 				continue
 			}
