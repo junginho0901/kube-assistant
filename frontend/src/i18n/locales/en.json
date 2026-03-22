@@ -104,7 +104,18 @@
       "error": "Error",
       "restarting": "Restarting"
     },
-    "noResults": "No pods found."
+    "noResults": "No pods found.",
+    "exec": {
+      "connectingTo": "Connecting to {{pod}}/{{container}}...",
+      "connected": "Connected.",
+      "connectionError": "Connection error.",
+      "disconnected": "Disconnected.",
+      "title": "Exec: {{pod}} / {{container}}",
+      "statusConnecting": "Connecting...",
+      "statusConnected": "Connected",
+      "statusError": "Connection error",
+      "openExec": "Open terminal"
+    }
   },
   "deployments": {
     "title": "Deployments",
@@ -1407,7 +1418,11 @@
       "logs": "Logs",
       "describe": "Describe",
       "rbac": "RBAC",
-      "manifest": "Manifest"
+      "manifest": "Manifest",
+      "exec": "Exec"
+    },
+    "exec": {
+      "container": "Container"
     },
     "summary": {
       "kind": "Kind",

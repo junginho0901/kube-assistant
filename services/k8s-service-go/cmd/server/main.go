@@ -109,6 +109,7 @@ func main() {
 		r.Get("/api/v1/namespaces/{namespace}/pods/{name}/logs/ws", h.PodLogsWS)
 		r.Get("/api/v1/namespaces/{namespace}/pods/{name}/rbac", h.GetPodRBAC)
 		r.Delete("/api/v1/namespaces/{namespace}/pods/{pod_name}", h.DeletePod)
+		r.Get("/api/v1/namespaces/{namespace}/pods/{name}/exec/ws", h.PodExecWS)
 
 		// Deployments
 		r.Get("/api/v1/deployments/all", h.GetAllDeployments)
