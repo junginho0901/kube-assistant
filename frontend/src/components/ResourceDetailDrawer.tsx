@@ -744,6 +744,10 @@ export default function ResourceDetailDrawer() {
                         ? t('grpcRoutesPage.delete.button', { defaultValue: 'Delete GRPCRoute' })
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.button', { defaultValue: 'Delete ReferenceGrant' })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.button', { defaultValue: 'Delete BackendTLSPolicy' })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.button', { defaultValue: 'Delete BackendTrafficPolicy' })
                       : kind === 'DeviceClass'
                         ? t('deviceClassesPage.delete.button', { defaultValue: 'Delete DeviceClass' })
                       : kind === 'ResourceClaim'
@@ -855,6 +859,10 @@ export default function ResourceDetailDrawer() {
                         ? t('grpcRoutesPage.delete.title', { defaultValue: 'Delete GRPCRoute' })
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.title', { defaultValue: 'Delete ReferenceGrant' })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.title', { defaultValue: 'Delete BackendTLSPolicy' })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.title', { defaultValue: 'Delete BackendTrafficPolicy' })
                       : kind === 'DeviceClass'
                         ? t('deviceClassesPage.delete.title', { defaultValue: 'Delete DeviceClass' })
                       : kind === 'ResourceClaim'
@@ -995,6 +1003,18 @@ export default function ResourceDetailDrawer() {
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.confirm', {
                             defaultValue: 'Are you sure you want to delete ReferenceGrant "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete BackendTLSPolicy "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete BackendTrafficPolicy "{{name}}" in "{{namespace}}"?',
                             name,
                             namespace: ns,
                           })
