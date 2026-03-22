@@ -496,6 +496,64 @@
       "confirm": "\"{{namespace}}\" 네임스페이스의 ReferenceGrant \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
     }
   },
+  "backendTLSPoliciesPage": {
+    "title": "백엔드 TLS 폴리시",
+    "subtitle": "네임스페이스 전반의 Gateway API BackendTLSPolicy 리소스를 조회하고 관리합니다.",
+    "create": "백엔드 TLS 폴리시 생성",
+    "createTitle": "YAML로 백엔드 TLS 폴리시 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "BackendTLSPolicy 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개의 BackendTLSPolicy가 검색되었습니다.",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "targetRef": "대상 참조",
+      "status": "상태",
+      "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "accepted": "수락됨",
+      "withTargets": "대상 있음"
+    },
+    "noResults": "BackendTLSPolicy를 찾을 수 없습니다.",
+    "delete": {
+      "button": "백엔드 TLS 폴리시 삭제",
+      "title": "백엔드 TLS 폴리시 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 BackendTLSPolicy \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
+  "backendTrafficPoliciesPage": {
+    "title": "백엔드 트래픽 폴리시",
+    "subtitle": "네임스페이스 전반의 Gateway API BackendTrafficPolicy 리소스를 조회하고 관리합니다.",
+    "create": "백엔드 트래픽 폴리시 생성",
+    "createTitle": "YAML로 백엔드 트래픽 폴리시 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "새로고침 (강제)",
+    "searchPlaceholder": "BackendTrafficPolicy 이름 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개의 BackendTrafficPolicy가 검색되었습니다.",
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "targetRef": "대상 참조",
+      "status": "상태",
+      "age": "생성 시각"
+    },
+    "stats": {
+      "total": "전체",
+      "accepted": "수락됨",
+      "withTargets": "대상 있음"
+    },
+    "noResults": "BackendTrafficPolicy를 찾을 수 없습니다.",
+    "delete": {
+      "button": "백엔드 트래픽 폴리시 삭제",
+      "title": "백엔드 트래픽 폴리시 삭제",
+      "confirm": "\"{{namespace}}\" 네임스페이스의 BackendTrafficPolicy \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
   "statefulsets": {
     "title": "스테이트풀셋",
     "subtitle": "네임스페이스 전반의 StatefulSet 상태를 확인하고 관리합니다.",

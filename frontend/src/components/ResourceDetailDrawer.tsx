@@ -18,6 +18,8 @@ import GatewayClassInfo from './resource-detail/GatewayClassInfo'
 import HTTPRouteInfo from './resource-detail/HTTPRouteInfo'
 import GRPCRouteInfo from './resource-detail/GRPCRouteInfo'
 import ReferenceGrantInfo from './resource-detail/ReferenceGrantInfo'
+import BackendTLSPolicyInfoComp from './resource-detail/BackendTLSPolicyInfo'
+import BackendTrafficPolicyInfoComp from './resource-detail/BackendTrafficPolicyInfo'
 import DeviceClassInfoComp from './resource-detail/DeviceClassInfo'
 import ResourceClaimInfoComp from './resource-detail/ResourceClaimInfo'
 import ResourceClaimTemplateInfoComp from './resource-detail/ResourceClaimTemplateInfo'
@@ -46,6 +48,8 @@ function kindToPlural(kind: string): string {
     HTTPRoute: 'httproute',
     GRPCRoute: 'grpcroute',
     ReferenceGrant: 'referencegrant',
+    BackendTLSPolicy: 'backendtlspolicy',
+    BackendTrafficPolicy: 'backendtrafficpolicy',
     DeviceClass: 'deviceclass',
     ResourceClaim: 'resourceclaim',
     ResourceClaimTemplate: 'resourceclaimtemplate',
@@ -68,6 +72,8 @@ function kindIcon(kind: string): string {
     HTTPRoute: '🧭',
     GRPCRoute: '📡',
     ReferenceGrant: '🔗',
+    BackendTLSPolicy: '🔒',
+    BackendTrafficPolicy: '🚦',
     DeviceClass: '🎮',
     ResourceClaim: '📋',
     ResourceClaimTemplate: '📄',
@@ -120,6 +126,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteHTTPRoute = kind === 'HTTPRoute' && !!ns && isWriteRole
   const canDeleteGRPCRoute = kind === 'GRPCRoute' && !!ns && isWriteRole
   const canDeleteReferenceGrant = kind === 'ReferenceGrant' && !!ns && isWriteRole
+  const canDeleteBackendTLSPolicy = kind === 'BackendTLSPolicy' && !!ns && isWriteRole
+  const canDeleteBackendTrafficPolicy = kind === 'BackendTrafficPolicy' && !!ns && isWriteRole
   const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
   const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
   const canDeleteDeviceClass = kind === 'DeviceClass' && isWriteRole
@@ -149,6 +157,8 @@ export default function ResourceDetailDrawer() {
     canDeleteHTTPRoute,
     canDeleteGRPCRoute,
     canDeleteReferenceGrant,
+    canDeleteBackendTLSPolicy,
+    canDeleteBackendTrafficPolicy,
     canDeleteEndpoints,
     canDeleteEndpointSlice,
     canDeleteDeviceClass,
@@ -242,6 +252,14 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants'] })
       queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants', ns] })
       queryClient.invalidateQueries({ queryKey: ['referencegrant-describe', ns, name] })
+    } else if (kind === 'BackendTLSPolicy' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies'] })
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies', ns] })
+      queryClient.invalidateQueries({ queryKey: ['backendtlspolicy-describe', ns, name] })
+    } else if (kind === 'BackendTrafficPolicy' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies'] })
+      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies', ns] })
+      queryClient.invalidateQueries({ queryKey: ['backendtrafficpolicy-describe', ns, name] })
     } else if (kind === 'DeviceClass') {
       queryClient.invalidateQueries({ queryKey: ['gpu', 'deviceclasses'] })
       queryClient.invalidateQueries({ queryKey: ['deviceclass-describe', name] })
@@ -389,6 +407,14 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'ReferenceGrant' && ns) {
         await api.deleteReferenceGrant(ns, name)
+        return
+      }
+      if (kind === 'BackendTLSPolicy' && ns) {
+        await api.deleteBackendTLSPolicy(ns, name)
+        return
+      }
+      if (kind === 'BackendTrafficPolicy' && ns) {
+        await api.deleteBackendTrafficPolicy(ns, name)
         return
       }
       if (kind === 'DeviceClass') {
@@ -555,6 +581,18 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants', ns] }),
           queryClient.invalidateQueries({ queryKey: ['referencegrant-describe', ns, name] }),
         ])
+      } else if (kind === 'BackendTLSPolicy' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies'] }),
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['backendtlspolicy-describe', ns, name] }),
+        ])
+      } else if (kind === 'BackendTrafficPolicy' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies'] }),
+          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['backendtrafficpolicy-describe', ns, name] }),
+        ])
       } else if (kind === 'DeviceClass') {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['gpu', 'deviceclasses'] }),
@@ -598,6 +636,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'HTTPRoute' && ns) return <HTTPRouteInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'GRPCRoute' && ns) return <GRPCRouteInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ReferenceGrant' && ns) return <ReferenceGrantInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'BackendTLSPolicy' && ns) return <BackendTLSPolicyInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'BackendTrafficPolicy' && ns) return <BackendTrafficPolicyInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'DeviceClass') return <DeviceClassInfoComp name={name} rawJson={target.rawJson} />
     if (kind === 'ResourceClaim' && ns) return <ResourceClaimInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ResourceClaimTemplate' && ns) return <ResourceClaimTemplateInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
@@ -704,6 +744,10 @@ export default function ResourceDetailDrawer() {
                         ? t('grpcRoutesPage.delete.button', { defaultValue: 'Delete GRPCRoute' })
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.button', { defaultValue: 'Delete ReferenceGrant' })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.button', { defaultValue: 'Delete BackendTLSPolicy' })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.button', { defaultValue: 'Delete BackendTrafficPolicy' })
                       : kind === 'DeviceClass'
                         ? t('deviceClassesPage.delete.button', { defaultValue: 'Delete DeviceClass' })
                       : kind === 'ResourceClaim'
@@ -815,6 +859,10 @@ export default function ResourceDetailDrawer() {
                         ? t('grpcRoutesPage.delete.title', { defaultValue: 'Delete GRPCRoute' })
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.title', { defaultValue: 'Delete ReferenceGrant' })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.title', { defaultValue: 'Delete BackendTLSPolicy' })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.title', { defaultValue: 'Delete BackendTrafficPolicy' })
                       : kind === 'DeviceClass'
                         ? t('deviceClassesPage.delete.title', { defaultValue: 'Delete DeviceClass' })
                       : kind === 'ResourceClaim'
@@ -955,6 +1003,18 @@ export default function ResourceDetailDrawer() {
                       : kind === 'ReferenceGrant'
                         ? t('referenceGrantsPage.delete.confirm', {
                             defaultValue: 'Are you sure you want to delete ReferenceGrant "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'BackendTLSPolicy'
+                        ? t('backendTLSPoliciesPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete BackendTLSPolicy "{{name}}" in "{{namespace}}"?',
+                            name,
+                            namespace: ns,
+                          })
+                      : kind === 'BackendTrafficPolicy'
+                        ? t('backendTrafficPoliciesPage.delete.confirm', {
+                            defaultValue: 'Are you sure you want to delete BackendTrafficPolicy "{{name}}" in "{{namespace}}"?',
                             name,
                             namespace: ns,
                           })
