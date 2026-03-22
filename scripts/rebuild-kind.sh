@@ -65,7 +65,8 @@ list_services() {
     "  session-service (Go)" \
     "  frontend" \
     "  tool-server" \
-    "  model-config-controller-go"
+    "  model-config-controller-go" \
+    "  gateway (ConfigMap only, no image build)"
 }
 
 if ! command -v kind >/dev/null 2>&1; then
@@ -132,7 +133,7 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     --all)
-      SERVICES=("auth-service" "ai-service" "k8s-service" "session-service" "frontend" "tool-server" "model-config-controller-go")
+      SERVICES=("auth-service" "ai-service" "k8s-service" "session-service" "frontend" "tool-server" "model-config-controller-go" "gateway")
       shift
       ;;
     --tag)
@@ -168,8 +169,28 @@ if ! kind get clusters | grep -qx "$KIND_CLUSTER_NAME"; then
   exit 1
 fi
 
+update_gateway() {
+  echo "═══ Updating gateway ConfigMap ═══"
+  kubectl create configmap gateway-nginx \
+    --from-file=nginx.conf="$ROOT/k8s/nginx.conf" \
+    -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+  echo "═══ Rolling out gateway ═══"
+  kubectl -n "$NAMESPACE" rollout restart deploy/gateway
+  if [[ "$WAIT" == "true" ]]; then
+    kubectl -n "$NAMESPACE" rollout status deploy/gateway --timeout=180s
+  fi
+}
+
 build_and_load() {
   local svc="$1"
+
+  # gateway is ConfigMap-only, no image build
+  if [[ "$svc" == "gateway" ]]; then
+    update_gateway
+    return
+  fi
+
   local ctx
   ctx="$(get_context "$svc")"
   local image="kube-assistant/${svc}:${IMAGE_TAG}"
