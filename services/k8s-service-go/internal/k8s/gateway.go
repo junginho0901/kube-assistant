@@ -698,6 +698,77 @@ func (s *Service) DeleteReferenceGrant(ctx context.Context, namespace, name stri
 
 // ========== Helper ==========
 
+func formatPolicyList(list *unstructured.UnstructuredList) []map[string]interface{} {
+	if list == nil {
+		return []map[string]interface{}{}
+	}
+	result := make([]map[string]interface{}, 0, len(list.Items))
+	for _, item := range list.Items {
+		entry := map[string]interface{}{
+			"name":       item.GetName(),
+			"namespace":  item.GetNamespace(),
+			"labels":     item.GetLabels(),
+			"created_at": toISO(&metav1.Time{Time: item.GetCreationTimestamp().Time}),
+		}
+
+		spec := mapMap(item.Object, "spec")
+		if spec != nil {
+			targetRefs := mapSlice(spec, "targetRefs")
+			if len(targetRefs) == 0 {
+				if tr := mapMap(spec, "targetRef"); tr != nil {
+					targetRefs = []interface{}{tr}
+				}
+			}
+			refs := make([]map[string]interface{}, 0, len(targetRefs))
+			for _, tr := range targetRefs {
+				if tm, ok := tr.(map[string]interface{}); ok {
+					ref := map[string]interface{}{
+						"name": mapStr(tm, "name"),
+					}
+					if v := mapStr(tm, "group"); v != "" {
+						ref["group"] = v
+					}
+					if v := mapStr(tm, "kind"); v != "" {
+						ref["kind"] = v
+					}
+					if v := mapStr(tm, "namespace"); v != "" {
+						ref["namespace"] = v
+					}
+					refs = append(refs, ref)
+				}
+			}
+			entry["target_refs"] = refs
+		}
+
+		status := mapMap(item.Object, "status")
+		if status != nil {
+			ancestors := mapSlice(status, "ancestors")
+			for _, a := range ancestors {
+				if am, ok := a.(map[string]interface{}); ok {
+					conditions := mapSlice(am, "conditions")
+					condList := make([]map[string]interface{}, 0, len(conditions))
+					for _, c := range conditions {
+						if cm, ok := c.(map[string]interface{}); ok {
+							condList = append(condList, map[string]interface{}{
+								"type":   mapStr(cm, "type"),
+								"status": mapStr(cm, "status"),
+								"reason": mapStr(cm, "reason"),
+							})
+						}
+					}
+					if len(condList) > 0 {
+						entry["conditions"] = condList
+						break
+					}
+				}
+			}
+		}
+
+		result = append(result, entry)
+	}
+	return result
+}
+
 func formatReferenceGrantList(list *unstructured.UnstructuredList) []map[string]interface{} {
 	if list == nil {
 		return []map[string]interface{}{}
