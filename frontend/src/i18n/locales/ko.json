@@ -109,7 +109,18 @@
       "error": "오류",
       "restarting": "재시작 중"
     },
-    "noResults": "파드가 없습니다."
+    "noResults": "파드가 없습니다.",
+    "exec": {
+      "connectingTo": "{{pod}}/{{container}}에 연결 중...",
+      "connected": "연결됨.",
+      "connectionError": "연결 오류.",
+      "disconnected": "연결 종료.",
+      "title": "Exec: {{pod}} / {{container}}",
+      "statusConnecting": "연결 중...",
+      "statusConnected": "연결됨",
+      "statusError": "연결 오류",
+      "openExec": "터미널 열기"
+    }
   },
   "deployments": {
     "title": "디플로이먼트",
@@ -1436,7 +1447,11 @@
       "logs": "로그",
       "describe": "Describe",
       "rbac": "RBAC",
-      "manifest": "매니페스트"
+      "manifest": "매니페스트",
+      "exec": "Exec"
+    },
+    "exec": {
+      "container": "컨테이너"
     },
     "summary": {
       "kind": "종류",
