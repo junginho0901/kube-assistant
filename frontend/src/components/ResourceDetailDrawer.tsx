@@ -407,6 +407,14 @@ export default function ResourceDetailDrawer() {
         await api.deleteReferenceGrant(ns, name)
         return
       }
+      if (kind === 'BackendTLSPolicy' && ns) {
+        await api.deleteBackendTLSPolicy(ns, name)
+        return
+      }
+      if (kind === 'BackendTrafficPolicy' && ns) {
+        await api.deleteBackendTrafficPolicy(ns, name)
+        return
+      }
       if (kind === 'DeviceClass') {
         await api.deleteDeviceClass(name)
         return
