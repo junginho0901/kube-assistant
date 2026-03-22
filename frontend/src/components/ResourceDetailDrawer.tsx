@@ -124,6 +124,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteHTTPRoute = kind === 'HTTPRoute' && !!ns && isWriteRole
   const canDeleteGRPCRoute = kind === 'GRPCRoute' && !!ns && isWriteRole
   const canDeleteReferenceGrant = kind === 'ReferenceGrant' && !!ns && isWriteRole
+  const canDeleteBackendTLSPolicy = kind === 'BackendTLSPolicy' && !!ns && isWriteRole
+  const canDeleteBackendTrafficPolicy = kind === 'BackendTrafficPolicy' && !!ns && isWriteRole
   const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
   const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
   const canDeleteDeviceClass = kind === 'DeviceClass' && isWriteRole
@@ -153,6 +155,8 @@ export default function ResourceDetailDrawer() {
     canDeleteHTTPRoute,
     canDeleteGRPCRoute,
     canDeleteReferenceGrant,
+    canDeleteBackendTLSPolicy,
+    canDeleteBackendTrafficPolicy,
     canDeleteEndpoints,
     canDeleteEndpointSlice,
     canDeleteDeviceClass,
