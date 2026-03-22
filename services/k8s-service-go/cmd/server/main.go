@@ -248,6 +248,18 @@ func main() {
 		r.Get("/api/v1/namespaces/{namespace}/referencegrants/{name}/describe", h.DescribeReferenceGrant)
 		r.Delete("/api/v1/namespaces/{namespace}/referencegrants/{name}", h.DeleteReferenceGrant)
 
+		// Gateway API - BackendTLSPolicies
+		r.Get("/api/v1/backendtlspolicies/all", h.GetAllBackendTLSPolicies)
+		r.Get("/api/v1/namespaces/{namespace}/backendtlspolicies", h.GetBackendTLSPolicies)
+		r.Get("/api/v1/namespaces/{namespace}/backendtlspolicies/{name}/describe", h.DescribeBackendTLSPolicy)
+		r.Delete("/api/v1/namespaces/{namespace}/backendtlspolicies/{name}", h.DeleteBackendTLSPolicy)
+
+		// Gateway API - BackendTrafficPolicies
+		r.Get("/api/v1/backendtrafficpolicies/all", h.GetAllBackendTrafficPolicies)
+		r.Get("/api/v1/namespaces/{namespace}/backendtrafficpolicies", h.GetBackendTrafficPolicies)
+		r.Get("/api/v1/namespaces/{namespace}/backendtrafficpolicies/{name}/describe", h.DescribeBackendTrafficPolicy)
+		r.Delete("/api/v1/namespaces/{namespace}/backendtrafficpolicies/{name}", h.DeleteBackendTrafficPolicy)
+
 		// GPU / DRA
 		r.Get("/api/v1/gpu/dashboard", h.GetGPUDashboard)
 
