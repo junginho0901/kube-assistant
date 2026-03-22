@@ -6,6 +6,7 @@ import type { PodInfo } from '@/services/api'
 import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { ModalOverlay } from '@/components/ModalOverlay'
+import PodExecTerminal from '@/components/PodExecTerminal'
 import { 
   Server, 
   Box, 
@@ -65,6 +66,13 @@ export default function ClusterView() {
   const [showManifest, setShowManifest] = useState(false)
   const [showDescribe, setShowDescribe] = useState(false)
   const [showRbac, setShowRbac] = useState(false)
+  const [showExec, setShowExec] = useState(false)
+  const [execContainer, setExecContainer] = useState<string>('')
+  const [execCommand, setExecCommand] = useState<string>('/bin/sh')
+  const [isExecContainerDropdownOpen, setIsExecContainerDropdownOpen] = useState(false)
+  const [isExecShellDropdownOpen, setIsExecShellDropdownOpen] = useState(false)
+  const execContainerDropdownRef = useRef<HTMLDivElement>(null)
+  const execShellDropdownRef = useRef<HTMLDivElement>(null)
   const [includeAuthenticatedGroup, setIncludeAuthenticatedGroup] = useState(false)
   const [logs, setLogs] = useState<string>('')
   const [, setIsStreamingLogs] = useState(false)
@@ -462,6 +470,21 @@ export default function ClusterView() {
     }
   }, [isTailLinesDropdownOpen])
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (execContainerDropdownRef.current && !execContainerDropdownRef.current.contains(event.target as Node)) {
+        setIsExecContainerDropdownOpen(false)
+      }
+      if (execShellDropdownRef.current && !execShellDropdownRef.current.contains(event.target as Node)) {
+        setIsExecShellDropdownOpen(false)
+      }
+    }
+    if (isExecContainerDropdownOpen || isExecShellDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isExecContainerDropdownOpen, isExecShellDropdownOpen])
+
   // Pod YAML 조회
   const { data: manifest } = useQuery({
     queryKey: ['pod-yaml', selectedPod?.namespace, selectedPod?.name],
@@ -541,6 +564,7 @@ export default function ClusterView() {
     return nodeA.localeCompare(nodeB)
   })
 
+  const isAdmin = me?.role === 'admin'
   const canDeletePod = ['admin', 'write'].includes(String(me?.role || '').toLowerCase())
 
   const pickReason = (reasons: string[], priority: string[]) => {
@@ -713,6 +737,10 @@ export default function ClusterView() {
 
     // 기본값을 Logs 탭으로 설정
     setShowLogs(true)
+    setShowManifest(false)
+    setShowDescribe(false)
+    setShowRbac(false)
+    setShowExec(false)
   }
 
   const handlePodContextMenu = (event: React.MouseEvent, pod: PodInfo) => {
@@ -1012,6 +1040,37 @@ export default function ClusterView() {
             style={{ left: `${podContextMenu.x}px`, top: `${podContextMenu.y}px` }}
             role="menu"
           >
+            {isAdmin && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation()
+                  const pod = podContextMenu.pod
+                  const detail: PodDetail = {
+                    name: pod.name,
+                    namespace: pod.namespace,
+                    node: pod.node_name || '',
+                    status: pod.status || '',
+                    phase: pod.phase || '',
+                    restart_count: pod.restart_count || 0,
+                    created_at: pod.created_at || '',
+                    containers: pod.containers || [],
+                  }
+                  setSelectedPod(detail)
+                  setExecContainer(detail.containers?.[0]?.name || '')
+                  setShowLogs(false)
+                  setShowManifest(false)
+                  setShowDescribe(false)
+                  setShowRbac(false)
+                  setShowExec(true)
+                  handleClosePodContextMenu()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2"
+                role="menuitem"
+              >
+                <Terminal className="w-4 h-4" />
+                Exec
+              </button>
+            )}
             <button
               onClick={(event) => {
                 event.stopPropagation()
@@ -1060,9 +1119,10 @@ export default function ClusterView() {
                   setShowManifest(false)
                   setShowDescribe(false)
                   setShowRbac(false)
+                  setShowExec(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors ${
-                  !showLogs && !showManifest && !showDescribe && !showRbac
+                  !showLogs && !showManifest && !showDescribe && !showRbac && !showExec
                     ? 'text-primary-400 border-b-2 border-primary-400'
                     : 'text-slate-400 hover:text-white'
                 }`}
@@ -1095,6 +1155,7 @@ export default function ClusterView() {
                   setShowManifest(false)
                   setShowDescribe(false)
                   setShowRbac(false)
+                  setShowExec(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showLogs
@@ -1111,6 +1172,7 @@ export default function ClusterView() {
                   setShowManifest(false)
                   setShowDescribe(true)
                   setShowRbac(false)
+                  setShowExec(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showDescribe
@@ -1127,6 +1189,7 @@ export default function ClusterView() {
                   setShowManifest(false)
                   setShowDescribe(false)
                   setShowRbac(true)
+                  setShowExec(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showRbac
@@ -1143,6 +1206,7 @@ export default function ClusterView() {
                   setShowManifest(true)
                   setShowDescribe(false)
                   setShowRbac(false)
+                  setShowExec(false)
                 }}
                 className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
                   showManifest
@@ -1153,11 +1217,32 @@ export default function ClusterView() {
                 <FileCode className="w-4 h-4" />
                 {tr('clusterView.tabs.manifest', 'Manifest')}
               </button>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    const mainContainer = selectedPod.containers?.[0]?.name || ''
+                    setExecContainer(mainContainer)
+                    setShowLogs(false)
+                    setShowManifest(false)
+                    setShowDescribe(false)
+                    setShowRbac(false)
+                    setShowExec(true)
+                  }}
+                  className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+                    showExec
+                      ? 'text-primary-400 border-b-2 border-primary-400'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Terminal className="w-4 h-4" />
+                  {tr('clusterView.tabs.exec', 'Exec')}
+                </button>
+              )}
             </div>
 
             {/* 모달 내용 */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {!showLogs && !showManifest && !showDescribe && !showRbac && (
+            <div className={`flex-1 p-6 ${showExec ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+              {!showLogs && !showManifest && !showDescribe && !showRbac && !showExec && (
                 <div className="space-y-6">
                   {/* 기본 정보 */}
                   <div className="grid grid-cols-2 gap-4">
@@ -2305,6 +2390,70 @@ export default function ClusterView() {
               {showManifest && (
                 <div className="h-full bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-300 overflow-x-auto overflow-y-auto">
                   <pre>{manifest || tr('clusterView.manifest.loading', 'Loading...')}</pre>
+                </div>
+              )}
+              {showExec && selectedPod && (
+                <div className="h-full flex flex-col">
+                  <div className="flex items-center gap-3 mb-2">
+                    {/* Container 커스텀 드롭다운 */}
+                    <div className="relative" ref={execContainerDropdownRef}>
+                      <button
+                        onClick={() => { setIsExecContainerDropdownOpen(!isExecContainerDropdownOpen); setIsExecShellDropdownOpen(false) }}
+                        className="h-8 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[160px] justify-between"
+                      >
+                        <span className="text-xs font-medium truncate">{execContainer || '-'}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExecContainerDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isExecContainerDropdownOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 max-h-[200px] overflow-y-auto">
+                          {selectedPod.containers?.map((c: any) => (
+                            <button
+                              key={c.name}
+                              onClick={() => { setExecContainer(c.name); setIsExecContainerDropdownOpen(false) }}
+                              className="w-full px-3 py-2 text-left text-xs text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg"
+                            >
+                              {execContainer === c.name && <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />}
+                              <span className={execContainer === c.name ? 'font-medium' : ''}>{c.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Shell 커스텀 드롭다운 */}
+                    <div className="relative" ref={execShellDropdownRef}>
+                      <button
+                        onClick={() => { setIsExecShellDropdownOpen(!isExecShellDropdownOpen); setIsExecContainerDropdownOpen(false) }}
+                        className="h-8 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[120px] justify-between"
+                      >
+                        <span className="text-xs font-medium">{execCommand}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isExecShellDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isExecShellDropdownOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50">
+                          {['/bin/sh', '/bin/bash', '/bin/ash', 'sh'].map((sh) => (
+                            <button
+                              key={sh}
+                              onClick={() => { setExecCommand(sh); setIsExecShellDropdownOpen(false) }}
+                              className="w-full px-3 py-2 text-left text-xs text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg"
+                            >
+                              {execCommand === sh && <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />}
+                              <span className={execCommand === sh ? 'font-medium' : ''}>{sh}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-[400px] rounded-lg overflow-hidden border border-slate-700">
+                    <PodExecTerminal
+                      key={`${selectedPod.namespace}-${selectedPod.name}-${execContainer}-${execCommand}`}
+                      podName={selectedPod.name}
+                      namespace={selectedPod.namespace}
+                      container={execContainer}
+                      command={execCommand}
+                      onClose={() => setShowExec(false)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
