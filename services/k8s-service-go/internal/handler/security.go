@@ -1,0 +1,144 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/junginho0901/kube-assistant/services/pkg/response"
+)
+
+// --- ServiceAccounts ---
+
+// GetAllServiceAccounts handles GET /api/v1/serviceaccounts/all.
+func (h *Handler) GetAllServiceAccounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllServiceAccounts(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetServiceAccounts handles GET /api/v1/namespaces/{namespace}/serviceaccounts.
+func (h *Handler) GetServiceAccounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	data, err := h.svc.GetServiceAccounts(ctx, namespace)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// DescribeServiceAccount handles GET /api/v1/namespaces/{namespace}/serviceaccounts/{name}/describe.
+func (h *Handler) DescribeServiceAccount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	data, err := h.svc.DescribeServiceAccount(ctx, namespace, name)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetServiceAccountYAML handles GET /api/v1/namespaces/{namespace}/serviceaccounts/{name}/yaml.
+func (h *Handler) GetServiceAccountYAML(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	force := queryParamBool(r, "force_refresh", false)
+	data, err := h.svc.GetGenericResourceYAML(ctx, "serviceaccounts", namespace, name, force)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"yaml": data})
+}
+
+// DeleteServiceAccount handles DELETE /api/v1/namespaces/{namespace}/serviceaccounts/{name}.
+func (h *Handler) DeleteServiceAccount(w http.ResponseWriter, r *http.Request) {
+	if err := h.requireWrite(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	if err := h.svc.DeleteServiceAccount(ctx, namespace, name); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
+}
+
+// --- Roles ---
+
+// GetAllRoles handles GET /api/v1/roles/all.
+func (h *Handler) GetAllRoles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllRoles(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetRoles handles GET /api/v1/namespaces/{namespace}/roles.
+func (h *Handler) GetRoles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	data, err := h.svc.GetRoles(ctx, namespace)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// DescribeRole handles GET /api/v1/namespaces/{namespace}/roles/{name}/describe.
+func (h *Handler) DescribeRole(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	data, err := h.svc.DescribeRole(ctx, namespace, name)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetRoleYAML handles GET /api/v1/namespaces/{namespace}/roles/{name}/yaml.
+func (h *Handler) GetRoleYAML(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	force := queryParamBool(r, "force_refresh", false)
+	data, err := h.svc.GetGenericResourceYAML(ctx, "roles", namespace, name, force)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"yaml": data})
+}
+
+// DeleteRole handles DELETE /api/v1/namespaces/{namespace}/roles/{name}.
+func (h *Handler) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	if err := h.requireWrite(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	if err := h.svc.DeleteRole(ctx, namespace, name); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
+}
