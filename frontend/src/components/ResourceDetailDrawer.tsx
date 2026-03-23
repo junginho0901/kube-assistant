@@ -448,6 +448,14 @@ export default function ResourceDetailDrawer() {
         await api.deleteResourceSlice(name)
         return
       }
+      if (kind === 'ServiceAccount' && ns) {
+        await api.deleteServiceAccount(ns, name)
+        return
+      }
+      if (kind === 'Role' && ns) {
+        await api.deleteRole(ns, name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
@@ -627,6 +635,18 @@ export default function ResourceDetailDrawer() {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceslices'] }),
           queryClient.invalidateQueries({ queryKey: ['resourceslice-describe', name] }),
+        ])
+      } else if (kind === 'ServiceAccount' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts'] }),
+          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['serviceaccount-describe', ns, name] }),
+        ])
+      } else if (kind === 'Role' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['security', 'roles'] }),
+          queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] }),
         ])
       }
 
