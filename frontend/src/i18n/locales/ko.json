@@ -1917,5 +1917,60 @@
     "editHint": "YAML 편집",
     "applied": "적용됨",
     "refreshing": "새로고침 중..."
+  },
+  "serviceAccountsPage": {
+    "title": "서비스 어카운트",
+    "subtitle": "네임스페이스별 서비스 어카운트를 관리합니다.",
+    "searchPlaceholder": "이름 또는 네임스페이스로 검색...",
+    "allNamespaces": "모든 네임스페이스",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "create": "서비스 어카운트 생성",
+    "createTitle": "YAML로 서비스 어카운트 생성",
+    "noResults": "서비스 어카운트가 없습니다.",
+    "matchCount": "{{count}}개 결과가 일치합니다.",
+    "stats": {
+      "total": "전체",
+      "withSecrets": "시크릿 보유",
+      "totalSecrets": "총 시크릿"
+    },
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "secrets": "시크릿",
+      "age": "생성 경과"
+    },
+    "delete": {
+      "button": "서비스 어카운트 삭제",
+      "title": "서비스 어카운트 삭제",
+      "confirm": "서비스 어카운트 \"{{name}}\"을(를) 삭제하시겠습니까?"
+    }
+  },
+  "rolesPage": {
+    "title": "롤",
+    "subtitle": "네임스페이스별 롤을 관리합니다.",
+    "searchPlaceholder": "이름 또는 네임스페이스로 검색...",
+    "allNamespaces": "모든 네임스페이스",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "create": "롤 생성",
+    "createTitle": "YAML로 롤 생성",
+    "noResults": "롤이 없습니다.",
+    "matchCount": "{{count}}개 결과가 일치합니다.",
+    "stats": {
+      "total": "전체",
+      "totalRules": "총 규칙"
+    },
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "rules": "규칙",
+      "age": "생성 경과"
+    },
+    "delete": {
+      "button": "롤 삭제",
+      "title": "롤 삭제",
+      "confirm": "롤 \"{{name}}\"을(를) 삭제하시겠습니까?"
+    }
   }
 }
