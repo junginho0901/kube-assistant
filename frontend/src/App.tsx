@@ -45,6 +45,8 @@ import DeviceClasses from './pages/gpu/DeviceClasses'
 import ResourceClaims from './pages/gpu/ResourceClaims'
 import ResourceClaimTemplates from './pages/gpu/ResourceClaimTemplates'
 import ResourceSlices from './pages/gpu/ResourceSlices'
+import ServiceAccounts from './pages/security/ServiceAccounts'
+import Roles from './pages/security/Roles'
 import { MonacoEditorLoaderInitializer } from './components/monaco/MonacoEditorLoaderInitializer'
 
 function App() {
@@ -86,8 +88,8 @@ function App() {
             <Route path="gpu/resourceslices" element={<ResourceSlices />} />
             <Route path="gateway/backendtlspolicies" element={<BackendTLSPolicies />} />
             <Route path="gateway/backendtrafficpolicies" element={<BackendTrafficPolicies />} />
-            <Route path="security/serviceaccounts" element={<ComingSoon title="Service Accounts" />} />
-            <Route path="security/roles" element={<ComingSoon title="Roles" />} />
+            <Route path="security/serviceaccounts" element={<ServiceAccounts />} />
+            <Route path="security/roles" element={<Roles />} />
             <Route path="security/rolebindings" element={<ComingSoon title="Role Bindings" />} />
             <Route path="configuration/configmaps" element={<ComingSoon title="Config Maps" />} />
             <Route path="configuration/secrets" element={<ComingSoon title="Secrets" />} />

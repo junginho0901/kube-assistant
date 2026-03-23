@@ -823,6 +823,24 @@ export interface VolumeAttachmentInfo {
   created_at?: string | null
 }
 
+export interface ServiceAccountInfo {
+  name: string
+  namespace: string
+  secrets: number
+  created_at?: string | null
+  labels?: Record<string, string> | null
+  annotations?: Record<string, string> | null
+}
+
+export interface RoleInfo {
+  name: string
+  namespace: string
+  rules_count: number
+  created_at?: string | null
+  labels?: Record<string, string> | null
+  annotations?: Record<string, string> | null
+}
+
 export interface TopologyGraph {
   nodes: Array<{
     id: string
@@ -2138,6 +2156,54 @@ export const api = {
       params: { force_refresh: forceRefresh },
     })
     return data
+  },
+
+  // ===== ServiceAccounts =====
+  getServiceAccounts: async (namespace: string, forceRefresh = false): Promise<ServiceAccountInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/serviceaccounts`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllServiceAccounts: async (forceRefresh = false): Promise<ServiceAccountInfo[]> => {
+    const { data } = await client.get('/cluster/serviceaccounts/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeServiceAccount: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/serviceaccounts/${name}/describe`)
+    return data
+  },
+
+  deleteServiceAccount: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/serviceaccounts/${name}`)
+  },
+
+  // ===== Roles =====
+  getRoles: async (namespace: string, forceRefresh = false): Promise<RoleInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/roles`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllRoles: async (forceRefresh = false): Promise<RoleInfo[]> => {
+    const { data } = await client.get('/cluster/roles/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeRole: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/roles/${name}/describe`)
+    return data
+  },
+
+  deleteRole: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/roles/${name}`)
   },
 }
 

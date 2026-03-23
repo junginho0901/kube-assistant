@@ -25,6 +25,8 @@ import ResourceClaimInfoComp from './resource-detail/ResourceClaimInfo'
 import ResourceClaimTemplateInfoComp from './resource-detail/ResourceClaimTemplateInfo'
 import ResourceSliceInfoComp from './resource-detail/ResourceSliceInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
+import ServiceAccountInfo from './resource-detail/ServiceAccountInfo'
+import RoleInfo from './resource-detail/RoleInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -56,6 +58,8 @@ function kindToPlural(kind: string): string {
     ResourceSlice: 'resourceslice',
     StorageClass: 'storageclass',
     VolumeAttachment: 'volumeattachment',
+    ServiceAccount: 'serviceaccount',
+    Role: 'role',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -78,6 +82,7 @@ function kindIcon(kind: string): string {
     ResourceClaim: '📋',
     ResourceClaimTemplate: '📄',
     ResourceSlice: '🧩',
+    ServiceAccount: '👤', Role: '🔐',
     ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈',
   }
@@ -134,6 +139,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteResourceClaim = kind === 'ResourceClaim' && !!ns && isWriteRole
   const canDeleteResourceClaimTemplate = kind === 'ResourceClaimTemplate' && !!ns && isWriteRole
   const canDeleteResourceSlice = kind === 'ResourceSlice' && isWriteRole
+  const canDeleteServiceAccount = kind === 'ServiceAccount' && !!ns && isWriteRole
+  const canDeleteRole = kind === 'Role' && !!ns && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -165,6 +172,8 @@ export default function ResourceDetailDrawer() {
     canDeleteResourceClaim,
     canDeleteResourceClaimTemplate,
     canDeleteResourceSlice,
+    canDeleteServiceAccount,
+    canDeleteRole,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
@@ -272,6 +281,14 @@ export default function ResourceDetailDrawer() {
     } else if (kind === 'ResourceSlice') {
       queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceslices'] })
       queryClient.invalidateQueries({ queryKey: ['resourceslice-describe', name] })
+    } else if (kind === 'ServiceAccount' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts'] })
+      queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts', ns] })
+      queryClient.invalidateQueries({ queryKey: ['serviceaccount-describe', ns, name] })
+    } else if (kind === 'Role' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['security', 'roles'] })
+      queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] })
+      queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -431,6 +448,14 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'ResourceSlice') {
         await api.deleteResourceSlice(name)
+        return
+      }
+      if (kind === 'ServiceAccount' && ns) {
+        await api.deleteServiceAccount(ns, name)
+        return
+      }
+      if (kind === 'Role' && ns) {
+        await api.deleteRole(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -613,6 +638,18 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceslices'] }),
           queryClient.invalidateQueries({ queryKey: ['resourceslice-describe', name] }),
         ])
+      } else if (kind === 'ServiceAccount' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts'] }),
+          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['serviceaccount-describe', ns, name] }),
+        ])
+      } else if (kind === 'Role' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['security', 'roles'] }),
+          queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -642,6 +679,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'ResourceClaim' && ns) return <ResourceClaimInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ResourceClaimTemplate' && ns) return <ResourceClaimTemplateInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ResourceSlice') return <ResourceSliceInfoComp name={name} rawJson={target.rawJson} />
+    if (kind === 'ServiceAccount' && ns) return <ServiceAccountInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'Role' && ns) return <RoleInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />

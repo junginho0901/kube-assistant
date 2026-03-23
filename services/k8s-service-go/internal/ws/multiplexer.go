@@ -320,6 +320,8 @@ func resourceToGVR(resource string) (schema.GroupVersionResource, bool) {
 		"gateways":          {Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"},
 		"gatewayclasses":    {Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"},
 		"httproutes":        {Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"},
+		"serviceaccounts":   {Group: "", Version: "v1", Resource: "serviceaccounts"},
+		"roles":             {Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"},
 	}
 	gvr, ok := gvrMap[resource]
 	return gvr, ok
@@ -362,6 +364,10 @@ func objectToInfo(resource string, obj *unstructured.Unstructured) map[string]in
 		return configmapToInfo(obj)
 	case "secrets":
 		return secretToInfo(obj)
+	case "serviceaccounts":
+		return serviceAccountToInfo(obj)
+	case "roles":
+		return roleToInfo(obj)
 	default:
 		// Generic: return metadata + spec summary
 		return genericToInfo(obj)
@@ -1018,6 +1024,32 @@ func toInt64(v interface{}) (int64, bool) {
 		return int64(n), true
 	default:
 		return 0, false
+	}
+}
+
+func serviceAccountToInfo(obj *unstructured.Unstructured) map[string]interface{} {
+	metadata := obj.Object["metadata"].(map[string]interface{})
+	secrets, _ := obj.Object["secrets"].([]interface{})
+	return map[string]interface{}{
+		"name":       metadata["name"],
+		"namespace":  metadata["namespace"],
+		"secrets":    len(secrets),
+		"created_at": metadata["creationTimestamp"],
+		"labels":     metadata["labels"],
+		"annotations": metadata["annotations"],
+	}
+}
+
+func roleToInfo(obj *unstructured.Unstructured) map[string]interface{} {
+	metadata := obj.Object["metadata"].(map[string]interface{})
+	rules, _ := obj.Object["rules"].([]interface{})
+	return map[string]interface{}{
+		"name":        metadata["name"],
+		"namespace":   metadata["namespace"],
+		"rules_count": len(rules),
+		"created_at":  metadata["creationTimestamp"],
+		"labels":      metadata["labels"],
+		"annotations": metadata["annotations"],
 	}
 }
 
