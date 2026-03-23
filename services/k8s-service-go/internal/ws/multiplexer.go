@@ -362,6 +362,10 @@ func objectToInfo(resource string, obj *unstructured.Unstructured) map[string]in
 		return configmapToInfo(obj)
 	case "secrets":
 		return secretToInfo(obj)
+	case "serviceaccounts":
+		return serviceAccountToInfo(obj)
+	case "roles":
+		return roleToInfo(obj)
 	default:
 		// Generic: return metadata + spec summary
 		return genericToInfo(obj)
