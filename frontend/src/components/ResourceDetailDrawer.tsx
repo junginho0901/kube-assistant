@@ -25,6 +25,8 @@ import ResourceClaimInfoComp from './resource-detail/ResourceClaimInfo'
 import ResourceClaimTemplateInfoComp from './resource-detail/ResourceClaimTemplateInfo'
 import ResourceSliceInfoComp from './resource-detail/ResourceSliceInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
+import ServiceAccountInfo from './resource-detail/ServiceAccountInfo'
+import RoleInfo from './resource-detail/RoleInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -677,6 +679,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'ResourceClaim' && ns) return <ResourceClaimInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ResourceClaimTemplate' && ns) return <ResourceClaimTemplateInfoComp name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ResourceSlice') return <ResourceSliceInfoComp name={name} rawJson={target.rawJson} />
+    if (kind === 'ServiceAccount' && ns) return <ServiceAccountInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'Role' && ns) return <RoleInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
