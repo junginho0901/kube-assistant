@@ -251,8 +251,8 @@ metadata:
 `
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{tr('nodes.title', 'Nodes')}</h1>
           <p className="mt-2 text-slate-400">{tr('nodes.subtitle', 'Inspect cluster node status and capacity.')}</p>
@@ -280,7 +280,7 @@ metadata:
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         <input
           type="text"
@@ -291,7 +291,7 @@ metadata:
         />
       </div>
 
-      <div className="card">
+      <div className="card shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-white">
             {tr('nodes.top.title', 'Top nodes by resource usage')}
@@ -346,8 +346,8 @@ metadata:
         )}
       </div>
 
-      <div ref={tableContainerRef} className="card">
-        <div className="overflow-x-auto">
+      <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-0">
           <table className="w-full text-sm min-w-[980px] table-fixed">
             <thead className="text-slate-400">
               <tr>
@@ -409,7 +409,7 @@ metadata:
               })}
               {sortedNodes.length === 0 && !isLoadingNodes && (
                 <tr>
-                  <td colSpan={9} className="py-6 px-4 text-slate-400">
+                  <td colSpan={9} className="py-6 px-4 text-center text-slate-400">
                     {tr('nodes.noResults', 'No nodes found.')}
                   </td>
                 </tr>
@@ -418,7 +418,7 @@ metadata:
           </table>
         </div>
         {sortedNodes.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700 shrink-0">
             <div className="text-xs text-slate-400">
               {tr('common.paginationRange', 'Showing {{start}}-{{end}} of {{total}}', {
                 start: (currentPage - 1) * rowsPerPage + 1,
