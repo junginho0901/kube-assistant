@@ -343,8 +343,8 @@ spec:
   }, [])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+      <div className="flex items-center justify-between gap-3 shrink-0">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <h1 className="text-3xl font-bold text-white shrink-0">{tr('volumeattachments.title', 'Volume Attachments')}</h1>
@@ -397,7 +397,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-3 shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
@@ -410,7 +410,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {summaryCards.map(([label, value, boxClass, labelClass]) => (
           <div key={label} className={`rounded-lg border px-4 py-3 ${boxClass}`}>
             <p className={`text-[11px] sm:text-xs leading-4 whitespace-nowrap ${labelClass}`}>{label}</p>
@@ -419,25 +419,19 @@ spec:
         ))}
       </div>
 
-      <div className="card" ref={tableContainerRef}>
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-400">
-            {tr('volumeattachments.matchCount', '{{count}} volume attachment{{suffix}} match.', {
-              count: sortedVolumeAttachments.length,
-              suffix: sortedVolumeAttachments.length === 1 ? '' : 's',
-            })}
-          </p>
-          {isError && (
+      <div className="card flex-1 min-h-0 flex flex-col" ref={tableContainerRef}>
+        {isError && (
+          <div className="px-4 py-3 border-b border-slate-800">
             <p className="text-xs text-amber-300">
               {tr(
                 'storage.volumeAttachment.loadError',
                 'Failed to load VolumeAttachments. (This may be restricted by cluster permissions or environment)',
               )}
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto flex-1 min-h-0">
           <table className="w-full min-w-[900px] text-sm">
             <thead className="text-slate-400">
               <tr>
@@ -532,7 +526,7 @@ spec:
           </table>
         </div>
 
-        <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between shrink-0">
           <p className="text-xs text-slate-400">
             {sortedVolumeAttachments.length > 0
               ? tr('common.pageSummary', '{{start}}-{{end}} of {{total}}', {
