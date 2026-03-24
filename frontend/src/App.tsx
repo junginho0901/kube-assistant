@@ -47,6 +47,8 @@ import ResourceClaimTemplates from './pages/gpu/ResourceClaimTemplates'
 import ResourceSlices from './pages/gpu/ResourceSlices'
 import ServiceAccounts from './pages/security/ServiceAccounts'
 import Roles from './pages/security/Roles'
+import RoleBindings from './pages/security/RoleBindings'
+import ConfigMaps from './pages/configuration/ConfigMaps'
 import { MonacoEditorLoaderInitializer } from './components/monaco/MonacoEditorLoaderInitializer'
 
 function App() {
@@ -90,8 +92,8 @@ function App() {
             <Route path="gateway/backendtrafficpolicies" element={<BackendTrafficPolicies />} />
             <Route path="security/serviceaccounts" element={<ServiceAccounts />} />
             <Route path="security/roles" element={<Roles />} />
-            <Route path="security/rolebindings" element={<ComingSoon title="Role Bindings" />} />
-            <Route path="configuration/configmaps" element={<ComingSoon title="Config Maps" />} />
+            <Route path="security/rolebindings" element={<RoleBindings />} />
+            <Route path="configuration/configmaps" element={<ConfigMaps />} />
             <Route path="configuration/secrets" element={<ComingSoon title="Secrets" />} />
             <Route path="configuration/hpas" element={<ComingSoon title="Horizontal Pod Autoscalers" />} />
             <Route path="configuration/vpas" element={<ComingSoon title="Vertical Pod Autoscalers" />} />

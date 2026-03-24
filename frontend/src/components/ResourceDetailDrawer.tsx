@@ -27,13 +27,15 @@ import ResourceSliceInfoComp from './resource-detail/ResourceSliceInfo'
 import ConfigStorageInfo from './resource-detail/ConfigStorageInfo'
 import ServiceAccountInfo from './resource-detail/ServiceAccountInfo'
 import RoleInfo from './resource-detail/RoleInfo'
+import RoleBindingInfo from './resource-detail/RoleBindingInfo'
+import ConfigMapInfo from './resource-detail/ConfigMapInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
 
 const WORKLOAD_KINDS = new Set(['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob'])
 const NETWORK_KINDS = new Set(['Ingress', 'IngressClass', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
-const CONFIG_STORAGE_KINDS = new Set(['ConfigMap', 'Secret', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment', 'HorizontalPodAutoscaler'])
+const CONFIG_STORAGE_KINDS = new Set(['Secret', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment', 'HorizontalPodAutoscaler'])
 
 function kindToPlural(kind: string): string {
   const map: Record<string, string> = {
@@ -60,6 +62,7 @@ function kindToPlural(kind: string): string {
     VolumeAttachment: 'volumeattachment',
     ServiceAccount: 'serviceaccount',
     Role: 'role',
+    RoleBinding: 'rolebinding',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -82,7 +85,7 @@ function kindIcon(kind: string): string {
     ResourceClaim: '📋',
     ResourceClaimTemplate: '📄',
     ResourceSlice: '🧩',
-    ServiceAccount: '👤', Role: '🔐',
+    ServiceAccount: '👤', Role: '🔐', RoleBinding: '🔗',
     ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈',
   }
@@ -141,6 +144,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteResourceSlice = kind === 'ResourceSlice' && isWriteRole
   const canDeleteServiceAccount = kind === 'ServiceAccount' && !!ns && isWriteRole
   const canDeleteRole = kind === 'Role' && !!ns && isWriteRole
+  const canDeleteRoleBinding = kind === 'RoleBinding' && !!ns && isWriteRole
+  const canDeleteConfigMap = kind === 'ConfigMap' && !!ns && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -174,6 +179,8 @@ export default function ResourceDetailDrawer() {
     canDeleteResourceSlice,
     canDeleteServiceAccount,
     canDeleteRole,
+    canDeleteRoleBinding,
+    canDeleteConfigMap,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
@@ -289,6 +296,14 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['security', 'roles'] })
       queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] })
       queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] })
+    } else if (kind === 'RoleBinding' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings'] })
+      queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings', ns] })
+      queryClient.invalidateQueries({ queryKey: ['rolebinding-describe', ns, name] })
+    } else if (kind === 'ConfigMap' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] })
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] })
+      queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -456,6 +471,14 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'Role' && ns) {
         await api.deleteRole(ns, name)
+        return
+      }
+      if (kind === 'RoleBinding' && ns) {
+        await api.deleteRoleBinding(ns, name)
+        return
+      }
+      if (kind === 'ConfigMap' && ns) {
+        await api.deleteConfigMap(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -650,6 +673,18 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] }),
           queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] }),
         ])
+      } else if (kind === 'RoleBinding' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings'] }),
+          queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['rolebinding-describe', ns, name] }),
+        ])
+      } else if (kind === 'ConfigMap' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] }),
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -681,6 +716,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'ResourceSlice') return <ResourceSliceInfoComp name={name} rawJson={target.rawJson} />
     if (kind === 'ServiceAccount' && ns) return <ServiceAccountInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'Role' && ns) return <RoleInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'RoleBinding' && ns) return <RoleBindingInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'ConfigMap' && ns) return <ConfigMapInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
