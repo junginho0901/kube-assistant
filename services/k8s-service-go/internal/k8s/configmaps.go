@@ -41,6 +41,91 @@ func (s *Service) GetConfigMaps(ctx context.Context, namespace string) ([]map[st
 	return result, nil
 }
 
+// GetAllConfigMaps lists configmaps across all namespaces.
+func (s *Service) GetAllConfigMaps(ctx context.Context) ([]map[string]interface{}, error) {
+	cmList, err := s.clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list all configmaps: %w", err)
+	}
+
+	result := make([]map[string]interface{}, 0, len(cmList.Items))
+	for _, cm := range cmList.Items {
+		dataKeys := make([]string, 0, len(cm.Data))
+		for k := range cm.Data {
+			dataKeys = append(dataKeys, k)
+		}
+		binaryKeys := make([]string, 0, len(cm.BinaryData))
+		for k := range cm.BinaryData {
+			binaryKeys = append(binaryKeys, k)
+		}
+
+		result = append(result, map[string]interface{}{
+			"name":        cm.Name,
+			"namespace":   cm.Namespace,
+			"data_count":  len(cm.Data),
+			"data_keys":   dataKeys,
+			"binary_keys": binaryKeys,
+			"labels":      cm.Labels,
+			"created_at":  toISO(&cm.CreationTimestamp),
+		})
+	}
+	return result, nil
+}
+
+// DescribeConfigMap returns detailed info about a configmap.
+func (s *Service) DescribeConfigMap(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
+	cm, err := s.clientset.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get configmap %s/%s: %w", namespace, name, err)
+	}
+
+	dataKeys := make([]string, 0, len(cm.Data))
+	for k := range cm.Data {
+		dataKeys = append(dataKeys, k)
+	}
+	binaryKeys := make([]string, 0, len(cm.BinaryData))
+	for k := range cm.BinaryData {
+		binaryKeys = append(binaryKeys, k)
+	}
+
+	// Data entries (key-value)
+	dataEntries := make(map[string]string, len(cm.Data))
+	for k, v := range cm.Data {
+		dataEntries[k] = v
+	}
+
+	result := map[string]interface{}{
+		"name":             cm.Name,
+		"namespace":        cm.Namespace,
+		"data_count":       len(cm.Data),
+		"data_keys":        dataKeys,
+		"binary_keys":      binaryKeys,
+		"binary_count":     len(cm.BinaryData),
+		"data":             dataEntries,
+		"labels":           cm.Labels,
+		"annotations":      cm.Annotations,
+		"created_at":       toISO(&cm.CreationTimestamp),
+		"uid":              string(cm.UID),
+		"resource_version": cm.ResourceVersion,
+	}
+
+	// Events
+	events, eventsErr := s.clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=ConfigMap", name),
+	})
+	if eventsErr == nil {
+		sortEventsByTime(events.Items)
+		result["events"] = formatEventList(events.Items)
+	}
+
+	return result, nil
+}
+
+// DeleteConfigMap deletes a configmap.
+func (s *Service) DeleteConfigMap(ctx context.Context, namespace, name string) error {
+	return s.clientset.CoreV1().ConfigMaps(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
 // GetConfigMapYAML returns a configmap as YAML.
 func (s *Service) GetConfigMapYAML(ctx context.Context, namespace, name string) (string, error) {
 	cacheKey := fmt.Sprintf("yaml|configmaps|%s|%s", namespace, name)

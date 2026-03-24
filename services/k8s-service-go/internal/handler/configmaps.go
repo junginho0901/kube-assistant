@@ -7,6 +7,17 @@ import (
 	"github.com/junginho0901/kube-assistant/services/pkg/response"
 )
 
+// GetAllConfigMaps handles GET /api/v1/configmaps/all.
+func (h *Handler) GetAllConfigMaps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllConfigMaps(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetConfigMaps handles GET /api/v1/namespaces/{namespace}/configmaps.
 func (h *Handler) GetConfigMaps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -30,6 +41,35 @@ func (h *Handler) GetConfigMapYAML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]interface{}{"yaml": data})
+}
+
+// DescribeConfigMap handles GET /api/v1/namespaces/{namespace}/configmaps/{name}/describe.
+func (h *Handler) DescribeConfigMap(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	data, err := h.svc.DescribeConfigMap(ctx, namespace, name)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// DeleteConfigMap handles DELETE /api/v1/namespaces/{namespace}/configmaps/{name}.
+func (h *Handler) DeleteConfigMap(w http.ResponseWriter, r *http.Request) {
+	if err := h.requireWrite(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	if err := h.svc.DeleteConfigMap(ctx, namespace, name); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
 }
 
 // GetSecrets handles GET /api/v1/namespaces/{namespace}/secrets.
