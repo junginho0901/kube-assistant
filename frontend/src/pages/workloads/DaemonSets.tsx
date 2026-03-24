@@ -380,8 +380,8 @@ spec:
   const showNamespaceColumn = selectedNamespace === 'all'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{tr('daemonsets.title', 'Daemon Sets')}</h1>
           <p className="mt-2 text-slate-400">
@@ -412,7 +412,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 shrink-0">
         <div className="xl:col-span-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -473,7 +473,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3">
           <p className="text-[11px] sm:text-xs leading-4 whitespace-nowrap text-slate-400">{tr('daemonsets.stats.total', 'Total')}</p>
           <p className="text-lg text-white font-semibold mt-1">{summary.total}</p>
@@ -493,7 +493,7 @@ spec:
       </div>
 
       {searchQuery && (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-400 shrink-0">
           {tr('daemonsets.matchCount', '{{count}} daemonset{{suffix}} match.', {
             count: filteredDaemonSets.length,
             suffix: filteredDaemonSets.length === 1 ? '' : 's',
@@ -501,8 +501,8 @@ spec:
         </p>
       )}
 
-      <div ref={tableContainerRef} className="card">
-        <div className="overflow-x-auto">
+      <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-0">
           <table className="w-full text-sm min-w-[1320px] table-fixed">
             <thead className="text-slate-400">
               <tr>
@@ -590,7 +590,7 @@ spec:
               ))}
               {sortedDaemonSets.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan={showNamespaceColumn ? 12 : 11} className="py-6 px-4 text-slate-400">
+                  <td colSpan={showNamespaceColumn ? 12 : 11} className="py-6 px-4 text-center text-slate-400">
                     {tr('daemonsets.noResults', 'No daemonsets found.')}
                   </td>
                 </tr>
@@ -599,7 +599,7 @@ spec:
           </table>
         </div>
         {sortedDaemonSets.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700 shrink-0">
             <div className="text-xs text-slate-400">
               {tr('common.paginationRange', 'Showing {{start}}-{{end}} of {{total}}', {
                 start: (currentPage - 1) * rowsPerPage + 1,

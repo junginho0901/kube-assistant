@@ -184,8 +184,8 @@ spec:
   const showNamespaceColumn = selectedNamespace === 'all'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{tr('statefulsets.title', 'Stateful Sets')}</h1>
           <p className="mt-2 text-slate-400">{tr('statefulsets.subtitle', 'Inspect and manage StatefulSets across namespaces.')}</p>
@@ -212,7 +212,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 shrink-0">
         <div className="xl:col-span-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -271,7 +271,7 @@ spec:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         <div className="rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-3">
           <p className="text-xs text-slate-400">{tr('statefulsets.stats.total', 'Total')}</p>
           <p className="text-lg text-white font-semibold mt-1">{summary.total}</p>
@@ -290,7 +290,8 @@ spec:
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card flex-1 min-h-0 flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-0">
         <table className="w-full text-sm min-w-[980px] table-fixed">
           <thead className="text-slate-400">
             <tr>
@@ -330,41 +331,41 @@ spec:
             ))}
             {!isLoading && paged.length === 0 && (
               <tr>
-                <td colSpan={showNamespaceColumn ? 8 : 7} className="py-6 px-4 text-slate-400">
+                <td colSpan={showNamespaceColumn ? 8 : 7} className="py-6 px-4 text-center text-slate-400">
                   {tr('statefulsets.noResults', 'No StatefulSets found.')}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>
-          {filtered.length === 0
-            ? tr('statefulsets.paging.empty', '0 items')
-            : tr('statefulsets.paging.range', '{{from}}-{{to}} / {{total}}', {
-                from: (currentPage - 1) * pageSize + 1,
-                to: Math.min(currentPage * pageSize, filtered.length),
-                total: filtered.length,
-              })}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
-          >
-            {tr('statefulsets.paging.prev', 'Prev')}
-          </button>
-          <span>{currentPage} / {totalPages}</span>
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
-          >
-            {tr('statefulsets.paging.next', 'Next')}
-          </button>
+        </div>
+        <div className="flex items-center justify-between text-xs text-slate-400 px-4 py-3 border-t border-slate-700 shrink-0">
+          <span>
+            {filtered.length === 0
+              ? tr('statefulsets.paging.empty', '0 items')
+              : tr('statefulsets.paging.range', '{{from}}-{{to}} / {{total}}', {
+                  from: (currentPage - 1) * pageSize + 1,
+                  to: Math.min(currentPage * pageSize, filtered.length),
+                  total: filtered.length,
+                })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+            >
+              {tr('statefulsets.paging.prev', 'Prev')}
+            </button>
+            <span>{currentPage} / {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-2 py-1 rounded border border-slate-700 disabled:opacity-40"
+            >
+              {tr('statefulsets.paging.next', 'Next')}
+            </button>
+          </div>
         </div>
       </div>
 
