@@ -142,3 +142,71 @@ func (h *Handler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
 }
+
+// --- RoleBindings ---
+
+// GetAllRoleBindings handles GET /api/v1/rolebindings/all.
+func (h *Handler) GetAllRoleBindings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllRoleBindings(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetRoleBindings handles GET /api/v1/namespaces/{namespace}/rolebindings.
+func (h *Handler) GetRoleBindings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	data, err := h.svc.GetRoleBindings(ctx, namespace)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// DescribeRoleBinding handles GET /api/v1/namespaces/{namespace}/rolebindings/{name}/describe.
+func (h *Handler) DescribeRoleBinding(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	data, err := h.svc.DescribeRoleBinding(ctx, namespace, name)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
+// GetRoleBindingYAML handles GET /api/v1/namespaces/{namespace}/rolebindings/{name}/yaml.
+func (h *Handler) GetRoleBindingYAML(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	force := queryParamBool(r, "force_refresh", false)
+	data, err := h.svc.GetGenericResourceYAML(ctx, "rolebindings", namespace, name, force)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"yaml": data})
+}
+
+// DeleteRoleBinding handles DELETE /api/v1/namespaces/{namespace}/rolebindings/{name}.
+func (h *Handler) DeleteRoleBinding(w http.ResponseWriter, r *http.Request) {
+	if err := h.requireWrite(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	if err := h.svc.DeleteRoleBinding(ctx, namespace, name); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
+}
