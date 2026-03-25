@@ -862,6 +862,16 @@ export interface ConfigMapInfo {
   created_at?: string | null
 }
 
+export interface SecretInfo {
+  name: string
+  namespace: string
+  type: string
+  data_count: number
+  data_keys?: string[] | null
+  labels?: Record<string, string> | null
+  created_at?: string | null
+}
+
 export interface TopologyGraph {
   nodes: Array<{
     id: string
