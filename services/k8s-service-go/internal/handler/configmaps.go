@@ -95,6 +95,20 @@ func (h *Handler) GetSecrets(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, data)
 }
 
+// DescribeSecret handles GET /api/v1/namespaces/{namespace}/secrets/{name}/describe.
+func (h *Handler) DescribeSecret(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	canReveal := h.requireWrite(r) == nil
+	data, err := h.svc.DescribeSecret(ctx, namespace, name, canReveal)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetSecretYAML handles GET /api/v1/namespaces/{namespace}/secrets/{name}/yaml.
 func (h *Handler) GetSecretYAML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
