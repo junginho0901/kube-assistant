@@ -308,6 +308,10 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] })
       queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] })
       queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] })
+    } else if (kind === 'Secret' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] })
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] })
+      queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -483,6 +487,10 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'ConfigMap' && ns) {
         await api.deleteConfigMap(ns, name)
+        return
+      }
+      if (kind === 'Secret' && ns) {
+        await api.deleteSecret(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -688,6 +696,12 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] }),
           queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] }),
           queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] }),
+        ])
+      } else if (kind === 'Secret' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] }),
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] }),
         ])
       }
 
