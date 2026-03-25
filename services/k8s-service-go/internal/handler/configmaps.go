@@ -72,6 +72,17 @@ func (h *Handler) DeleteConfigMap(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
 }
 
+// GetAllSecrets handles GET /api/v1/secrets/all.
+func (h *Handler) GetAllSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllSecrets(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetSecrets handles GET /api/v1/namespaces/{namespace}/secrets.
 func (h *Handler) GetSecrets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
