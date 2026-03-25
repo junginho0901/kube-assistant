@@ -1982,5 +1982,46 @@
       "title": "Delete ConfigMap",
       "confirm": "Are you sure you want to delete ConfigMap \"{{name}}\"?"
     }
+  },
+  "secretsPage": {
+    "title": "Secrets",
+    "subtitle": "Manage Secrets across namespaces.",
+    "searchPlaceholder": "Search by name, namespace, or type...",
+    "allNamespaces": "All namespaces",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "create": "Create Secret",
+    "createTitle": "Create Secret from YAML",
+    "noResults": "No secrets found.",
+    "matchCount": "{{count}} result(s) match.",
+    "stats": {
+      "total": "Total",
+      "opaque": "Opaque"
+    },
+    "table": {
+      "namespace": "Namespace",
+      "name": "Name",
+      "type": "Type",
+      "data": "Data",
+      "age": "Age"
+    },
+    "delete": {
+      "button": "Delete Secret",
+      "title": "Delete Secret",
+      "confirm": "Are you sure you want to delete Secret \"{{name}}\"?"
+    }
+  },
+  "secretInfo": {
+    "basicInfo": "Basic Info",
+    "type": "Type",
+    "created": "Created",
+    "immutable": "Immutable",
+    "dataKeys": "Data Keys",
+    "data": "Data",
+    "searchKeys": "Search keys...",
+    "noMatchingKeys": "No matching keys.",
+    "noData": "No data entries.",
+    "ownerReferences": "Owner References",
+    "maskedHint": "Values are hidden for read-only users."
   }
 }

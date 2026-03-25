@@ -72,6 +72,17 @@ func (h *Handler) DeleteConfigMap(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
 }
 
+// GetAllSecrets handles GET /api/v1/secrets/all.
+func (h *Handler) GetAllSecrets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetAllSecrets(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetSecrets handles GET /api/v1/namespaces/{namespace}/secrets.
 func (h *Handler) GetSecrets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -84,15 +95,46 @@ func (h *Handler) GetSecrets(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, data)
 }
 
+// DescribeSecret handles GET /api/v1/namespaces/{namespace}/secrets/{name}/describe.
+func (h *Handler) DescribeSecret(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	canReveal := h.requireWrite(r) == nil
+	data, err := h.svc.DescribeSecret(ctx, namespace, name, canReveal)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetSecretYAML handles GET /api/v1/namespaces/{namespace}/secrets/{name}/yaml.
 func (h *Handler) GetSecretYAML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	namespace := chi.URLParam(r, "namespace")
 	name := chi.URLParam(r, "name")
-	data, err := h.svc.GetSecretYAML(ctx, namespace, name)
+	canReveal := h.requireWrite(r) == nil
+	data, err := h.svc.GetSecretYAML(ctx, namespace, name, canReveal)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]interface{}{"yaml": data})
+}
+
+// DeleteSecret handles DELETE /api/v1/namespaces/{namespace}/secrets/{name}.
+func (h *Handler) DeleteSecret(w http.ResponseWriter, r *http.Request) {
+	if err := h.requireWrite(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	ctx := r.Context()
+	namespace := chi.URLParam(r, "namespace")
+	name := chi.URLParam(r, "name")
+	if err := h.svc.DeleteSecret(ctx, namespace, name); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, map[string]interface{}{"deleted": true})
 }

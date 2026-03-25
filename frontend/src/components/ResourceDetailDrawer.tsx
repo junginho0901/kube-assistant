@@ -29,13 +29,14 @@ import ServiceAccountInfo from './resource-detail/ServiceAccountInfo'
 import RoleInfo from './resource-detail/RoleInfo'
 import RoleBindingInfo from './resource-detail/RoleBindingInfo'
 import ConfigMapInfo from './resource-detail/ConfigMapInfo'
+import SecretInfo from './resource-detail/SecretInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
 
 const WORKLOAD_KINDS = new Set(['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob'])
 const NETWORK_KINDS = new Set(['Ingress', 'IngressClass', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
-const CONFIG_STORAGE_KINDS = new Set(['Secret', 'PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment', 'HorizontalPodAutoscaler'])
+const CONFIG_STORAGE_KINDS = new Set(['PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment', 'HorizontalPodAutoscaler'])
 
 function kindToPlural(kind: string): string {
   const map: Record<string, string> = {
@@ -146,6 +147,7 @@ export default function ResourceDetailDrawer() {
   const canDeleteRole = kind === 'Role' && !!ns && isWriteRole
   const canDeleteRoleBinding = kind === 'RoleBinding' && !!ns && isWriteRole
   const canDeleteConfigMap = kind === 'ConfigMap' && !!ns && isWriteRole
+  const canDeleteSecret = kind === 'Secret' && !!ns && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -181,6 +183,7 @@ export default function ResourceDetailDrawer() {
     canDeleteRole,
     canDeleteRoleBinding,
     canDeleteConfigMap,
+    canDeleteSecret,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
@@ -188,6 +191,7 @@ export default function ResourceDetailDrawer() {
     queryFn: async () => {
       if (kind === 'Node') return api.getNodeYaml(name, yamlRefreshNonce > 0)
       if (kind === 'Namespace') return api.getNamespaceYaml(name, yamlRefreshNonce > 0)
+      if (kind === 'Secret' && ns) return api.getSecretYaml(ns, name)
       return api.getResourceYaml(kindToPlural(kind), name, ns || undefined)
     },
     enabled: !!target && tab === 'yaml',
@@ -304,6 +308,10 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] })
       queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] })
       queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] })
+    } else if (kind === 'Secret' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] })
+      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] })
+      queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -479,6 +487,10 @@ export default function ResourceDetailDrawer() {
       }
       if (kind === 'ConfigMap' && ns) {
         await api.deleteConfigMap(ns, name)
+        return
+      }
+      if (kind === 'Secret' && ns) {
+        await api.deleteSecret(ns, name)
         return
       }
       throw new Error('Delete is not supported for this resource.')
@@ -685,6 +697,12 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] }),
           queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] }),
         ])
+      } else if (kind === 'Secret' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] }),
+          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -718,6 +736,7 @@ export default function ResourceDetailDrawer() {
     if (kind === 'Role' && ns) return <RoleInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'RoleBinding' && ns) return <RoleBindingInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'ConfigMap' && ns) return <ConfigMapInfo name={name} namespace={ns} rawJson={target.rawJson} />
+    if (kind === 'Secret' && ns) return <SecretInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
@@ -774,65 +793,7 @@ export default function ResourceDetailDrawer() {
               className="flex items-center gap-1.5 px-3 py-1 rounded-md border border-red-700/60 bg-red-900/20 text-red-300 hover:bg-red-900/40"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {kind === 'Node'
-                ? t('nodes.delete.button', { defaultValue: 'Delete Node' })
-                : kind === 'Pod'
-                ? t('pods.delete', { defaultValue: 'Delete Pod' })
-                : kind === 'Deployment'
-                  ? t('deployments.delete.button', { defaultValue: 'Delete Deployment' })
-                  : kind === 'StatefulSet'
-                    ? t('statefulsets.delete.button', { defaultValue: 'Delete StatefulSet' })
-                    : kind === 'DaemonSet'
-                      ? t('daemonsets.delete.button', { defaultValue: 'Delete DaemonSet' })
-                      : kind === 'Job'
-                        ? t('jobs.delete.button', { defaultValue: 'Delete Job' })
-                      : kind === 'ReplicaSet'
-                        ? t('replicasets.delete.button', { defaultValue: 'Delete ReplicaSet' })
-                      : kind === 'CronJob'
-                        ? t('cronjobs.delete.button', { defaultValue: 'Delete CronJob' })
-                      : kind === 'PersistentVolumeClaim'
-                        ? t('pvcs.delete.button', { defaultValue: 'Delete PVC' })
-                      : kind === 'PersistentVolume'
-                        ? t('pvs.delete.button', { defaultValue: 'Delete PV' })
-                      : kind === 'StorageClass'
-                        ? t('storageclasses.delete.button', { defaultValue: 'Delete StorageClass' })
-                      : kind === 'VolumeAttachment'
-                        ? t('volumeattachments.delete.button', { defaultValue: 'Delete VolumeAttachment' })
-                      : kind === 'Service'
-                        ? t('servicesPage.delete.button', { defaultValue: 'Delete Service' })
-                      : kind === 'Endpoints'
-                        ? t('endpointsPage.delete.button', { defaultValue: 'Delete Endpoints' })
-                      : kind === 'EndpointSlice'
-                        ? t('endpointSlicesPage.delete.button', { defaultValue: 'Delete EndpointSlice' })
-                      : kind === 'Ingress'
-                        ? t('ingressesPage.delete.button', { defaultValue: 'Delete Ingress' })
-                      : kind === 'IngressClass'
-                        ? t('ingressClassesPage.delete.button', { defaultValue: 'Delete IngressClass' })
-                      : kind === 'NetworkPolicy'
-                        ? t('networkPoliciesPage.delete.button', { defaultValue: 'Delete NetworkPolicy' })
-                      : kind === 'Gateway'
-                        ? t('gatewaysPage.delete.button', { defaultValue: 'Delete Gateway' })
-                      : kind === 'GatewayClass'
-                        ? t('gatewayClassesPage.delete.button', { defaultValue: 'Delete GatewayClass' })
-                      : kind === 'HTTPRoute'
-                        ? t('httpRoutesPage.delete.button', { defaultValue: 'Delete HTTPRoute' })
-                      : kind === 'GRPCRoute'
-                        ? t('grpcRoutesPage.delete.button', { defaultValue: 'Delete GRPCRoute' })
-                      : kind === 'ReferenceGrant'
-                        ? t('referenceGrantsPage.delete.button', { defaultValue: 'Delete ReferenceGrant' })
-                      : kind === 'BackendTLSPolicy'
-                        ? t('backendTLSPoliciesPage.delete.button', { defaultValue: 'Delete BackendTLSPolicy' })
-                      : kind === 'BackendTrafficPolicy'
-                        ? t('backendTrafficPoliciesPage.delete.button', { defaultValue: 'Delete BackendTrafficPolicy' })
-                      : kind === 'DeviceClass'
-                        ? t('deviceClassesPage.delete.button', { defaultValue: 'Delete DeviceClass' })
-                      : kind === 'ResourceClaim'
-                        ? t('resourceClaimsPage.delete.button', { defaultValue: 'Delete ResourceClaim' })
-                      : kind === 'ResourceClaimTemplate'
-                        ? t('resourceClaimTemplatesPage.delete.button', { defaultValue: 'Delete ResourceClaimTemplate' })
-                      : kind === 'ResourceSlice'
-                        ? t('resourceSlicesPage.delete.button', { defaultValue: 'Delete ResourceSlice' })
-                  : t('namespaces.delete.button', { defaultValue: 'Delete Namespace' })}
+              {`Delete ${kind}`}
             </button>
           )}
         </div>
@@ -889,237 +850,12 @@ export default function ResourceDetailDrawer() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white mb-2">
-              {kind === 'Node'
-                ? t('nodes.delete.title', { defaultValue: 'Delete Node' })
-                : kind === 'Pod'
-                ? t('pods.deleteTitle', { defaultValue: 'Delete Pod' })
-                : kind === 'Deployment'
-                  ? t('deployments.delete.title', { defaultValue: 'Delete Deployment' })
-                  : kind === 'StatefulSet'
-                    ? t('statefulsets.delete.title', { defaultValue: 'Delete StatefulSet' })
-                    : kind === 'DaemonSet'
-                      ? t('daemonsets.delete.title', { defaultValue: 'Delete DaemonSet' })
-                      : kind === 'Job'
-                        ? t('jobs.delete.title', { defaultValue: 'Delete Job' })
-                      : kind === 'ReplicaSet'
-                        ? t('replicasets.delete.title', { defaultValue: 'Delete ReplicaSet' })
-                      : kind === 'CronJob'
-                        ? t('cronjobs.delete.title', { defaultValue: 'Delete CronJob' })
-                      : kind === 'PersistentVolumeClaim'
-                        ? t('pvcs.delete.title', { defaultValue: 'Delete PVC' })
-                      : kind === 'PersistentVolume'
-                        ? t('pvs.delete.title', { defaultValue: 'Delete PV' })
-                      : kind === 'StorageClass'
-                        ? t('storageclasses.delete.title', { defaultValue: 'Delete StorageClass' })
-                      : kind === 'VolumeAttachment'
-                        ? t('volumeattachments.delete.title', { defaultValue: 'Delete VolumeAttachment' })
-                      : kind === 'Service'
-                        ? t('servicesPage.delete.title', { defaultValue: 'Delete Service' })
-                      : kind === 'Endpoints'
-                        ? t('endpointsPage.delete.title', { defaultValue: 'Delete Endpoints' })
-                      : kind === 'EndpointSlice'
-                        ? t('endpointSlicesPage.delete.title', { defaultValue: 'Delete EndpointSlice' })
-                      : kind === 'Ingress'
-                        ? t('ingressesPage.delete.title', { defaultValue: 'Delete Ingress' })
-                      : kind === 'IngressClass'
-                        ? t('ingressClassesPage.delete.title', { defaultValue: 'Delete IngressClass' })
-                      : kind === 'NetworkPolicy'
-                        ? t('networkPoliciesPage.delete.title', { defaultValue: 'Delete NetworkPolicy' })
-                      : kind === 'Gateway'
-                        ? t('gatewaysPage.delete.title', { defaultValue: 'Delete Gateway' })
-                      : kind === 'GatewayClass'
-                        ? t('gatewayClassesPage.delete.title', { defaultValue: 'Delete GatewayClass' })
-                      : kind === 'HTTPRoute'
-                        ? t('httpRoutesPage.delete.title', { defaultValue: 'Delete HTTPRoute' })
-                      : kind === 'GRPCRoute'
-                        ? t('grpcRoutesPage.delete.title', { defaultValue: 'Delete GRPCRoute' })
-                      : kind === 'ReferenceGrant'
-                        ? t('referenceGrantsPage.delete.title', { defaultValue: 'Delete ReferenceGrant' })
-                      : kind === 'BackendTLSPolicy'
-                        ? t('backendTLSPoliciesPage.delete.title', { defaultValue: 'Delete BackendTLSPolicy' })
-                      : kind === 'BackendTrafficPolicy'
-                        ? t('backendTrafficPoliciesPage.delete.title', { defaultValue: 'Delete BackendTrafficPolicy' })
-                      : kind === 'DeviceClass'
-                        ? t('deviceClassesPage.delete.title', { defaultValue: 'Delete DeviceClass' })
-                      : kind === 'ResourceClaim'
-                        ? t('resourceClaimsPage.delete.title', { defaultValue: 'Delete ResourceClaim' })
-                      : kind === 'ResourceClaimTemplate'
-                        ? t('resourceClaimTemplatesPage.delete.title', { defaultValue: 'Delete ResourceClaimTemplate' })
-                      : kind === 'ResourceSlice'
-                        ? t('resourceSlicesPage.delete.title', { defaultValue: 'Delete ResourceSlice' })
-                  : t('namespaces.delete.title', { defaultValue: 'Delete Namespace' })}
+              {`Delete ${kind}`}
             </h3>
             <p className="text-sm text-slate-300 mb-4">
-              {kind === 'Node'
-                ? t('nodes.delete.confirm', {
-                    defaultValue: 'Are you sure you want to delete node "{{name}}"?',
-                    name,
-                  })
-                : kind === 'Pod'
-                ? t('pods.deleteConfirm', {
-                    defaultValue: 'Are you sure you want to delete pod "{{name}}" in "{{namespace}}"?',
-                    name,
-                    namespace: ns,
-                  })
-                : kind === 'Deployment'
-                  ? t('deployments.delete.confirm', {
-                      defaultValue: 'Are you sure you want to delete deployment "{{name}}" in "{{namespace}}"?',
-                      name,
-                      namespace: ns,
-                    })
-                  : kind === 'StatefulSet'
-                    ? t('statefulsets.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete StatefulSet "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'DaemonSet'
-                    ? t('daemonsets.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete DaemonSet "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'Job'
-                    ? t('jobs.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete Job "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'ReplicaSet'
-                    ? t('replicasets.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete ReplicaSet "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'CronJob'
-                    ? t('cronjobs.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete CronJob "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'PersistentVolumeClaim'
-                    ? t('pvcs.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete PVC "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'PersistentVolume'
-                    ? t('pvs.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete PV "{{name}}"?',
-                        name,
-                      })
-                  : kind === 'StorageClass'
-                    ? t('storageclasses.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete StorageClass "{{name}}"?',
-                        name,
-                      })
-                  : kind === 'VolumeAttachment'
-                    ? t('volumeattachments.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete VolumeAttachment "{{name}}"?',
-                        name,
-                      })
-                  : kind === 'Service'
-                    ? t('servicesPage.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete service "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'Endpoints'
-                    ? t('endpointsPage.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete endpoints "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'EndpointSlice'
-                    ? t('endpointSlicesPage.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete endpoint slice "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                  : kind === 'Ingress'
-                    ? t('ingressesPage.delete.confirm', {
-                        defaultValue: 'Are you sure you want to delete ingress "{{name}}" in "{{namespace}}"?',
-                        name,
-                        namespace: ns,
-                      })
-                      : kind === 'IngressClass'
-                        ? t('ingressClassesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete ingress class "{{name}}"?',
-                            name,
-                          })
-                      : kind === 'NetworkPolicy'
-                        ? t('networkPoliciesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete network policy "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'Gateway'
-                        ? t('gatewaysPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete gateway "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'GatewayClass'
-                        ? t('gatewayClassesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete gateway class "{{name}}"?',
-                            name,
-                          })
-                      : kind === 'HTTPRoute'
-                        ? t('httpRoutesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete HTTPRoute "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'GRPCRoute'
-                        ? t('grpcRoutesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete GRPCRoute "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'ReferenceGrant'
-                        ? t('referenceGrantsPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete ReferenceGrant "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'BackendTLSPolicy'
-                        ? t('backendTLSPoliciesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete BackendTLSPolicy "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'BackendTrafficPolicy'
-                        ? t('backendTrafficPoliciesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete BackendTrafficPolicy "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'DeviceClass'
-                        ? t('deviceClassesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete DeviceClass "{{name}}"?',
-                            name,
-                          })
-                      : kind === 'ResourceClaim'
-                        ? t('resourceClaimsPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete ResourceClaim "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'ResourceClaimTemplate'
-                        ? t('resourceClaimTemplatesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete ResourceClaimTemplate "{{name}}" in "{{namespace}}"?',
-                            name,
-                            namespace: ns,
-                          })
-                      : kind === 'ResourceSlice'
-                        ? t('resourceSlicesPage.delete.confirm', {
-                            defaultValue: 'Are you sure you want to delete ResourceSlice "{{name}}"?',
-                            name,
-                          })
-                  : t('namespaces.delete.confirm', {
-                      defaultValue: 'Are you sure you want to delete namespace "{{name}}"?',
-                      name,
-                  })}
+              {ns
+                ? `Are you sure you want to delete ${kind} "${name}" in "${ns}"?`
+                : `Are you sure you want to delete ${kind} "${name}"?`}
             </p>
             {kind === 'Node' && (
               <p className="text-xs text-red-400 mb-4 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">

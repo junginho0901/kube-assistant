@@ -862,6 +862,16 @@ export interface ConfigMapInfo {
   created_at?: string | null
 }
 
+export interface SecretInfo {
+  name: string
+  namespace: string
+  type: string
+  data_count: number
+  data_keys?: string[] | null
+  labels?: Record<string, string> | null
+  created_at?: string | null
+}
+
 export interface TopologyGraph {
   nodes: Array<{
     id: string
@@ -2273,6 +2283,35 @@ export const api = {
 
   deleteConfigMap: async (namespace: string, name: string): Promise<void> => {
     await client.delete(`/cluster/namespaces/${namespace}/configmaps/${name}`)
+  },
+
+  // ===== Secrets =====
+  getSecrets: async (namespace: string, forceRefresh = false): Promise<SecretInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/secrets`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllSecrets: async (forceRefresh = false): Promise<SecretInfo[]> => {
+    const { data } = await client.get('/cluster/secrets/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeSecret: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/secrets/${name}/describe`)
+    return data
+  },
+
+  getSecretYaml: async (namespace: string, name: string): Promise<{ yaml: string }> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/secrets/${name}/yaml`)
+    return typeof data === 'string' ? { yaml: data } : data
+  },
+
+  deleteSecret: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/secrets/${name}`)
   },
 }
 

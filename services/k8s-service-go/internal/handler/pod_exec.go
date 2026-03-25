@@ -26,9 +26,9 @@ var execUpgrader = websocket.Upgrader{
 }
 
 // PodExecWS handles WebSocket /api/v1/namespaces/{namespace}/pods/{name}/exec/ws.
-// Admin-only: opens an interactive shell into a running container.
+// Write+Admin: opens an interactive shell into a running container.
 func (h *Handler) PodExecWS(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireAdmin(r); err != nil {
+	if err := h.requireWrite(r); err != nil {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
