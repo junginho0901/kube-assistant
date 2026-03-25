@@ -114,7 +114,8 @@ func (h *Handler) GetSecretYAML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	namespace := chi.URLParam(r, "namespace")
 	name := chi.URLParam(r, "name")
-	data, err := h.svc.GetSecretYAML(ctx, namespace, name)
+	canReveal := h.requireWrite(r) == nil
+	data, err := h.svc.GetSecretYAML(ctx, namespace, name, canReveal)
 	if err != nil {
 		h.handleError(w, err)
 		return
