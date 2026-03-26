@@ -191,6 +191,39 @@ export default function GatewayInfo({ name, namespace, rawJson }: Props) {
         )}
       </InfoSection>
 
+      <InfoSection title="Attached Routes Summary">
+        {statusListeners.length === 0 ? (
+          <p className="text-xs text-slate-400">No listener status data available to determine attached routes.</p>
+        ) : (
+          <div className="space-y-2">
+            {statusListeners.map((sl, idx) => {
+              const listenerName = text(sl?.name)
+              const routeCount = Number(sl?.attachedRoutes ?? sl?.attached_routes ?? 0)
+              const supportedKinds = Array.isArray(sl?.supportedKinds) ? sl.supportedKinds : []
+              const kindsText = supportedKinds
+                .map((k: any) => {
+                  const group = text(k?.group)
+                  const kind = text(k?.kind)
+                  return group !== '-' ? `${kind}.${group}` : kind
+                })
+                .join(', ')
+              return (
+                <div key={`route-summary-${idx}`} className="rounded border border-slate-800 p-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                    <div className="text-slate-200"><span className="text-slate-400">Listener:</span> {listenerName}</div>
+                    <div className="text-slate-200"><span className="text-slate-400">Attached Routes:</span> {routeCount}</div>
+                    <div className="text-slate-200"><span className="text-slate-400">Accepted Kinds:</span> {kindsText || '-'}</div>
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-[11px] text-slate-500 mt-1">
+              Total: {attachedRoutes} route(s) attached across {statusListeners.length} listener(s). Route details are available in HTTPRoute / GRPCRoute resources that reference this gateway.
+            </p>
+          </div>
+        )}
+      </InfoSection>
+
       <InfoSection title="Conditions">
         <ConditionsTable conditions={conditions as any[]} />
       </InfoSection>
