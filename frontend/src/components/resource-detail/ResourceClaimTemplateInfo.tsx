@@ -21,6 +21,8 @@ type ResourceClaimTemplateDescribe = {
   spec?: Record<string, unknown>
 }
 
+const text = (v: unknown) => (v != null && v !== '' ? String(v) : '-')
+
 export default function ResourceClaimTemplateInfo({ name, namespace, rawJson }: Props) {
   const enabled = !!name && !!namespace
   const { data: describe, isLoading, isError } = useQuery({
