@@ -92,9 +92,41 @@ export default function BackendTrafficPolicyInfo({ name, namespace, rawJson }: P
         )}
       </InfoSection>
 
-      {renderJsonSection('Session Persistence', sessionPersistence)}
-      {renderJsonSection('Retry', retry)}
-      {renderJsonSection('Rate Limit', rateLimit)}
+      {sessionPersistence && Object.keys(sessionPersistence).length > 0 && (
+        <InfoSection title="Session Persistence">
+          <div className="space-y-2">
+            <InfoRow label="Session Name" value={text(sessionPersistence.sessionName ?? sessionPersistence.session_name)} />
+            <InfoRow label="Type" value={text(sessionPersistence.type)} />
+            <InfoRow label="Absolute Timeout" value={text(sessionPersistence.absoluteTimeout ?? sessionPersistence.absolute_timeout)} />
+            <InfoRow label="Idle Timeout" value={text(sessionPersistence.idleTimeout ?? sessionPersistence.idle_timeout)} />
+          </div>
+        </InfoSection>
+      )}
+
+      {retry && Object.keys(retry).length > 0 && (
+        <InfoSection title="Retry">
+          <div className="space-y-2">
+            <InfoRow label="Attempts" value={text(retry.attempts)} />
+            <InfoRow label="Retry On" value={
+              Array.isArray(retry.retryOn ?? retry.retry_on)
+                ? renderBadges(retry.retryOn ?? retry.retry_on)
+                : text(retry.retryOn ?? retry.retry_on)
+            } />
+            <InfoRow label="Backoff" value={text(retry.backoff)} />
+          </div>
+        </InfoSection>
+      )}
+
+      {rateLimit && Object.keys(rateLimit).length > 0 && (
+        <InfoSection title="Rate Limit">
+          <div className="space-y-2">
+            <InfoRow label="Type" value={text(rateLimit.type)} />
+            <InfoRow label="Count" value={text(rateLimit.count)} />
+            <InfoRow label="Interval" value={text(rateLimit.interval)} />
+            <InfoRow label="Burst" value={text(rateLimit.burst)} />
+          </div>
+        </InfoSection>
+      )}
 
       {ancestorStatuses.length > 0 && (
         <InfoSection title="Status">
