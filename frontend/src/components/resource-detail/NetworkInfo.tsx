@@ -223,6 +223,9 @@ function NetworkPolicyDetail({ name, namespace, rawJson }: { name: string; names
   const egress = (spec.egress ?? []) as any[]
   const policyTypes = (spec.policyTypes ?? []) as string[]
 
+  const isDefaultDenyIngress = policyTypes.includes('Ingress') && (!spec.ingress || (Array.isArray(spec.ingress) && (spec.ingress as any[]).length === 0))
+  const isDefaultDenyEgress = policyTypes.includes('Egress') && (!spec.egress || (Array.isArray(spec.egress) && (spec.egress as any[]).length === 0))
+
   const renderPeer = (peer: any) => {
     const parts: string[] = []
     if (peer.ipBlock) parts.push(`CIDR: ${peer.ipBlock.cidr}${peer.ipBlock.except ? ` (except ${peer.ipBlock.except.join(', ')})` : ''}`)
