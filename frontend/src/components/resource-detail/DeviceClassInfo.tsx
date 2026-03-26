@@ -36,6 +36,47 @@ export default function DeviceClassInfo({ name, rawJson }: Props) {
   const annotations = (describe?.annotations ?? (meta.annotations as Record<string, string> | undefined) ?? {})
   const createdAt = describe?.created_at ?? (meta.creationTimestamp as string | undefined)
 
+  /* ── Parse selectors ── */
+  const selectors = describe?.selectors ?? []
+  const selectorExpressions: string[] = []
+  for (const sel of selectors) {
+    const cel = sel.cel as Record<string, unknown> | undefined
+    if (cel?.expression) selectorExpressions.push(String(cel.expression))
+  }
+
+  /* ── Parse suitable nodes ── */
+  const suitableNodes = describe?.suitable_nodes as Record<string, unknown> | undefined
+  const nodeSelectorTerms = (suitableNodes?.nodeSelectorTerms ?? suitableNodes?.node_selector_terms) as Array<Record<string, unknown>> | undefined
+  const matchExpressions: Array<{ key: string; operator: string; values: string }> = []
+  if (nodeSelectorTerms) {
+    for (const term of nodeSelectorTerms) {
+      const exprs = (term.matchExpressions ?? term.match_expressions) as Array<Record<string, unknown>> | undefined
+      if (exprs) {
+        for (const expr of exprs) {
+          matchExpressions.push({
+            key: String(expr.key ?? ''),
+            operator: String(expr.operator ?? ''),
+            values: Array.isArray(expr.values) ? expr.values.join(', ') : text(expr.values),
+          })
+        }
+      }
+    }
+  }
+
+  /* ── Parse config ── */
+  const rawConfig = describe?.config
+  const configItems: Array<{ driver: string; parameters: Record<string, unknown> }> = []
+  const configArr = Array.isArray(rawConfig) ? rawConfig : rawConfig ? [rawConfig] : []
+  for (const item of configArr) {
+    const opaque = item.opaque as Record<string, unknown> | undefined
+    if (opaque) {
+      configItems.push({
+        driver: String(opaque.driver ?? '-'),
+        parameters: (opaque.parameters ?? {}) as Record<string, unknown>,
+      })
+    }
+  }
+
   return (
     <>
       <InfoSection title="DeviceClass Info">
@@ -47,29 +88,66 @@ export default function DeviceClassInfo({ name, rawJson }: Props) {
         </div>
       </InfoSection>
 
-      <InfoSection title="Selectors">
-        {describe?.selectors && describe.selectors.length > 0 ? (
-          <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-auto max-h-64">
-            {JSON.stringify(describe.selectors, null, 2)}
-          </pre>
-        ) : (
-          <p className="text-xs text-slate-400">No selectors</p>
-        )}
-      </InfoSection>
-
-      {describe?.suitable_nodes && (
-        <InfoSection title="Suitable Nodes">
-          <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-auto max-h-64">
-            {JSON.stringify(describe.suitable_nodes, null, 2)}
-          </pre>
+      {selectorExpressions.length > 0 && (
+        <InfoSection title="Selectors">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[300px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-1 w-full">Expression</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {selectorExpressions.map((expr, idx) => (
+                  <tr key={idx} className="text-slate-200">
+                    <td className="py-1 pr-2 break-words font-mono">{expr}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </InfoSection>
       )}
 
-      {describe?.config && (
+      {matchExpressions.length > 0 && (
+        <InfoSection title="Suitable Nodes">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[400px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-1 w-[35%]">Key</th>
+                  <th className="text-left py-1 w-[20%]">Operator</th>
+                  <th className="text-left py-1 w-[45%]">Values</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {matchExpressions.map((me, idx) => (
+                  <tr key={idx} className="text-slate-200">
+                    <td className="py-1 pr-2 break-words font-mono">{me.key}</td>
+                    <td className="py-1 pr-2 break-words">{me.operator}</td>
+                    <td className="py-1 pr-2 break-words">{me.values}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      )}
+
+      {configItems.length > 0 && (
         <InfoSection title="Config">
-          <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-auto max-h-64">
-            {JSON.stringify(describe.config, null, 2)}
-          </pre>
+          <div className="space-y-3">
+            {configItems.map((cfg, idx) => (
+              <div key={idx}>
+                <InfoRow label="Driver" value={cfg.driver} />
+                {Object.keys(cfg.parameters).length > 0 && (
+                  <div className="mt-1">
+                    <KeyValueTags data={Object.fromEntries(Object.entries(cfg.parameters).map(([k, v]) => [k, String(v)]))} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </InfoSection>
       )}
 
