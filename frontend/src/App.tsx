@@ -96,16 +96,16 @@ function App() {
             <Route path="security/rolebindings" element={<RoleBindings />} />
             <Route path="configuration/configmaps" element={<ConfigMaps />} />
             <Route path="configuration/secrets" element={<Secrets />} />
-            <Route path="configuration/hpas" element={<ComingSoon title="Horizontal Pod Autoscalers" />} />
-            <Route path="configuration/vpas" element={<ComingSoon title="Vertical Pod Autoscalers" />} />
-            <Route path="configuration/pdbs" element={<ComingSoon title="Pod Disruption Budgets" />} />
-            <Route path="configuration/resourcequotas" element={<ComingSoon title="Resource Quotas" />} />
-            <Route path="configuration/limitranges" element={<ComingSoon title="Limit Ranges" />} />
-            <Route path="configuration/priorityclasses" element={<ComingSoon title="Priority Classes" />} />
-            <Route path="configuration/runtimeclasses" element={<ComingSoon title="Runtime Classes" />} />
-            <Route path="configuration/leases" element={<ComingSoon title="Leases" />} />
-            <Route path="configuration/mutatingwebhookconfigurations" element={<ComingSoon title="Mutating Webhook Configurations" />} />
-            <Route path="configuration/validatingwebhookconfigurations" element={<ComingSoon title="Validating Webhook Configurations" />} />
+            <Route path="workloads/hpas" element={<ComingSoon title="Horizontal Pod Autoscalers" />} />
+            <Route path="workloads/vpas" element={<ComingSoon title="Vertical Pod Autoscalers" />} />
+            <Route path="workloads/pdbs" element={<ComingSoon title="Pod Disruption Budgets" />} />
+            <Route path="cluster/resourcequotas" element={<ComingSoon title="Resource Quotas" />} />
+            <Route path="cluster/limitranges" element={<ComingSoon title="Limit Ranges" />} />
+            <Route path="cluster/priorityclasses" element={<ComingSoon title="Priority Classes" />} />
+            <Route path="cluster/runtimeclasses" element={<ComingSoon title="Runtime Classes" />} />
+            <Route path="cluster/leases" element={<ComingSoon title="Leases" />} />
+            <Route path="cluster/mutatingwebhookconfigurations" element={<ComingSoon title="Mutating Webhook Configurations" />} />
+            <Route path="cluster/validatingwebhookconfigurations" element={<ComingSoon title="Validating Webhook Configurations" />} />
             <Route path="custom-resources/instances" element={<ComingSoon title="Custom Resource Instances" />} />
             <Route path="custom-resources/groups" element={<ComingSoon title="Custom Resource Definitions" />} />
             <Route path="monitoring" element={<Monitoring />} />
