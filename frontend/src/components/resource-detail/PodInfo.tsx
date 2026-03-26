@@ -361,6 +361,31 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
         </div>
       </InfoSection>
 
+      {/* Pod Security Context */}
+      {(() => {
+        const sc = spec.securityContext as any
+        if (!sc) return null
+        const rows: Array<[string, string]> = []
+        if (sc.runAsUser != null) rows.push([tr('pod.secCtx.runAsUser', 'Run As User'), String(sc.runAsUser)])
+        if (sc.runAsGroup != null) rows.push([tr('pod.secCtx.runAsGroup', 'Run As Group'), String(sc.runAsGroup)])
+        if (sc.fsGroup != null) rows.push([tr('pod.secCtx.fsGroup', 'FS Group'), String(sc.fsGroup)])
+        if (sc.runAsNonRoot != null) rows.push([tr('pod.secCtx.runAsNonRoot', 'Run As Non-Root'), String(sc.runAsNonRoot)])
+        if (sc.fsGroupChangePolicy) rows.push([tr('pod.secCtx.fsGroupChangePolicy', 'FS Group Change Policy'), sc.fsGroupChangePolicy])
+        if (sc.seccompProfile?.type) rows.push([tr('pod.secCtx.seccompProfile', 'Seccomp Profile'), sc.seccompProfile.type])
+        if (Array.isArray(sc.supplementalGroups) && sc.supplementalGroups.length > 0)
+          rows.push([tr('pod.secCtx.supplementalGroups', 'Supplemental Groups'), sc.supplementalGroups.join(', ')])
+        if (rows.length === 0) return null
+        return (
+          <InfoSection title={tr('pod.securityContext', 'Security Context')}>
+            <div className="space-y-2">
+              {rows.map(([label, val]) => (
+                <InfoRow key={label} label={label} value={val} />
+              ))}
+            </div>
+          </InfoSection>
+        )
+      })()}
+
       {nodeSelector && Object.keys(nodeSelector).length > 0 && (
         <InfoSection title="Node Selector">
           <KeyValueTags data={nodeSelector} />
@@ -477,6 +502,30 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
                         </div>
                       </ContainerKvRow>
                     )}
+                    {formatProbe(c.livenessProbe) && (
+                      <ContainerKvRow label="Liveness Probe">
+                        <span className="font-mono break-words">{formatProbe(c.livenessProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatProbe(c.readinessProbe) && (
+                      <ContainerKvRow label="Readiness Probe">
+                        <span className="font-mono break-words">{formatProbe(c.readinessProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatProbe(c.startupProbe) && (
+                      <ContainerKvRow label="Startup Probe">
+                        <span className="font-mono break-words">{formatProbe(c.startupProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatContainerSecurityContext(c.securityContext).length > 0 && (
+                      <>
+                        {formatContainerSecurityContext(c.securityContext).map(([label, val]) => (
+                          <ContainerKvRow key={`sec-${label}`} label={label}>
+                            <span className="font-mono">{val}</span>
+                          </ContainerKvRow>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )
@@ -507,6 +556,173 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
           </div>
         </InfoSection>
       )}
+
+      {/* Affinity */}
+      {(() => {
+        const affinity = spec.affinity as any
+        if (!affinity) return null
+        const renderNodeSelectorTerms = (terms: any[]) => {
+          if (!Array.isArray(terms) || terms.length === 0) return null
+          return terms.map((term: any, ti: number) => (
+            <div key={ti} className="space-y-1">
+              {Array.isArray(term.matchExpressions) && term.matchExpressions.map((expr: any, ei: number) => (
+                <span key={ei} className="inline-flex rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-[11px] text-slate-100 font-mono mr-1 mb-1">
+                  {expr.key} {expr.operator} {Array.isArray(expr.values) ? expr.values.join(', ') : ''}
+                </span>
+              ))}
+              {Array.isArray(term.matchFields) && term.matchFields.map((field: any, fi: number) => (
+                <span key={`f-${fi}`} className="inline-flex rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-[11px] text-slate-100 font-mono mr-1 mb-1">
+                  {field.key} {field.operator} {Array.isArray(field.values) ? field.values.join(', ') : ''}
+                </span>
+              ))}
+            </div>
+          ))
+        }
+        const renderPodAffinityTerms = (terms: any[], prefix: string) => {
+          if (!Array.isArray(terms) || terms.length === 0) return null
+          return terms.map((term: any, ti: number) => {
+            const t = term.podAffinityTerm || term
+            const selectors = t.labelSelector?.matchExpressions || []
+            const labels = t.labelSelector?.matchLabels ? Object.entries(t.labelSelector.matchLabels) : []
+            return (
+              <div key={`${prefix}-${ti}`} className="rounded border border-slate-800 bg-slate-900/40 p-2 space-y-1 text-xs">
+                {t.topologyKey && <div className="text-slate-400">topologyKey: <span className="text-slate-200 font-mono">{t.topologyKey}</span></div>}
+                {Array.isArray(t.namespaces) && t.namespaces.length > 0 && (
+                  <div className="text-slate-400">namespaces: <span className="text-slate-200 font-mono">{t.namespaces.join(', ')}</span></div>
+                )}
+                {labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {labels.map(([k, v]) => (
+                      <span key={`${k}`} className="inline-flex rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-[11px] text-slate-100 font-mono">
+                        {k}={String(v)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {selectors.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectors.map((expr: any, ei: number) => (
+                      <span key={ei} className="inline-flex rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-[11px] text-slate-100 font-mono">
+                        {expr.key} {expr.operator} {Array.isArray(expr.values) ? expr.values.join(', ') : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {term.weight != null && <div className="text-slate-400">weight: <span className="text-slate-200 font-mono">{term.weight}</span></div>}
+              </div>
+            )
+          })
+        }
+        const sections: Array<{ title: string; content: React.ReactNode }> = []
+        if (affinity.nodeAffinity) {
+          const na = affinity.nodeAffinity
+          const reqTerms = na.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms
+          const prefTerms = na.preferredDuringSchedulingIgnoredDuringExecution
+          if (reqTerms || prefTerms) {
+            sections.push({
+              title: tr('pod.affinity.nodeAffinity', 'Node Affinity'),
+              content: (
+                <div className="space-y-2">
+                  {reqTerms && (
+                    <div>
+                      <div className="text-[11px] text-slate-500 uppercase mb-1">{tr('pod.affinity.required', 'Required')}</div>
+                      {renderNodeSelectorTerms(reqTerms)}
+                    </div>
+                  )}
+                  {Array.isArray(prefTerms) && prefTerms.length > 0 && (
+                    <div>
+                      <div className="text-[11px] text-slate-500 uppercase mb-1">{tr('pod.affinity.preferred', 'Preferred')}</div>
+                      {prefTerms.map((pref: any, pi: number) => (
+                        <div key={pi} className="space-y-1">
+                          <span className="text-slate-400 text-xs">weight={pref.weight}</span>
+                          {renderNodeSelectorTerms(pref.preference ? [pref.preference] : [])}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ),
+            })
+          }
+        }
+        const renderPodAffinitySection = (aff: any, label: string) => {
+          if (!aff) return
+          const reqTerms = aff.requiredDuringSchedulingIgnoredDuringExecution
+          const prefTerms = aff.preferredDuringSchedulingIgnoredDuringExecution
+          if ((!reqTerms || reqTerms.length === 0) && (!prefTerms || prefTerms.length === 0)) return
+          sections.push({
+            title: label,
+            content: (
+              <div className="space-y-2">
+                {Array.isArray(reqTerms) && reqTerms.length > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 uppercase mb-1">{tr('pod.affinity.required', 'Required')}</div>
+                    {renderPodAffinityTerms(reqTerms, 'req')}
+                  </div>
+                )}
+                {Array.isArray(prefTerms) && prefTerms.length > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 uppercase mb-1">{tr('pod.affinity.preferred', 'Preferred')}</div>
+                    {renderPodAffinityTerms(prefTerms, 'pref')}
+                  </div>
+                )}
+              </div>
+            ),
+          })
+        }
+        renderPodAffinitySection(affinity.podAffinity, tr('pod.affinity.podAffinity', 'Pod Affinity'))
+        renderPodAffinitySection(affinity.podAntiAffinity, tr('pod.affinity.podAntiAffinity', 'Pod Anti-Affinity'))
+        if (sections.length === 0) return null
+        return (
+          <InfoSection title={tr('pod.affinity', 'Affinity')}>
+            <div className="space-y-3">
+              {sections.map((s, i) => (
+                <div key={i}>
+                  <div className="text-xs text-slate-300 font-semibold mb-1">{s.title}</div>
+                  {s.content}
+                </div>
+              ))}
+            </div>
+          </InfoSection>
+        )
+      })()}
+
+      {/* Topology Spread Constraints */}
+      {(() => {
+        const constraints = spec.topologySpreadConstraints as any[]
+        if (!Array.isArray(constraints) || constraints.length === 0) return null
+        return (
+          <InfoSection title={tr('pod.topologySpreadConstraints', 'Topology Spread Constraints')}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs table-fixed min-w-[600px]">
+                <thead className="text-slate-400">
+                  <tr>
+                    <th className="text-left py-1 w-[15%]">{tr('pod.tsc.maxSkew', 'Max Skew')}</th>
+                    <th className="text-left py-1 w-[25%]">{tr('pod.tsc.topologyKey', 'Topology Key')}</th>
+                    <th className="text-left py-1 w-[25%]">{tr('pod.tsc.whenUnsatisfiable', 'When Unsatisfiable')}</th>
+                    <th className="text-left py-1 w-[35%]">{tr('pod.tsc.labelSelector', 'Label Selector')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {constraints.map((c: any, i: number) => {
+                    const labels = c.labelSelector?.matchLabels
+                      ? Object.entries(c.labelSelector.matchLabels).map(([k, v]) => `${k}=${v}`).join(', ')
+                      : '-'
+                    return (
+                      <tr key={i} className="text-slate-200">
+                        <td className="py-1 pr-2 font-mono">{c.maxSkew ?? '-'}</td>
+                        <td className="py-1 pr-2 font-mono break-all">{c.topologyKey || '-'}</td>
+                        <td className="py-1 pr-2">{c.whenUnsatisfiable || '-'}</td>
+                        <td className="py-1 pr-2 font-mono break-all">{labels}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </InfoSection>
+        )
+      })()}
 
       {/* Init Containers */}
       {initContainers.length > 0 && (
@@ -597,6 +813,30 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
                         </div>
                       </ContainerKvRow>
                     )}
+                    {formatProbe(c.livenessProbe) && (
+                      <ContainerKvRow label="Liveness Probe">
+                        <span className="font-mono break-words">{formatProbe(c.livenessProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatProbe(c.readinessProbe) && (
+                      <ContainerKvRow label="Readiness Probe">
+                        <span className="font-mono break-words">{formatProbe(c.readinessProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatProbe(c.startupProbe) && (
+                      <ContainerKvRow label="Startup Probe">
+                        <span className="font-mono break-words">{formatProbe(c.startupProbe)}</span>
+                      </ContainerKvRow>
+                    )}
+                    {formatContainerSecurityContext(c.securityContext).length > 0 && (
+                      <>
+                        {formatContainerSecurityContext(c.securityContext).map(([label, val]) => (
+                          <ContainerKvRow key={`sec-init-${label}`} label={label}>
+                            <span className="font-mono">{val}</span>
+                          </ContainerKvRow>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )
@@ -613,17 +853,29 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
       {/* Volumes */}
       {Array.isArray((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) &&
         (((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) as any[]).length > 0 && (
-        <InfoSection title="Volumes">
-          <div className="space-y-1 text-xs">
-            {(((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) as any[]).map((v: any, i: number) => {
-              const type = Object.keys(v).find(k => k !== 'name') || 'unknown'
-              return (
-                <div key={i} className="flex gap-2 text-slate-200">
-                  <span className="font-medium text-white min-w-[120px]">{v.name}</span>
-                  <span className="text-slate-400">{type}</span>
-                </div>
-              )
-            })}
+        <InfoSection title={tr('pod.volumes', 'Volumes')}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[500px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-1 w-[30%]">{tr('pod.volumes.name', 'Name')}</th>
+                  <th className="text-left py-1 w-[20%]">{tr('pod.volumes.type', 'Type')}</th>
+                  <th className="text-left py-1 w-[50%]">{tr('pod.volumes.details', 'Details')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {(((podDescribe?.volumes as any[]) ?? (spec.volumes as any[])) as any[]).map((v: any, i: number) => {
+                  const { type, detail } = getVolumeDetail(v)
+                  return (
+                    <tr key={i} className="text-slate-200">
+                      <td className="py-1 pr-2 font-medium text-white break-all">{v.name}</td>
+                      <td className="py-1 pr-2 text-slate-400">{type}</td>
+                      <td className="py-1 pr-2 font-mono break-all">{detail}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </InfoSection>
       )}
