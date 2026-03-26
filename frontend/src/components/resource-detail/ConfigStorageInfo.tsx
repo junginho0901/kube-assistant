@@ -1085,49 +1085,81 @@ function HPADetail({ name, namespace, rawJson }: { name: string; namespace?: str
         <div className="space-y-2">
           <InfoRow label="Name" value={name} />
           {namespace && <InfoRow label="Namespace" value={namespace} />}
-          {scaleRef && <InfoRow label="Target" value={`${scaleRef.kind}/${scaleRef.name}`} />}
+          {scaleRef && (
+            <InfoRow label="Scale Target" value={`${scaleRef.kind ?? '-'}/${scaleRef.name ?? '-'}${scaleRef.apiVersion ? ` (${scaleRef.apiVersion})` : ''}`} />
+          )}
           <InfoRow label="Min Replicas" value={String(spec.minReplicas ?? 1)} />
           <InfoRow label="Max Replicas" value={String(spec.maxReplicas ?? '-')} />
-          <InfoRow label="Current Replicas" value={String(status.currentReplicas ?? '-')} />
-          <InfoRow label="Desired Replicas" value={String(status.desiredReplicas ?? '-')} />
+          <InfoRow
+            label="Current Replicas"
+            value={
+              <span className={replicasMismatch ? 'text-amber-300' : ''}>
+                {String(currentReplicas ?? '-')}
+              </span>
+            }
+          />
+          <InfoRow
+            label="Desired Replicas"
+            value={
+              <span className={replicasMismatch ? 'text-amber-300' : ''}>
+                {String(desiredReplicas ?? '-')}
+              </span>
+            }
+          />
+          {lastScaleTime && (
+            <InfoRow label="Last Scale Time" value={`${fmtTs(lastScaleTime)} (${fmtRel(lastScaleTime)})`} />
+          )}
           <InfoRow label="Created" value={meta.creationTimestamp ? `${fmtTs(meta.creationTimestamp as string)} (${fmtRel(meta.creationTimestamp as string)})` : '-'} />
         </div>
       </InfoSection>
 
       {metrics.length > 0 && (
-        <InfoSection title="Metrics">
-          <div className="space-y-2 text-xs">
-            {metrics.map((m: any, i: number) => {
-              const current = currentMetrics[i]
-              return (
-                <div key={i} className="rounded border border-slate-800 p-2 text-slate-200">
-                  <div>Type: {m.type}</div>
-                  {m.resource && <div>Resource: {m.resource.name} target={m.resource.target?.averageUtilization ?? m.resource.target?.averageValue ?? '-'}
-                    {current?.resource && <> current={current.resource.current?.averageUtilization ?? current.resource.current?.averageValue ?? '-'}</>}</div>}
-                  {m.pods && <div>Pods: {m.pods.metric?.name} target={m.pods.target?.averageValue ?? '-'}</div>}
-                  {m.object && <div>Object: {m.object.metric?.name} target={m.object.target?.value ?? '-'}</div>}
-                </div>
-              )
-            })}
+        <InfoSection title={`Metrics (${metrics.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs table-fixed min-w-[520px]">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="text-left py-2 w-[28%]">Metric Name</th>
+                  <th className="text-left py-2 w-[18%]">Type</th>
+                  <th className="text-left py-2 w-[27%]">Target</th>
+                  <th className="text-left py-2 w-[27%]">Current</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {metrics.map((m: any, i: number) => {
+                  const row = resolveMetricRow(m, i)
+                  return (
+                    <tr key={i} className="text-slate-200">
+                      <td className="py-2 pr-2"><span className="block truncate" title={row.metricName}>{row.metricName}</span></td>
+                      <td className="py-2 pr-2">{row.type}</td>
+                      <td className="py-2 pr-2">{row.target}</td>
+                      <td className="py-2 pr-2">{row.current}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      )}
+
+      {behavior && (behavior.scaleUp || behavior.scaleDown) && (
+        <InfoSection title="Scaling Behavior">
+          <div className="space-y-3">
+            {renderBehaviorSection('Scale Up', behavior.scaleUp)}
+            {renderBehaviorSection('Scale Down', behavior.scaleDown)}
           </div>
         </InfoSection>
       )}
 
       {conditions.length > 0 && (
         <InfoSection title="Conditions">
-          <div className="space-y-1 text-xs">
-            {conditions.map((c: any, i: number) => (
-              <div key={i} className="flex items-center gap-2 text-slate-200">
-                <StatusBadge status={c.status} />
-                <span className="text-white">{c.type}</span>
-                {c.reason && <span className="text-slate-400">({c.reason})</span>}
-              </div>
-            ))}
-          </div>
+          <ConditionsTable conditions={conditions} />
         </InfoSection>
       )}
 
       {Object.keys(labels).length > 0 && <InfoSection title="Labels"><KeyValueTags data={labels} /></InfoSection>}
+      {Object.keys(annotations).length > 0 && <InfoSection title="Annotations"><KeyValueTags data={annotations} /></InfoSection>}
     </>
   )
 }
