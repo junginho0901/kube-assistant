@@ -13,12 +13,14 @@ type DeviceClassDescribe = {
   resource_version?: string | null
   selectors?: Array<Record<string, unknown>>
   suitable_nodes?: Record<string, unknown>
-  config?: Record<string, unknown>
+  config?: Array<Record<string, unknown>> | Record<string, unknown>
   labels?: Record<string, string>
   annotations?: Record<string, string>
   created_at?: string | null
   metadata?: Record<string, unknown>
 }
+
+const text = (v: unknown) => (v != null && v !== '' ? String(v) : '-')
 
 export default function DeviceClassInfo({ name, rawJson }: Props) {
   const { data: describe, isLoading, isError } = useQuery({
