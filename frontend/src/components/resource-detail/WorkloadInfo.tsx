@@ -69,6 +69,56 @@ function formatToleration(tol: any): string {
   return `${key} ${operator} ${value} ${effect}${seconds != null ? ` (${seconds}s)` : ''}`.trim()
 }
 
+function formatProbe(probe: any): string {
+  if (!probe || typeof probe !== 'object') return ''
+  const parts: string[] = []
+
+  if (probe.httpGet) {
+    const h = probe.httpGet
+    parts.push(`httpGet ${h.scheme ?? 'HTTP'}://:${h.port ?? '?'}${h.path ?? '/'}`)
+  } else if (probe.tcpSocket) {
+    parts.push(`tcpSocket :${probe.tcpSocket.port ?? '?'}`)
+  } else if (probe.exec) {
+    const cmd = Array.isArray(probe.exec.command) ? probe.exec.command.join(' ') : ''
+    parts.push(`exec [${cmd}]`)
+  } else if (probe.grpc) {
+    parts.push(`grpc :${probe.grpc.port ?? '?'}${probe.grpc.service ? ` svc=${probe.grpc.service}` : ''}`)
+  }
+
+  const timings: string[] = []
+  if (probe.initialDelaySeconds != null) timings.push(`delay=${probe.initialDelaySeconds}s`)
+  if (probe.periodSeconds != null) timings.push(`period=${probe.periodSeconds}s`)
+  if (probe.timeoutSeconds != null) timings.push(`timeout=${probe.timeoutSeconds}s`)
+  if (probe.successThreshold != null) timings.push(`success=${probe.successThreshold}`)
+  if (probe.failureThreshold != null) timings.push(`failure=${probe.failureThreshold}`)
+  if (timings.length > 0) parts.push(timings.join(' '))
+
+  return parts.join(' | ')
+}
+
+function formatCapabilities(caps: any): string {
+  if (!caps || typeof caps !== 'object') return ''
+  const parts: string[] = []
+  if (Array.isArray(caps.add) && caps.add.length > 0) parts.push(`add: ${caps.add.join(', ')}`)
+  if (Array.isArray(caps.drop) && caps.drop.length > 0) parts.push(`drop: ${caps.drop.join(', ')}`)
+  return parts.join(' | ')
+}
+
+function formatLabelSelector(sel: any): string {
+  if (!sel || typeof sel !== 'object') return '-'
+  const parts: string[] = []
+  if (sel.matchLabels && typeof sel.matchLabels === 'object') {
+    Object.entries(sel.matchLabels).forEach(([k, v]) => parts.push(`${k}=${v}`))
+  }
+  if (Array.isArray(sel.matchExpressions)) {
+    sel.matchExpressions.forEach((expr: any) => {
+      const vals = Array.isArray(expr.values) ? expr.values.join(', ') : ''
+      parts.push(`${expr.key || '?'} ${expr.operator || '?'} [${vals}]`)
+    })
+  }
+  return parts.length > 0 ? parts.join(', ') : '-'
+}
+
 export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) {
   const { t } = useTranslation()
   const tr = (key: string, fallback: string) => t(key, { defaultValue: fallback })
@@ -132,6 +182,9 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
         priority_class_name: fromRaw.priorityClassName,
         containers: fromRaw.containers || [],
         tolerations: fromRaw.tolerations || [],
+        securityContext: fromRaw.securityContext,
+        affinity: fromRaw.affinity,
+        topologySpreadConstraints: fromRaw.topologySpreadConstraints,
       }
     }
 
@@ -139,8 +192,11 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
       service_account_name: undefined,
       node_selector: {},
       priority_class_name: undefined,
-        containers: [],
-        tolerations: [],
+      containers: [],
+      tolerations: [],
+      securityContext: undefined,
+      affinity: undefined,
+      topologySpreadConstraints: undefined,
     }
   }, [describe?.pod_template, isCronJob, spec.jobTemplate, spec.template])
 
@@ -152,6 +208,9 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
   const nodeSelector = (podTemplate.node_selector as Record<string, string> | undefined) ?? {}
   const serviceAccountName = podTemplate.service_account_name as string | undefined
   const priorityClassName = podTemplate.priority_class_name as string | undefined
+  const podSecurityContext = (podTemplate.securityContext as Record<string, any> | undefined)
+  const affinity = (podTemplate.affinity as Record<string, any> | undefined)
+  const topologySpreadConstraints = Array.isArray(podTemplate.topologySpreadConstraints) ? podTemplate.topologySpreadConstraints : []
 
   const replicaView = useMemo(() => {
     if (describe?.replicas_status && typeof describe.replicas_status === 'object') {
@@ -565,6 +624,55 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
                       </div>
                     </ContainerKvRow>
                   )}
+                  {container.livenessProbe && (
+                    <ContainerKvRow label="Liveness">
+                      <span className="font-mono break-words whitespace-pre-wrap">{formatProbe(container.livenessProbe)}</span>
+                    </ContainerKvRow>
+                  )}
+                  {container.readinessProbe && (
+                    <ContainerKvRow label="Readiness">
+                      <span className="font-mono break-words whitespace-pre-wrap">{formatProbe(container.readinessProbe)}</span>
+                    </ContainerKvRow>
+                  )}
+                  {container.startupProbe && (
+                    <ContainerKvRow label="Startup">
+                      <span className="font-mono break-words whitespace-pre-wrap">{formatProbe(container.startupProbe)}</span>
+                    </ContainerKvRow>
+                  )}
+                  {container.securityContext && (
+                    <>
+                      {container.securityContext.privileged != null && (
+                        <ContainerKvRow label="Privileged">
+                          <span>{boolText(container.securityContext.privileged)}</span>
+                        </ContainerKvRow>
+                      )}
+                      {container.securityContext.runAsUser != null && (
+                        <ContainerKvRow label="Run As User">
+                          <span className="font-mono">{String(container.securityContext.runAsUser)}</span>
+                        </ContainerKvRow>
+                      )}
+                      {container.securityContext.runAsNonRoot != null && (
+                        <ContainerKvRow label="Non-Root">
+                          <span>{boolText(container.securityContext.runAsNonRoot)}</span>
+                        </ContainerKvRow>
+                      )}
+                      {container.securityContext.readOnlyRootFilesystem != null && (
+                        <ContainerKvRow label="RO Root FS">
+                          <span>{boolText(container.securityContext.readOnlyRootFilesystem)}</span>
+                        </ContainerKvRow>
+                      )}
+                      {container.securityContext.allowPrivilegeEscalation != null && (
+                        <ContainerKvRow label="Priv Escalation">
+                          <span>{boolText(container.securityContext.allowPrivilegeEscalation)}</span>
+                        </ContainerKvRow>
+                      )}
+                      {formatCapabilities(container.securityContext.capabilities) && (
+                        <ContainerKvRow label="Capabilities">
+                          <span className="font-mono break-words whitespace-pre-wrap">{formatCapabilities(container.securityContext.capabilities)}</span>
+                        </ContainerKvRow>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -604,6 +712,149 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
             {tolerations.map((tol: any, idx: number) => (
               <div key={`${tol.key || 'tol'}-${idx}`}>{formatToleration(tol)}</div>
             ))}
+          </div>
+        </InfoSection>
+      )}
+
+      {podSecurityContext && Object.keys(podSecurityContext).length > 0 && (
+        <InfoSection title="Pod Security Context">
+          <div className="space-y-2">
+            {podSecurityContext.runAsUser != null && <InfoRow label="Run As User" value={String(podSecurityContext.runAsUser)} />}
+            {podSecurityContext.runAsGroup != null && <InfoRow label="Run As Group" value={String(podSecurityContext.runAsGroup)} />}
+            {podSecurityContext.fsGroup != null && <InfoRow label="FS Group" value={String(podSecurityContext.fsGroup)} />}
+            {podSecurityContext.runAsNonRoot != null && <InfoRow label="Run As Non-Root" value={boolText(podSecurityContext.runAsNonRoot)} />}
+            {podSecurityContext.fsGroupChangePolicy != null && <InfoRow label="FS Group Change Policy" value={String(podSecurityContext.fsGroupChangePolicy)} />}
+            {podSecurityContext.seccompProfile?.type != null && <InfoRow label="Seccomp Profile" value={String(podSecurityContext.seccompProfile.type)} />}
+            {Array.isArray(podSecurityContext.supplementalGroups) && podSecurityContext.supplementalGroups.length > 0 && (
+              <InfoRow label="Supplemental Groups" value={podSecurityContext.supplementalGroups.join(', ')} />
+            )}
+          </div>
+        </InfoSection>
+      )}
+
+      {affinity && Object.keys(affinity).length > 0 && (
+        <InfoSection title="Affinity">
+          <div className="space-y-3">
+            {affinity.nodeAffinity && (
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-slate-300">Node Affinity</div>
+                {affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Required</div>
+                    {(affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms as any[]).map((term: any, tIdx: number) => (
+                      <div key={`req-term-${tIdx}`} className="text-xs text-slate-200 pl-2">
+                        {Array.isArray(term.matchExpressions) && term.matchExpressions.map((expr: any, eIdx: number) => (
+                          <div key={`req-expr-${eIdx}`}>
+                            {expr.key || '?'} {expr.operator || '?'} [{Array.isArray(expr.values) ? expr.values.join(', ') : ''}]
+                          </div>
+                        ))}
+                        {Array.isArray(term.matchFields) && term.matchFields.map((field: any, fIdx: number) => (
+                          <div key={`req-field-${fIdx}`}>
+                            {field.key || '?'} {field.operator || '?'} [{Array.isArray(field.values) ? field.values.join(', ') : ''}]
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution) && affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Preferred</div>
+                    {(affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution as any[]).map((pref: any, pIdx: number) => (
+                      <div key={`pref-${pIdx}`} className="text-xs text-slate-200 pl-2">
+                        <span className="text-slate-400">weight={pref.weight ?? '?'}</span>{' '}
+                        {Array.isArray(pref.preference?.matchExpressions) && pref.preference.matchExpressions.map((expr: any, eIdx: number) => (
+                          <span key={`pref-expr-${eIdx}`}>
+                            {expr.key || '?'} {expr.operator || '?'} [{Array.isArray(expr.values) ? expr.values.join(', ') : ''}]
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {affinity.podAffinity && (
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-slate-300">Pod Affinity</div>
+                {Array.isArray(affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution) && affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Required</div>
+                    {(affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution as any[]).map((term: any, tIdx: number) => (
+                      <div key={`pa-req-${tIdx}`} className="text-xs text-slate-200 pl-2">
+                        <div>topologyKey: {term.topologyKey || '-'}</div>
+                        <div>selector: {formatLabelSelector(term.labelSelector)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(affinity.podAffinity.preferredDuringSchedulingIgnoredDuringExecution) && affinity.podAffinity.preferredDuringSchedulingIgnoredDuringExecution.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Preferred</div>
+                    {(affinity.podAffinity.preferredDuringSchedulingIgnoredDuringExecution as any[]).map((pref: any, pIdx: number) => (
+                      <div key={`pa-pref-${pIdx}`} className="text-xs text-slate-200 pl-2">
+                        <span className="text-slate-400">weight={pref.weight ?? '?'}</span>{' '}
+                        topologyKey: {pref.podAffinityTerm?.topologyKey || '-'}, selector: {formatLabelSelector(pref.podAffinityTerm?.labelSelector)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {affinity.podAntiAffinity && (
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-slate-300">Pod Anti-Affinity</div>
+                {Array.isArray(affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution) && affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Required</div>
+                    {(affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution as any[]).map((term: any, tIdx: number) => (
+                      <div key={`paa-req-${tIdx}`} className="text-xs text-slate-200 pl-2">
+                        <div>topologyKey: {term.topologyKey || '-'}</div>
+                        <div>selector: {formatLabelSelector(term.labelSelector)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution) && affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Preferred</div>
+                    {(affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution as any[]).map((pref: any, pIdx: number) => (
+                      <div key={`paa-pref-${pIdx}`} className="text-xs text-slate-200 pl-2">
+                        <span className="text-slate-400">weight={pref.weight ?? '?'}</span>{' '}
+                        topologyKey: {pref.podAffinityTerm?.topologyKey || '-'}, selector: {formatLabelSelector(pref.podAffinityTerm?.labelSelector)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </InfoSection>
+      )}
+
+      {topologySpreadConstraints.length > 0 && (
+        <InfoSection title="Topology Spread Constraints">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-800">
+                  <th className="py-1.5 pr-3">Max Skew</th>
+                  <th className="py-1.5 pr-3">Topology Key</th>
+                  <th className="py-1.5 pr-3">When Unsatisfiable</th>
+                  <th className="py-1.5">Label Selector</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-200">
+                {topologySpreadConstraints.map((tsc: any, idx: number) => (
+                  <tr key={`tsc-${idx}`} className="border-b border-slate-800/50">
+                    <td className="py-1.5 pr-3 font-mono">{tsc.maxSkew ?? '-'}</td>
+                    <td className="py-1.5 pr-3 font-mono">{tsc.topologyKey || '-'}</td>
+                    <td className="py-1.5 pr-3">{tsc.whenUnsatisfiable || '-'}</td>
+                    <td className="py-1.5 font-mono">{formatLabelSelector(tsc.labelSelector)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </InfoSection>
       )}
