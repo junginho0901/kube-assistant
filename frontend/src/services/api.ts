@@ -1592,7 +1592,7 @@ export const api = {
         params: { container, tail_lines: tailLines },
       }
     )
-    return data.logs
+    return typeof data === 'string' ? data : (data.logs ?? data.data ?? '')
   },
 
   deletePod: async (namespace: string, podName: string, force: boolean = false): Promise<void> => {
