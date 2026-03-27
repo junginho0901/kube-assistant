@@ -30,13 +30,15 @@ import RoleInfo from './resource-detail/RoleInfo'
 import RoleBindingInfo from './resource-detail/RoleBindingInfo'
 import ConfigMapInfo from './resource-detail/ConfigMapInfo'
 import SecretInfo from './resource-detail/SecretInfo'
+import HPAInfo from './resource-detail/HPAInfo'
+import VPAInfo from './resource-detail/VPAInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
 
 const WORKLOAD_KINDS = new Set(['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob'])
 const NETWORK_KINDS = new Set(['Ingress', 'IngressClass', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
-const CONFIG_STORAGE_KINDS = new Set(['PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment', 'HorizontalPodAutoscaler'])
+const CONFIG_STORAGE_KINDS = new Set(['PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment'])
 
 function kindToPlural(kind: string): string {
   const map: Record<string, string> = {
