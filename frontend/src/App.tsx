@@ -98,8 +98,8 @@ function App() {
             <Route path="security/rolebindings" element={<RoleBindings />} />
             <Route path="configuration/configmaps" element={<ConfigMaps />} />
             <Route path="configuration/secrets" element={<Secrets />} />
-            <Route path="workloads/hpas" element={<ComingSoon title="Horizontal Pod Autoscalers" />} />
-            <Route path="workloads/vpas" element={<ComingSoon title="Vertical Pod Autoscalers" />} />
+            <Route path="workloads/hpas" element={<HPAs />} />
+            <Route path="workloads/vpas" element={<VPAs />} />
             <Route path="workloads/pdbs" element={<ComingSoon title="Pod Disruption Budgets" />} />
             <Route path="cluster/resourcequotas" element={<ComingSoon title="Resource Quotas" />} />
             <Route path="cluster/limitranges" element={<ComingSoon title="Limit Ranges" />} />
