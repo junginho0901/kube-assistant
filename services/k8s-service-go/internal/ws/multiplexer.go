@@ -1070,6 +1070,107 @@ func genericToInfo(obj *unstructured.Unstructured) map[string]interface{} {
 	}
 }
 
+func hpaToInfo(obj *unstructured.Unstructured) map[string]interface{} {
+	metadata := obj.Object["metadata"].(map[string]interface{})
+	spec, _ := obj.Object["spec"].(map[string]interface{})
+	status, _ := obj.Object["status"].(map[string]interface{})
+
+	targetRef := ""
+	targetRefKind := ""
+	targetRefName := ""
+	if ref, ok := spec["scaleTargetRef"].(map[string]interface{}); ok {
+		targetRefKind, _ = ref["kind"].(string)
+		targetRefName, _ = ref["name"].(string)
+		targetRef = targetRefKind + "/" + targetRefName
+	}
+
+	maxReplicas, _ := spec["maxReplicas"].(int64)
+	var minReplicas interface{}
+	if mr, ok := spec["minReplicas"].(int64); ok {
+		minReplicas = mr
+	}
+
+	var currentReplicas, desiredReplicas interface{}
+	if status != nil {
+		if cr, ok := status["currentReplicas"].(int64); ok {
+			currentReplicas = cr
+		}
+		if dr, ok := status["desiredReplicas"].(int64); ok {
+			desiredReplicas = dr
+		}
+	}
+
+	return map[string]interface{}{
+		"name":             metadata["name"],
+		"namespace":        metadata["namespace"],
+		"target_ref":       targetRef,
+		"target_ref_kind":  targetRefKind,
+		"target_ref_name":  targetRefName,
+		"min_replicas":     minReplicas,
+		"max_replicas":     maxReplicas,
+		"current_replicas": currentReplicas,
+		"desired_replicas": desiredReplicas,
+		"labels":           metadata["labels"],
+		"created_at":       metadata["creationTimestamp"],
+	}
+}
+
+func vpaToInfo(obj *unstructured.Unstructured) map[string]interface{} {
+	metadata := obj.Object["metadata"].(map[string]interface{})
+	spec, _ := obj.Object["spec"].(map[string]interface{})
+	status, _ := obj.Object["status"].(map[string]interface{})
+
+	targetRef := ""
+	targetRefKind := ""
+	targetRefName := ""
+	if ref, ok := spec["targetRef"].(map[string]interface{}); ok {
+		targetRefKind, _ = ref["kind"].(string)
+		targetRefName, _ = ref["name"].(string)
+		targetRef = targetRefKind + "/" + targetRefName
+	}
+
+	updateMode := ""
+	if up, ok := spec["updatePolicy"].(map[string]interface{}); ok {
+		updateMode, _ = up["updateMode"].(string)
+	}
+
+	cpuTarget := ""
+	memoryTarget := ""
+	provided := ""
+
+	if status != nil {
+		if conditions, ok := status["conditions"].([]interface{}); ok && len(conditions) > 0 {
+			if c, ok := conditions[0].(map[string]interface{}); ok {
+				provided, _ = c["status"].(string)
+			}
+		}
+		if recommendation, ok := status["recommendation"].(map[string]interface{}); ok {
+			if containerRecs, ok := recommendation["containerRecommendations"].([]interface{}); ok && len(containerRecs) > 0 {
+				if rec, ok := containerRecs[0].(map[string]interface{}); ok {
+					if target, ok := rec["target"].(map[string]interface{}); ok {
+						cpuTarget, _ = target["cpu"].(string)
+						memoryTarget, _ = target["memory"].(string)
+					}
+				}
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"name":            metadata["name"],
+		"namespace":       metadata["namespace"],
+		"target_ref":      targetRef,
+		"target_ref_kind": targetRefKind,
+		"target_ref_name": targetRefName,
+		"update_mode":     updateMode,
+		"cpu_target":      cpuTarget,
+		"memory_target":   memoryTarget,
+		"provided":        provided,
+		"labels":          metadata["labels"],
+		"created_at":      metadata["creationTimestamp"],
+	}
+}
+
 func int64Ptr(i int64) *int64 {
 	return &i
 }
