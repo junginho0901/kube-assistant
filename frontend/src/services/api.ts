@@ -1583,6 +1583,45 @@ export const api = {
     return data
   },
 
+  getAllHPAs: async (forceRefresh = false): Promise<HPAInfo[]> => {
+    const { data } = await client.get('/cluster/hpas/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeHPA: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/hpas/${name}/describe`)
+    return data
+  },
+
+  deleteHPA: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/hpas/${name}`)
+  },
+
+  getVPAs: async (namespace: string, forceRefresh = false): Promise<VPAInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/vpas`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getAllVPAs: async (forceRefresh = false): Promise<VPAInfo[]> => {
+    const { data } = await client.get('/cluster/vpas/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeVPA: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/vpas/${name}/describe`)
+    return data
+  },
+
+  deleteVPA: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/vpas/${name}`)
+  },
+
   getPDBs: async (namespace: string, forceRefresh = false): Promise<PDBInfo[]> => {
     const { data } = await client.get(`/cluster/namespaces/${namespace}/pdbs`, {
       params: { force_refresh: forceRefresh },
