@@ -350,7 +350,8 @@ func main() {
 		r.Post("/api/v1/resources/yaml/create", h.CreateResourcesFromYAML)
 		r.Get("/api/v1/resources/describe", h.DescribeGenericResource)
 
-		// HPA & PDB
+		// HPA
+		r.Get("/api/v1/hpas/all", h.GetAllHPAs)
 		r.Get("/api/v1/namespaces/{namespace}/hpas", h.GetHPAs)
 		r.Get("/api/v1/namespaces/{namespace}/pdbs", h.GetPDBs)
 
