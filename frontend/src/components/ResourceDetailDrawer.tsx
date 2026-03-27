@@ -151,6 +151,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteRoleBinding = kind === 'RoleBinding' && !!ns && isWriteRole
   const canDeleteConfigMap = kind === 'ConfigMap' && !!ns && isWriteRole
   const canDeleteSecret = kind === 'Secret' && !!ns && isWriteRole
+  const canDeleteHPA = kind === 'HorizontalPodAutoscaler' && !!ns && isWriteRole
+  const canDeleteVPA = kind === 'VerticalPodAutoscaler' && !!ns && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -187,6 +189,8 @@ export default function ResourceDetailDrawer() {
     canDeleteRoleBinding,
     canDeleteConfigMap,
     canDeleteSecret,
+    canDeleteHPA,
+    canDeleteVPA,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
