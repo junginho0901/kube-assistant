@@ -500,6 +500,14 @@ export default function ResourceDetailDrawer() {
         await api.deleteSecret(ns, name)
         return
       }
+      if (kind === 'HorizontalPodAutoscaler' && ns) {
+        await api.deleteHPA(ns, name)
+        return
+      }
+      if (kind === 'VerticalPodAutoscaler' && ns) {
+        await api.deleteVPA(ns, name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
