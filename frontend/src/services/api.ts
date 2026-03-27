@@ -683,6 +683,23 @@ export interface HPAInfo {
   created_at: string
 }
 
+export interface VPAInfo {
+  name: string
+  namespace: string
+  target_ref: string
+  target_ref_kind: string
+  target_ref_name: string
+  update_mode: string
+  container_policies?: Array<Record<string, any>>
+  conditions?: Array<Record<string, any>>
+  recommendations?: Array<Record<string, any>>
+  cpu_target: string
+  memory_target: string
+  provided: string
+  labels?: Record<string, string>
+  created_at: string
+}
+
 export interface PDBInfo {
   name: string
   namespace: string
