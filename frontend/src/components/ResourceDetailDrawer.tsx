@@ -346,6 +346,13 @@ export default function ResourceDetailDrawer() {
     } else if (kind === 'PriorityClass') {
       queryClient.invalidateQueries({ queryKey: ['cluster', 'priorityclasses'] })
       queryClient.invalidateQueries({ queryKey: ['priorityclass-describe', name] })
+    } else if (kind === 'RuntimeClass') {
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'runtimeclasses'] })
+      queryClient.invalidateQueries({ queryKey: ['runtimeclass-describe', name] })
+    } else if (kind === 'Lease' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'leases'] })
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'leases', ns] })
+      queryClient.invalidateQueries({ queryKey: ['lease-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
