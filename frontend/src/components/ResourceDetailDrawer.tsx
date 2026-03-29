@@ -159,6 +159,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteSecret = kind === 'Secret' && !!ns && isWriteRole
   const canDeleteHPA = kind === 'HorizontalPodAutoscaler' && !!ns && isWriteRole
   const canDeleteVPA = kind === 'VerticalPodAutoscaler' && !!ns && isWriteRole
+  const canDeletePDB = kind === 'PodDisruptionBudget' && !!ns && isWriteRole
+  const canDeletePriorityClass = kind === 'PriorityClass' && isAdmin
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -197,6 +199,8 @@ export default function ResourceDetailDrawer() {
     canDeleteSecret,
     canDeleteHPA,
     canDeleteVPA,
+    canDeletePDB,
+    canDeletePriorityClass,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
