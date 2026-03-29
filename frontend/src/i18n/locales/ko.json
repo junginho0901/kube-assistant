@@ -891,6 +891,35 @@
       "confirm": "런타임 클래스 \"{{name}}\"을(를) 정말 삭제하시겠습니까? 이것은 클러스터 수준 리소스입니다."
     }
   },
+  "leases": {
+    "title": "리스",
+    "subtitle": "네임스페이스 전반의 코디네이션 리스를 관리합니다.",
+    "create": "리스 생성",
+    "createTitle": "YAML로 리스 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "이름 또는 홀더로 리스 검색...",
+    "allNamespaces": "전체 네임스페이스",
+    "matchCount": "{{count}}개 리스 일치.",
+    "table": {
+      "name": "이름",
+      "namespace": "네임스페이스",
+      "holder": "홀더",
+      "duration": "유지 시간 (초)",
+      "age": "생성 시간"
+    },
+    "stats": {
+      "total": "전체",
+      "withHolder": "홀더 있음",
+      "withoutHolder": "홀더 없음"
+    },
+    "noResults": "리스가 없습니다.",
+    "delete": {
+      "button": "리스 삭제",
+      "title": "리스 삭제",
+      "confirm": "리스 \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
+    }
+  },
   "pvcs": {
     "title": "퍼시스턴트 볼륨 클레임",
     "subtitle": "네임스페이스 전반의 PVC 상태를 확인하고 관리합니다.",
