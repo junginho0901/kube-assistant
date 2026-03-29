@@ -77,7 +77,7 @@ func (h *Handler) DeleteHPA(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetPDBs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	namespace := chi.URLParam(r, "namespace")
-	data, err := h.svc.GetGenericResources(ctx, "poddisruptionbudgets", namespace, "")
+	data, err := h.svc.GetPDBs(ctx, namespace)
 	if err != nil {
 		h.handleError(w, err)
 		return
