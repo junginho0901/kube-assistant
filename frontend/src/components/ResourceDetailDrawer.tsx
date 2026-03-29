@@ -550,6 +550,14 @@ export default function ResourceDetailDrawer() {
         await api.deletePriorityClass(name)
         return
       }
+      if (kind === 'RuntimeClass') {
+        await api.deleteRuntimeClass(name)
+        return
+      }
+      if (kind === 'Lease' && ns) {
+        await api.deleteLease(ns, name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
@@ -783,6 +791,17 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['cluster', 'priorityclasses'] }),
           queryClient.invalidateQueries({ queryKey: ['priorityclass-describe', name] }),
         ])
+      } else if (kind === 'RuntimeClass') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['cluster', 'runtimeclasses'] }),
+          queryClient.invalidateQueries({ queryKey: ['runtimeclass-describe', name] }),
+        ])
+      } else if (kind === 'Lease' && ns) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['cluster', 'leases'] }),
+          queryClient.invalidateQueries({ queryKey: ['cluster', 'leases', ns] }),
+          queryClient.invalidateQueries({ queryKey: ['lease-describe', ns, name] }),
+        ])
       }
 
       close()
@@ -821,6 +840,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'VerticalPodAutoscaler' && ns) return <VPAInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'PodDisruptionBudget' && ns) return <PDBInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'PriorityClass') return <PriorityClassInfo name={name} rawJson={target.rawJson} />
+    if (kind === 'RuntimeClass') return <RuntimeClassInfo name={name} rawJson={target.rawJson} />
+    if (kind === 'Lease' && ns) return <LeaseInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
