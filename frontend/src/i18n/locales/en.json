@@ -801,6 +801,38 @@
       "confirm": "Are you sure you want to delete VPA \"{{name}}\" in \"{{namespace}}\"?"
     }
   },
+  "pdbs": {
+    "title": "Pod Disruption Budgets",
+    "subtitle": "Manage pod disruption budgets across namespaces.",
+    "create": "Create PDB",
+    "createTitle": "Create PDB from YAML",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "searchPlaceholder": "Search PDBs by name...",
+    "allNamespaces": "All namespaces",
+    "matchCount": "{{count}} PDB{{suffix}} match.",
+    "table": {
+      "namespace": "Namespace",
+      "name": "Name",
+      "minAvailable": "Min Available",
+      "maxUnavailable": "Max Unavailable",
+      "allowedDisruptions": "Allowed Disruptions",
+      "currentHealthy": "Current",
+      "desiredHealthy": "Desired",
+      "age": "Age"
+    },
+    "stats": {
+      "total": "Total",
+      "healthy": "Healthy",
+      "disrupted": "Disrupted"
+    },
+    "noResults": "No PDBs found.",
+    "delete": {
+      "button": "Delete PDB",
+      "title": "Delete PDB",
+      "confirm": "Are you sure you want to delete PDB \"{{name}}\" in \"{{namespace}}\"?"
+    }
+  },
   "pvcs": {
     "title": "Persistent Volume Claims",
     "subtitle": "Inspect and manage PVCs across namespaces.",
