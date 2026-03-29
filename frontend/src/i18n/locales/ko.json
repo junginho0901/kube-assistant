@@ -838,6 +838,34 @@
       "confirm": "\"{{namespace}}\" 네임스페이스의 PDB \"{{name}}\"을(를) 정말 삭제하시겠습니까?"
     }
   },
+  "priorityClasses": {
+    "title": "우선순위 클래스",
+    "subtitle": "클러스터 전반의 파드 스케줄링 우선순위를 관리합니다.",
+    "create": "우선순위 클래스 생성",
+    "createTitle": "YAML로 우선순위 클래스 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "이름으로 우선순위 클래스 검색...",
+    "matchCount": "{{count}}개 우선순위 클래스 일치.",
+    "table": {
+      "name": "이름",
+      "value": "값",
+      "globalDefault": "글로벌 기본값",
+      "preemptionPolicy": "선점 정책",
+      "age": "생성 시간"
+    },
+    "stats": {
+      "total": "전체",
+      "globalDefault": "글로벌 기본값",
+      "preempting": "선점 가능"
+    },
+    "noResults": "우선순위 클래스가 없습니다.",
+    "delete": {
+      "button": "우선순위 클래스 삭제",
+      "title": "우선순위 클래스 삭제",
+      "confirm": "우선순위 클래스 \"{{name}}\"을(를) 정말 삭제하시겠습니까? 이것은 클러스터 수준 리소스입니다."
+    }
+  },
   "pvcs": {
     "title": "퍼시스턴트 볼륨 클레임",
     "subtitle": "네임스페이스 전반의 PVC 상태를 확인하고 관리합니다.",
