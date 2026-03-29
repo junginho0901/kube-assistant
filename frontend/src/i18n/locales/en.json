@@ -833,6 +833,34 @@
       "confirm": "Are you sure you want to delete PDB \"{{name}}\" in \"{{namespace}}\"?"
     }
   },
+  "priorityClasses": {
+    "title": "Priority Classes",
+    "subtitle": "Manage pod scheduling priority across the cluster.",
+    "create": "Create Priority Class",
+    "createTitle": "Create Priority Class from YAML",
+    "refresh": "Refresh",
+    "refreshTitle": "Force refresh",
+    "searchPlaceholder": "Search priority classes by name...",
+    "matchCount": "{{count}} priority class{{suffix}} match.",
+    "table": {
+      "name": "Name",
+      "value": "Value",
+      "globalDefault": "Global Default",
+      "preemptionPolicy": "Preemption Policy",
+      "age": "Age"
+    },
+    "stats": {
+      "total": "Total",
+      "globalDefault": "Global Default",
+      "preempting": "Preempting"
+    },
+    "noResults": "No priority classes found.",
+    "delete": {
+      "button": "Delete Priority Class",
+      "title": "Delete Priority Class",
+      "confirm": "Are you sure you want to delete priority class \"{{name}}\"? This is a cluster-level resource."
+    }
+  },
   "pvcs": {
     "title": "Persistent Volume Claims",
     "subtitle": "Inspect and manage PVCs across namespaces.",
