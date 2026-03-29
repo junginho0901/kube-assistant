@@ -1655,6 +1655,22 @@ export const api = {
     await client.delete(`/cluster/namespaces/${namespace}/pdbs/${name}`)
   },
 
+  getPriorityClasses: async (forceRefresh = false): Promise<PriorityClassInfo[]> => {
+    const { data } = await client.get('/cluster/priorityclasses', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describePriorityClass: async (name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/priorityclasses/${name}/describe`)
+    return data
+  },
+
+  deletePriorityClass: async (name: string): Promise<void> => {
+    await client.delete(`/cluster/priorityclasses/${name}`)
+  },
+
   getPods: async (namespace: string, labelSelector?: string, forceRefresh = false): Promise<PodInfo[]> => {
     const { data} = await client.get(`/cluster/namespaces/${namespace}/pods`, {
       params: { label_selector: labelSelector, force_refresh: forceRefresh },
