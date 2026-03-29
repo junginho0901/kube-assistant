@@ -32,6 +32,8 @@ import ConfigMapInfo from './resource-detail/ConfigMapInfo'
 import SecretInfo from './resource-detail/SecretInfo'
 import HPAInfo from './resource-detail/HPAInfo'
 import VPAInfo from './resource-detail/VPAInfo'
+import PDBInfo from './resource-detail/PDBInfo'
+import PriorityClassInfo from './resource-detail/PriorityClassInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -67,6 +69,8 @@ function kindToPlural(kind: string): string {
     ServiceAccount: 'serviceaccount',
     Role: 'role',
     RoleBinding: 'rolebinding',
+    PodDisruptionBudget: 'poddisruptionbudget',
+    PriorityClass: 'priorityclass',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -92,6 +96,8 @@ function kindIcon(kind: string): string {
     ServiceAccount: '👤', Role: '🔐', RoleBinding: '🔗',
     ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈', VerticalPodAutoscaler: '📊',
+    PodDisruptionBudget: '🛡️',
+    PriorityClass: '⚡',
   }
   return map[kind] ?? '📄'
 }
