@@ -34,6 +34,8 @@ import HPAInfo from './resource-detail/HPAInfo'
 import VPAInfo from './resource-detail/VPAInfo'
 import PDBInfo from './resource-detail/PDBInfo'
 import PriorityClassInfo from './resource-detail/PriorityClassInfo'
+import RuntimeClassInfo from './resource-detail/RuntimeClassInfo'
+import LeaseInfo from './resource-detail/LeaseInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -71,6 +73,8 @@ function kindToPlural(kind: string): string {
     RoleBinding: 'rolebinding',
     PodDisruptionBudget: 'poddisruptionbudget',
     PriorityClass: 'priorityclass',
+    RuntimeClass: 'runtimeclass',
+    Lease: 'lease',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -98,6 +102,8 @@ function kindIcon(kind: string): string {
     StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈', VerticalPodAutoscaler: '📊',
     PodDisruptionBudget: '🛡️',
     PriorityClass: '⚡',
+    RuntimeClass: '🔧',
+    Lease: '🤝',
   }
   return map[kind] ?? '📄'
 }
