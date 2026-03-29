@@ -365,7 +365,11 @@ func main() {
 		r.Delete("/api/v1/namespaces/{namespace}/vpas/{name}", h.DeleteVPA)
 
 		// PDB
+		r.Get("/api/v1/pdbs/all", h.GetAllPDBs)
 		r.Get("/api/v1/namespaces/{namespace}/pdbs", h.GetPDBs)
+		r.Get("/api/v1/namespaces/{namespace}/pdbs/{name}/describe", h.DescribePDB)
+		r.Get("/api/v1/namespaces/{namespace}/pdbs/{name}/yaml", h.GetPDBYAML)
+		r.Delete("/api/v1/namespaces/{namespace}/pdbs/{name}", h.DeletePDB)
 
 		// Topology
 		r.Get("/api/v1/topology/namespace/{namespace}", h.GetNamespaceTopology)
