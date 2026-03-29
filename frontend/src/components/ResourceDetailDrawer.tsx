@@ -525,6 +525,14 @@ export default function ResourceDetailDrawer() {
         await api.deleteVPA(ns, name)
         return
       }
+      if (kind === 'PodDisruptionBudget' && ns) {
+        await api.deletePDB(ns, name)
+        return
+      }
+      if (kind === 'PriorityClass') {
+        await api.deletePriorityClass(name)
+        return
+      }
       throw new Error('Delete is not supported for this resource.')
     },
     onSuccess: async () => {
