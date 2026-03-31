@@ -1754,6 +1754,30 @@ export const api = {
     await client.delete(`/cluster/namespaces/${namespace}/leases/${name}`)
   },
 
+  // ResourceQuotas
+  getAllResourceQuotas: async (forceRefresh = false): Promise<ResourceQuotaInfo[]> => {
+    const { data } = await client.get('/cluster/resourcequotas/all', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  getResourceQuotas: async (namespace: string, forceRefresh = false): Promise<ResourceQuotaInfo[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/resourcequotas`, {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeResourceQuota: async (namespace: string, name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/resourcequotas/${name}/describe`)
+    return data
+  },
+
+  deleteResourceQuota: async (namespace: string, name: string): Promise<void> => {
+    await client.delete(`/cluster/namespaces/${namespace}/resourcequotas/${name}`)
+  },
+
   getPods: async (namespace: string, labelSelector?: string, forceRefresh = false): Promise<PodInfo[]> => {
     const { data} = await client.get(`/cluster/namespaces/${namespace}/pods`, {
       params: { label_selector: labelSelector, force_refresh: forceRefresh },
