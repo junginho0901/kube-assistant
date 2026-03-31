@@ -36,6 +36,8 @@ import PDBInfo from './resource-detail/PDBInfo'
 import PriorityClassInfo from './resource-detail/PriorityClassInfo'
 import RuntimeClassInfo from './resource-detail/RuntimeClassInfo'
 import LeaseInfo from './resource-detail/LeaseInfo'
+import ResourceQuotaInfo from './resource-detail/ResourceQuotaInfo'
+import LimitRangeInfo from './resource-detail/LimitRangeInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -75,6 +77,8 @@ function kindToPlural(kind: string): string {
     PriorityClass: 'priorityclass',
     RuntimeClass: 'runtimeclass',
     Lease: 'lease',
+    ResourceQuota: 'resourcequota',
+    LimitRange: 'limitrange',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -104,6 +108,8 @@ function kindIcon(kind: string): string {
     PriorityClass: '⚡',
     RuntimeClass: '🔧',
     Lease: '🤝',
+    ResourceQuota: '📊',
+    LimitRange: '📏',
   }
   return map[kind] ?? '📄'
 }
