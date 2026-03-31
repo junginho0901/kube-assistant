@@ -363,6 +363,14 @@ export default function ResourceDetailDrawer() {
       queryClient.invalidateQueries({ queryKey: ['cluster', 'leases'] })
       queryClient.invalidateQueries({ queryKey: ['cluster', 'leases', ns] })
       queryClient.invalidateQueries({ queryKey: ['lease-describe', ns, name] })
+    } else if (kind === 'ResourceQuota' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas'] })
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas', ns] })
+      queryClient.invalidateQueries({ queryKey: ['resourcequota-describe', ns, name] })
+    } else if (kind === 'LimitRange' && ns) {
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges'] })
+      queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges', ns] })
+      queryClient.invalidateQueries({ queryKey: ['limitrange-describe', ns, name] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
