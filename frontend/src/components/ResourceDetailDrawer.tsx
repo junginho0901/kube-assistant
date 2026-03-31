@@ -175,6 +175,8 @@ export default function ResourceDetailDrawer() {
   const canDeletePriorityClass = kind === 'PriorityClass' && isAdmin
   const canDeleteRuntimeClass = kind === 'RuntimeClass' && isAdmin
   const canDeleteLease = kind === 'Lease' && !!ns && isWriteRole
+  const canDeleteResourceQuota = kind === 'ResourceQuota' && !!ns && isWriteRole
+  const canDeleteLimitRange = kind === 'LimitRange' && !!ns && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -217,6 +219,8 @@ export default function ResourceDetailDrawer() {
     canDeletePriorityClass,
     canDeleteRuntimeClass,
     canDeleteLease,
+    canDeleteResourceQuota,
+    canDeleteLimitRange,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
