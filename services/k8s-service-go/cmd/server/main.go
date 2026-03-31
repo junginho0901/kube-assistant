@@ -390,6 +390,13 @@ func main() {
 		r.Get("/api/v1/namespaces/{namespace}/resourcequotas/{name}/yaml", h.GetResourceQuotaYAML)
 		r.Delete("/api/v1/namespaces/{namespace}/resourcequotas/{name}", h.DeleteResourceQuota)
 
+		// LimitRange (namespace-scoped)
+		r.Get("/api/v1/limitranges/all", h.GetAllLimitRanges)
+		r.Get("/api/v1/namespaces/{namespace}/limitranges", h.GetLimitRanges)
+		r.Get("/api/v1/namespaces/{namespace}/limitranges/{name}/describe", h.DescribeLimitRange)
+		r.Get("/api/v1/namespaces/{namespace}/limitranges/{name}/yaml", h.GetLimitRangeYAML)
+		r.Delete("/api/v1/namespaces/{namespace}/limitranges/{name}", h.DeleteLimitRange)
+
 		// Lease (namespace-scoped)
 		r.Get("/api/v1/leases/all", h.GetAllLeases)
 		r.Get("/api/v1/namespaces/{namespace}/leases", h.GetLeases)
