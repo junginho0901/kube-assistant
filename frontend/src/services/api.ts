@@ -753,6 +753,20 @@ export interface ResourceQuotaInfo {
   created_at: string
 }
 
+export interface LimitRangeInfo {
+  name: string
+  namespace: string
+  limits: Array<{
+    type?: string
+    default?: Record<string, string>
+    default_request?: Record<string, string>
+    max?: Record<string, string>
+    min?: Record<string, string>
+  }>
+  labels?: Record<string, string>
+  created_at: string
+}
+
 export interface PodInfo {
   name: string
   namespace: string
