@@ -1809,6 +1809,23 @@ export const api = {
     await client.delete(`/cluster/namespaces/${namespace}/limitranges/${name}`)
   },
 
+  // MutatingWebhookConfigurations
+  getMutatingWebhookConfigurations: async (forceRefresh = false): Promise<WebhookConfigInfo[]> => {
+    const { data } = await client.get('/cluster/mutatingwebhookconfigurations', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeMutatingWebhookConfiguration: async (name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/mutatingwebhookconfigurations/${name}/describe`)
+    return data
+  },
+
+  deleteMutatingWebhookConfiguration: async (name: string): Promise<void> => {
+    await client.delete(`/cluster/mutatingwebhookconfigurations/${name}`)
+  },
+
   getPods: async (namespace: string, labelSelector?: string, forceRefresh = false): Promise<PodInfo[]> => {
     const { data} = await client.get(`/cluster/namespaces/${namespace}/pods`, {
       params: { label_selector: labelSelector, force_refresh: forceRefresh },
