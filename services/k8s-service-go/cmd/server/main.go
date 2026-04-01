@@ -397,6 +397,18 @@ func main() {
 		r.Get("/api/v1/namespaces/{namespace}/limitranges/{name}/yaml", h.GetLimitRangeYAML)
 		r.Delete("/api/v1/namespaces/{namespace}/limitranges/{name}", h.DeleteLimitRange)
 
+		// MutatingWebhookConfiguration (cluster-scoped)
+		r.Get("/api/v1/mutatingwebhookconfigurations", h.GetMutatingWebhookConfigurations)
+		r.Get("/api/v1/mutatingwebhookconfigurations/{name}/describe", h.DescribeMutatingWebhookConfiguration)
+		r.Get("/api/v1/mutatingwebhookconfigurations/{name}/yaml", h.GetMutatingWebhookConfigurationYAML)
+		r.Delete("/api/v1/mutatingwebhookconfigurations/{name}", h.DeleteMutatingWebhookConfiguration)
+
+		// ValidatingWebhookConfiguration (cluster-scoped)
+		r.Get("/api/v1/validatingwebhookconfigurations", h.GetValidatingWebhookConfigurations)
+		r.Get("/api/v1/validatingwebhookconfigurations/{name}/describe", h.DescribeValidatingWebhookConfiguration)
+		r.Get("/api/v1/validatingwebhookconfigurations/{name}/yaml", h.GetValidatingWebhookConfigurationYAML)
+		r.Delete("/api/v1/validatingwebhookconfigurations/{name}", h.DeleteValidatingWebhookConfiguration)
+
 		// Lease (namespace-scoped)
 		r.Get("/api/v1/leases/all", h.GetAllLeases)
 		r.Get("/api/v1/namespaces/{namespace}/leases", h.GetLeases)
