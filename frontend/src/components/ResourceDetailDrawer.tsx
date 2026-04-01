@@ -182,6 +182,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteLease = kind === 'Lease' && !!ns && isWriteRole
   const canDeleteResourceQuota = kind === 'ResourceQuota' && !!ns && isWriteRole
   const canDeleteLimitRange = kind === 'LimitRange' && !!ns && isWriteRole
+  const canDeleteMutatingWebhookConfig = kind === 'MutatingWebhookConfiguration' && isAdmin
+  const canDeleteValidatingWebhookConfig = kind === 'ValidatingWebhookConfiguration' && isAdmin
   const canDelete = [
     canDeleteNode,
     canDeletePod,
@@ -226,6 +228,8 @@ export default function ResourceDetailDrawer() {
     canDeleteLease,
     canDeleteResourceQuota,
     canDeleteLimitRange,
+    canDeleteMutatingWebhookConfig,
+    canDeleteValidatingWebhookConfig,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
