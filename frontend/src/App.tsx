@@ -58,6 +58,8 @@ import RuntimeClasses from './pages/cluster/RuntimeClasses'
 import Leases from './pages/cluster/Leases'
 import ResourceQuotas from './pages/cluster/ResourceQuotas'
 import LimitRanges from './pages/cluster/LimitRanges'
+import MutatingWebhookConfigurations from './pages/cluster/MutatingWebhookConfigurations'
+import ValidatingWebhookConfigurations from './pages/cluster/ValidatingWebhookConfigurations'
 import { MonacoEditorLoaderInitializer } from './components/monaco/MonacoEditorLoaderInitializer'
 
 function App() {
