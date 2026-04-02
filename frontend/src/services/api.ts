@@ -2573,6 +2573,23 @@ export const api = {
     await client.delete(`/cluster/clusterroles/${name}`)
   },
 
+  // ===== ClusterRoleBindings =====
+  getClusterRoleBindings: async (forceRefresh = false): Promise<ClusterRoleBindingInfo[]> => {
+    const { data } = await client.get('/cluster/clusterrolebindings', {
+      params: { force_refresh: forceRefresh },
+    })
+    return data
+  },
+
+  describeClusterRoleBinding: async (name: string): Promise<any> => {
+    const { data } = await client.get(`/cluster/clusterrolebindings/${name}/describe`)
+    return data
+  },
+
+  deleteClusterRoleBinding: async (name: string): Promise<void> => {
+    await client.delete(`/cluster/clusterrolebindings/${name}`)
+  },
+
   // ===== ConfigMaps =====
   getConfigMaps: async (namespace: string, forceRefresh = false): Promise<ConfigMapInfo[]> => {
     const { data } = await client.get(`/cluster/namespaces/${namespace}/configmaps`, {
