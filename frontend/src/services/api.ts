@@ -945,6 +945,16 @@ export interface ClusterRoleInfo {
   annotations?: Record<string, string> | null
 }
 
+export interface ClusterRoleBindingInfo {
+  name: string
+  role_ref_kind: string
+  role_ref_name: string
+  subjects_count: number
+  created_at?: string | null
+  labels?: Record<string, string> | null
+  annotations?: Record<string, string> | null
+}
+
 export interface ConfigMapInfo {
   name: string
   namespace: string
