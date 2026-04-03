@@ -246,6 +246,8 @@ export default function ResourceDetailDrawer() {
     canDeleteLimitRange,
     canDeleteMutatingWebhookConfig,
     canDeleteValidatingWebhookConfig,
+    canDeleteCRD,
+    canDeleteCRInstance,
   ].some(Boolean)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
@@ -422,6 +424,12 @@ export default function ResourceDetailDrawer() {
     } else if (kind === 'ValidatingWebhookConfiguration') {
       queryClient.invalidateQueries({ queryKey: ['cluster', 'validatingwebhookconfigurations'] })
       queryClient.invalidateQueries({ queryKey: ['validatingwebhookconfiguration-describe', name] })
+    } else if (kind === 'CustomResourceDefinition') {
+      queryClient.invalidateQueries({ queryKey: ['custom-resources', 'crds'] })
+      queryClient.invalidateQueries({ queryKey: ['crd-describe', name] })
+    } else if (kind === 'CustomResourceInstance') {
+      queryClient.invalidateQueries({ queryKey: ['custom-resources', 'instances'] })
+      queryClient.invalidateQueries({ queryKey: ['cr-instance-describe'] })
     } else {
       queryClient.invalidateQueries({ queryKey: ['search-resources'] })
     }
@@ -650,6 +658,21 @@ export default function ResourceDetailDrawer() {
       if (kind === 'ValidatingWebhookConfiguration') {
         await api.deleteValidatingWebhookConfiguration(name)
         return
+      }
+      if (kind === 'CustomResourceDefinition') {
+        await api.deleteCRD(name)
+        return
+      }
+      if (kind === 'CustomResourceInstance') {
+        const rj = target?.rawJson as Record<string, unknown> | undefined
+        const g = (rj?.group as string) || ''
+        const v = (rj?.version as string) || ''
+        const crdN = (rj?.crd_name as string) || ''
+        const pl = crdN ? crdN.split('.')[0] : ''
+        if (g && v && pl) {
+          await api.deleteCustomResourceInstance(g, v, pl, ns || '-', name)
+          return
+        }
       }
       throw new Error('Delete is not supported for this resource.')
     },
@@ -929,6 +952,16 @@ export default function ResourceDetailDrawer() {
           queryClient.invalidateQueries({ queryKey: ['cluster', 'validatingwebhookconfigurations'] }),
           queryClient.invalidateQueries({ queryKey: ['validatingwebhookconfiguration-describe', name] }),
         ])
+      } else if (kind === 'CustomResourceDefinition') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['custom-resources', 'crds'] }),
+          queryClient.invalidateQueries({ queryKey: ['crd-describe', name] }),
+        ])
+      } else if (kind === 'CustomResourceInstance') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['custom-resources', 'instances'] }),
+          queryClient.invalidateQueries({ queryKey: ['cr-instance-describe'] }),
+        ])
       }
 
       close()
@@ -975,6 +1008,8 @@ export default function ResourceDetailDrawer() {
     if (kind === 'LimitRange' && ns) return <LimitRangeInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (kind === 'MutatingWebhookConfiguration') return <WebhookConfigInfo name={name} kind="MutatingWebhookConfiguration" rawJson={target.rawJson} />
     if (kind === 'ValidatingWebhookConfiguration') return <WebhookConfigInfo name={name} kind="ValidatingWebhookConfiguration" rawJson={target.rawJson} />
+    if (kind === 'CustomResourceDefinition') return <CRDInfo name={name} rawJson={target.rawJson} />
+    if (kind === 'CustomResourceInstance') return <CustomResourceInstanceInfo name={name} namespace={ns} rawJson={target.rawJson} />
     if (WORKLOAD_KINDS.has(kind)) return <WorkloadInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (NETWORK_KINDS.has(kind)) return <NetworkInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
     if (CONFIG_STORAGE_KINDS.has(kind)) return <ConfigStorageInfo name={name} namespace={ns} kind={kind} rawJson={target.rawJson} />
