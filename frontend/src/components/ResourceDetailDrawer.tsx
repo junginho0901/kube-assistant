@@ -41,6 +41,8 @@ import LeaseInfo from './resource-detail/LeaseInfo'
 import ResourceQuotaInfo from './resource-detail/ResourceQuotaInfo'
 import LimitRangeInfo from './resource-detail/LimitRangeInfo'
 import WebhookConfigInfo from './resource-detail/WebhookConfigInfo'
+import CRDInfo from './resource-detail/CRDInfo'
+import CustomResourceInstanceInfo from './resource-detail/CustomResourceInstanceInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
 type TabId = 'info' | 'yaml'
@@ -86,6 +88,8 @@ function kindToPlural(kind: string): string {
     LimitRange: 'limitrange',
     MutatingWebhookConfiguration: 'mutatingwebhookconfiguration',
     ValidatingWebhookConfiguration: 'validatingwebhookconfiguration',
+    CustomResourceDefinition: 'customresourcedefinition',
+    CustomResourceInstance: 'customresourceinstance',
   }
   return map[kind] ?? kind.toLowerCase()
 }
@@ -119,6 +123,8 @@ function kindIcon(kind: string): string {
     LimitRange: '📏',
     MutatingWebhookConfiguration: '🔄',
     ValidatingWebhookConfiguration: '✅',
+    CustomResourceDefinition: '🧩',
+    CustomResourceInstance: '📦',
   }
   return map[kind] ?? '📄'
 }
@@ -190,6 +196,8 @@ export default function ResourceDetailDrawer() {
   const canDeleteLimitRange = kind === 'LimitRange' && !!ns && isWriteRole
   const canDeleteMutatingWebhookConfig = kind === 'MutatingWebhookConfiguration' && isAdmin
   const canDeleteValidatingWebhookConfig = kind === 'ValidatingWebhookConfiguration' && isAdmin
+  const canDeleteCRD = kind === 'CustomResourceDefinition' && isAdmin
+  const canDeleteCRInstance = kind === 'CustomResourceInstance' && isWriteRole
   const canDelete = [
     canDeleteNode,
     canDeletePod,
