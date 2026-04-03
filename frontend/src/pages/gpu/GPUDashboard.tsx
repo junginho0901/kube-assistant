@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import {
@@ -13,9 +14,10 @@ import {
   XCircle,
   Server,
   Box,
+  ArrowRight,
 } from 'lucide-react'
 
-import type { GPUDashboardData, GPUNodeInfo, GPUPodInfo } from '@/services/api'
+import type { GPUDashboardData, GPUMetricsData, GPUDeviceMetric, GPUPodInfo } from '@/services/api'
 
 function formatAge(createdAt?: string | null): string {
   if (!createdAt) return '-'
