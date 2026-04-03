@@ -568,6 +568,16 @@ export interface GPUMetricsData {
   gpus: GPUDeviceMetric[]
 }
 
+export interface PrometheusQueryResult {
+  metric: Record<string, string>
+  value: number
+}
+
+export interface PrometheusQueryResponse {
+  available: boolean
+  results: PrometheusQueryResult[]
+}
+
 export interface DeviceClassItem {
   name: string
   labels?: Record<string, string>
