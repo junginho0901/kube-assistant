@@ -975,6 +975,29 @@ export interface SecretInfo {
   created_at?: string | null
 }
 
+export interface CRDInfo {
+  name: string
+  group: string
+  version: string
+  scope: string
+  kind: string
+  created_at?: string | null
+  labels?: Record<string, string> | null
+  annotations?: Record<string, string> | null
+}
+
+export interface CustomResourceInstanceInfo {
+  name: string
+  namespace: string
+  kind: string
+  group: string
+  version: string
+  scope: string
+  crd_name: string
+  created_at?: string | null
+  labels?: Record<string, string> | null
+}
+
 export interface TopologyGraph {
   nodes: Array<{
     id: string
