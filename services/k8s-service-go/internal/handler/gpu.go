@@ -43,6 +43,51 @@ func (h *Handler) GetGPUMetrics(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, data)
 }
 
+// --- Prometheus Status & Query ---
+
+func (h *Handler) GetPrometheusStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data := h.svc.PrometheusStatus(ctx)
+	response.JSON(w, http.StatusOK, data)
+}
+
+func (h *Handler) PrometheusQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"detail": "query parameter required"})
+		return
+	}
+
+	if !h.svc.PrometheusAvailable(ctx) {
+		response.JSON(w, http.StatusOK, map[string]interface{}{
+			"available": false,
+			"results":   []interface{}{},
+		})
+		return
+	}
+
+	results, err := h.svc.PrometheusQuery(ctx, query)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	// Convert to serializable format
+	items := make([]map[string]interface{}, 0, len(results))
+	for _, r := range results {
+		items = append(items, map[string]interface{}{
+			"metric": r.Metric,
+			"value":  r.Value,
+		})
+	}
+
+	response.JSON(w, http.StatusOK, map[string]interface{}{
+		"available": true,
+		"results":   items,
+	})
+}
+
 // --- DeviceClasses ---
 
 func (h *Handler) GetDeviceClasses(w http.ResponseWriter, r *http.Request) {
