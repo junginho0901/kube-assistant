@@ -31,6 +31,18 @@ func (h *Handler) GetGPUDashboard(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, data)
 }
 
+// --- GPU Metrics (Prometheus / DCGM) ---
+
+func (h *Handler) GetGPUMetrics(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	data, err := h.svc.GetGPUMetrics(ctx)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // --- DeviceClasses ---
 
 func (h *Handler) GetDeviceClasses(w http.ResponseWriter, r *http.Request) {
