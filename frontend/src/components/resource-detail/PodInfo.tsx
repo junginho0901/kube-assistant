@@ -125,6 +125,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
   const [logContainer, setLogContainer] = useState<string>('')
   const [logLines, setLogLines] = useState(100)
   const [showLogs, setShowLogs] = useState(false)
+  const logRef = useRef<HTMLDivElement>(null)
   const [execTarget, setExecTarget] = useState<string | null>(null)
   const [execSelectContainer, setExecSelectContainer] = useState<string>('')
   const [execCommand, setExecCommand] = useState<string>('/bin/sh')
@@ -154,6 +155,15 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
     enabled: showLogs && !!logContainer,
     staleTime: 5000,
   })
+
+  const logSectionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (logData && logRef.current) {
+      logRef.current.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' })
+      logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [logData])
 
   const spec = (rawJson?.spec ?? {}) as Record<string, unknown>
   const status = (rawJson?.status ?? {}) as Record<string, unknown>
@@ -988,6 +998,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
       )}
 
       {/* Logs Viewer */}
+      <div ref={logSectionRef}>
       <InfoSection title="Logs">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -1014,12 +1025,13 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
             </button>
           </div>
           {showLogs && (
-            <div className="bg-slate-950 rounded-lg p-3 font-mono text-[11px] text-slate-300 max-h-[400px] overflow-auto whitespace-pre-wrap break-all">
+            <div ref={logRef} className="bg-slate-950 rounded-lg p-3 font-mono text-[11px] text-slate-300 max-h-[400px] overflow-auto whitespace-pre-wrap break-all">
               {logsFetching ? 'Loading...' : logData || '(no logs)'}
             </div>
           )}
         </div>
       </InfoSection>
+      </div>
 
       {execTarget && (
         <ModalOverlay onClose={() => setExecTarget(null)}>
