@@ -184,6 +184,9 @@ func main() {
 		r.Get("/api/v1/namespaces/{namespace}/cronjobs", h.GetCronJobs)
 		r.Get("/api/v1/namespaces/{namespace}/cronjobs/{name}/describe", h.DescribeCronJob)
 		r.Get("/api/v1/namespaces/{namespace}/cronjobs/{name}/yaml", h.GetCronJobYAML)
+		r.Patch("/api/v1/namespaces/{namespace}/cronjobs/{name}/suspend", h.SuspendCronJob)
+		r.Post("/api/v1/namespaces/{namespace}/cronjobs/{name}/trigger", h.TriggerCronJob)
+		r.Get("/api/v1/namespaces/{namespace}/cronjobs/{name}/jobs", h.GetCronJobOwnedJobs)
 		r.Delete("/api/v1/namespaces/{namespace}/cronjobs/{name}", h.DeleteCronJob)
 
 		// Networking - Ingresses

@@ -2416,5 +2416,19 @@
     "finalizers": "Finalizers",
     "events": "Events",
     "printerColumns": "Additional Info"
+  },
+  "cronjob": {
+    "suspend": "Suspend",
+    "resume": "Resume",
+    "suspendSuccess": "CronJob suspended",
+    "resumeSuccess": "CronJob resumed",
+    "runNow": "Run Now",
+    "runNowConfirm": "Are you sure you want to trigger a manual job from this CronJob?",
+    "runNowSuccess": "Job {{name}} created",
+    "ownedJobs": "Jobs",
+    "jobName": "Name",
+    "jobStatus": "Status",
+    "jobStarted": "Started",
+    "jobDuration": "Duration"
   }
 }

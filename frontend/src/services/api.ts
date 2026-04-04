@@ -2017,6 +2017,20 @@ export const api = {
     await client.delete(`/cluster/namespaces/${namespace}/cronjobs/${name}`)
   },
 
+  suspendCronJob: async (namespace: string, name: string, suspend: boolean): Promise<void> => {
+    await client.patch(`/cluster/namespaces/${namespace}/cronjobs/${name}/suspend`, { suspend })
+  },
+
+  triggerCronJob: async (namespace: string, name: string): Promise<{ job_name: string }> => {
+    const { data } = await client.post(`/cluster/namespaces/${namespace}/cronjobs/${name}/trigger`)
+    return data
+  },
+
+  getCronJobOwnedJobs: async (namespace: string, name: string): Promise<any[]> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/cronjobs/${name}/jobs`)
+    return data
+  },
+
   getPodRbac: async (
     namespace: string,
     podName: string,

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // ========== StatefulSets ==========
@@ -641,6 +643,122 @@ func (s *Service) DescribeCronJob(ctx context.Context, namespace, name string) (
 		})
 	}
 	result["active_jobs"] = activeJobs
+
+	// Owned jobs
+	ownedJobs, ownedErr := s.GetCronJobOwnedJobs(ctx, namespace, name)
+	if ownedErr == nil {
+		result["owned_jobs"] = ownedJobs
+	}
+
+	return result, nil
+}
+
+// SuspendCronJob patches the suspend field of a cronjob.
+func (s *Service) SuspendCronJob(ctx context.Context, namespace, name string, suspend bool) error {
+	patch := fmt.Sprintf(`{"spec":{"suspend":%t}}`, suspend)
+	_, err := s.clientset.BatchV1().CronJobs(namespace).Patch(ctx, name, types.StrategicMergePatchType, []byte(patch), metav1.PatchOptions{})
+	if err != nil {
+		return fmt.Errorf("patch cronjob %s/%s suspend: %w", namespace, name, err)
+	}
+	return nil
+}
+
+// TriggerCronJob creates a Job from a CronJob's jobTemplate.
+func (s *Service) TriggerCronJob(ctx context.Context, namespace, name string) (string, error) {
+	cj, err := s.clientset.BatchV1().CronJobs(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get cronjob %s/%s: %w", namespace, name, err)
+	}
+
+	jobName := fmt.Sprintf("%s-manual-%d", name, time.Now().Unix())
+	isController := true
+	blockOwnerDeletion := true
+
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				"cronjob.kubernetes.io/instantiate": "manual",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "batch/v1",
+					Kind:               "CronJob",
+					Name:               cj.Name,
+					UID:                cj.UID,
+					Controller:         &isController,
+					BlockOwnerDeletion: &blockOwnerDeletion,
+				},
+			},
+		},
+		Spec: cj.Spec.JobTemplate.Spec,
+	}
+
+	created, err := s.clientset.BatchV1().Jobs(namespace).Create(ctx, job, metav1.CreateOptions{})
+	if err != nil {
+		return "", fmt.Errorf("create job from cronjob %s/%s: %w", namespace, name, err)
+	}
+	return created.Name, nil
+}
+
+// GetCronJobOwnedJobs lists Jobs owned by a CronJob via ownerReference.
+func (s *Service) GetCronJobOwnedJobs(ctx context.Context, namespace, name string) ([]map[string]interface{}, error) {
+	jobList, err := s.clientset.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list jobs in %s: %w", namespace, err)
+	}
+
+	result := make([]map[string]interface{}, 0)
+	for _, job := range jobList.Items {
+		owned := false
+		for _, ref := range job.OwnerReferences {
+			if ref.Kind == "CronJob" && ref.Name == name {
+				owned = true
+				break
+			}
+		}
+		if !owned {
+			continue
+		}
+
+		// Determine status
+		status := "Active"
+		if job.Status.CompletionTime != nil {
+			status = "Complete"
+		} else {
+			for _, cond := range job.Status.Conditions {
+				if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
+					status = "Failed"
+					break
+				}
+			}
+		}
+
+		entry := map[string]interface{}{
+			"name":      job.Name,
+			"namespace": job.Namespace,
+			"status":    status,
+		}
+
+		if job.Status.StartTime != nil {
+			entry["start_time"] = toISO(job.Status.StartTime)
+		}
+		if job.Status.CompletionTime != nil {
+			entry["completion_time"] = toISO(job.Status.CompletionTime)
+		}
+
+		// Duration in seconds
+		if job.Status.StartTime != nil {
+			endTime := time.Now()
+			if job.Status.CompletionTime != nil {
+				endTime = job.Status.CompletionTime.Time
+			}
+			entry["duration"] = int64(endTime.Sub(job.Status.StartTime.Time).Seconds())
+		}
+
+		result = append(result, entry)
+	}
 
 	return result, nil
 }
