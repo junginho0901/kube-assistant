@@ -441,6 +441,9 @@ func main() {
 		r.Get("/api/v1/custom-resources/{group}/{version}/{plural}/{namespace}/{name}/describe", h.DescribeCustomResourceInstance)
 		r.Delete("/api/v1/custom-resources/{group}/{version}/{plural}/{namespace}/{name}", h.DeleteCustomResourceInstance)
 
+		// Dependency Graph
+		r.Get("/api/v1/namespaces/{namespace}/dependency-graph", h.GetDependencyGraph)
+
 		// Topology
 		r.Get("/api/v1/topology/namespace/{namespace}", h.GetNamespaceTopology)
 		r.Get("/api/v1/topology/service/{namespace}/{service_name}", h.GetServiceTopology)
