@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Namespaces from './pages/Namespaces'
 import Resources from './pages/Resources'
 import Topology from './pages/Topology'
+import DependencyGraph from './pages/DependencyGraph'
 import NetworkPage from './pages/Network'
 import AIChat from './pages/AIChat'
 import ClusterView from './pages/ClusterView'
@@ -78,6 +79,7 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="namespaces" element={<Namespaces />} />
             <Route path="cluster/namespaces" element={<Namespaces />} />
+            <Route path="cluster/dependency-graph" element={<DependencyGraph />} />
             <Route path="cluster/nodes" element={<ClusterNodes />} />
             <Route path="cluster/search" element={<AdvancedSearch />} />
             <Route path="workloads/pods" element={<Pods />} />
