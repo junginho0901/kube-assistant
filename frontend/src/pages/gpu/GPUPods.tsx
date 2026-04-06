@@ -11,6 +11,7 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  BarChart3,
 } from 'lucide-react'
 
 import type { GPUDashboardData, GPUMetricsData, GPUPodInfo } from '@/services/api'
@@ -54,6 +55,7 @@ export default function GPUPods() {
   const [sortKey, setSortKey] = useState<SortKey>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showCharts, setShowCharts] = useState(false)
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
   const { data, isLoading, refetch } = useQuery<GPUDashboardData>({
@@ -232,21 +234,30 @@ export default function GPUPods() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+    <div className={`flex flex-col gap-4 ${showCharts ? 'min-h-[calc(100vh-4rem)] overflow-y-auto' : 'h-[calc(100vh-4rem)]'}`}>
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{tr('gpuPods.title', 'GPU Pods')}</h1>
           <p className="mt-2 text-slate-400">{tr('gpuPods.subtitle', 'Pods consuming GPU resources across the cluster.')}</p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {tr('gpuPods.refresh', 'Refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCharts((prev) => !prev)}
+            className={`btn flex items-center gap-2 ${showCharts ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            {tr('gpuPods.metrics', 'Metrics')}
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {tr('gpuPods.refresh', 'Refresh')}
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -272,7 +283,7 @@ export default function GPUPods() {
       </div>
 
       {/* GPU Usage per Node + Status Distribution */}
-      {(nodeGpuUsage.length > 0 || stats.topStatuses.length > 0) && (
+      {showCharts && (nodeGpuUsage.length > 0 || stats.topStatuses.length > 0) && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 shrink-0">
           {/* GPU usage per node */}
           {nodeGpuUsage.length > 0 && (
@@ -340,7 +351,7 @@ export default function GPUPods() {
       )}
 
       {/* Table */}
-      <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
+      <div ref={tableContainerRef} className={`card flex flex-col ${showCharts ? 'min-h-[420px]' : 'flex-1 min-h-0'}`}>
         <div className="overflow-x-auto flex-1 min-h-0">
           <table className="w-full text-sm min-w-[980px] table-fixed">
             <thead className="text-slate-400">
