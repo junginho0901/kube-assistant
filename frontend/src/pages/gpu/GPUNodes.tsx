@@ -11,6 +11,7 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  BarChart3,
 } from 'lucide-react'
 
 import type { GPUDashboardData, GPUMetricsData, GPUDeviceMetric, GPUNodeInfo } from '@/services/api'
@@ -29,6 +30,7 @@ export default function GPUNodes() {
   const [sortKey, setSortKey] = useState<SortKey>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showCharts, setShowCharts] = useState(false)
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
   const { data, isLoading, refetch } = useQuery<GPUDashboardData>({
@@ -198,21 +200,30 @@ export default function GPUNodes() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+    <div className={`flex flex-col gap-4 ${showCharts ? 'min-h-[calc(100vh-4rem)] overflow-y-auto' : 'h-[calc(100vh-4rem)]'}`}>
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{tr('gpuNodes.title', 'GPU Nodes')}</h1>
           <p className="mt-2 text-slate-400">{tr('gpuNodes.subtitle', 'GPU node status, capacity, and model information.')}</p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {tr('gpuNodes.refresh', 'Refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCharts((prev) => !prev)}
+            className={`btn flex items-center gap-2 ${showCharts ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            {tr('gpuNodes.metrics', 'Metrics')}
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {tr('gpuNodes.refresh', 'Refresh')}
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -238,7 +249,7 @@ export default function GPUNodes() {
       </div>
 
       {/* GPU Model Distribution */}
-      {modelDistribution.length > 0 && (
+      {showCharts && modelDistribution.length > 0 && (
         <div className="card shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white">
@@ -283,7 +294,7 @@ export default function GPUNodes() {
       )}
 
       {/* Real-time GPU Metrics per Node */}
-      {metricsAvailable && gpusByHost.size > 0 && (
+      {showCharts && metricsAvailable && gpusByHost.size > 0 && (
         <div className="card shrink-0">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -347,7 +358,7 @@ export default function GPUNodes() {
       )}
 
       {/* Table */}
-      <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
+      <div ref={tableContainerRef} className={`card flex flex-col ${showCharts ? 'min-h-[420px]' : 'flex-1 min-h-0'}`}>
         <div className="overflow-x-auto flex-1 min-h-0">
           <table className="w-full text-sm min-w-[980px] table-fixed">
             <thead className="text-slate-400">
