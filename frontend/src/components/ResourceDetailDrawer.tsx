@@ -545,6 +545,18 @@ export default function ResourceDetailDrawer() {
     el.scrollLeft = 0
   }, [target?.kind, target?.namespace, target?.name, tab])
 
+  useEffect(() => {
+    if (!target) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [target, isYamlDirty])
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (kind === 'Pod' && ns) {
