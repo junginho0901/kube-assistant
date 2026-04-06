@@ -2782,6 +2782,27 @@ export const api = {
   deleteCustomResourceInstance: async (group: string, version: string, plural: string, namespace: string, name: string): Promise<void> => {
     await client.delete(`/cluster/custom-resources/${group}/${version}/${plural}/${namespace}/${name}`)
   },
+
+  // ===== Dependency Graph =====
+  getDependencyGraph: async (namespace: string): Promise<{
+    nodes: Array<{
+      id: string
+      kind: string
+      name: string
+      namespace: string
+      status: string
+      ready?: string
+      labels?: Record<string, string>
+    }>
+    edges: Array<{
+      source: string
+      target: string
+      type: 'owns' | 'selects' | 'mounts' | 'routes' | 'binds'
+    }>
+  }> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/dependency-graph`)
+    return data
+  },
 }
 
 let metricsDisabled = false
