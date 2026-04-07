@@ -71,6 +71,42 @@ export interface ModelConfigResponse {
   updated_at: string
 }
 
+// ===== Timeline Types =====
+export interface TimelineEvent {
+  timestamp: string
+  type: 'Normal' | 'Warning'
+  reason: string
+  message: string
+  source: string
+  resource: { kind: string; name: string; namespace: string }
+  involved_object: { kind: string; name: string; namespace: string }
+  count: number
+  first_seen: string
+  last_seen: string
+}
+
+export interface RolloutRevision {
+  kind: string
+  name: string
+  namespace: string
+  revision: number
+  change_cause: string | null
+  created_at: string
+  images: string[]
+  replicas: number
+}
+
+export interface TimelineResult {
+  events: TimelineEvent[]
+  rollout_history: RolloutRevision[]
+  summary: {
+    total_events: number
+    normal_count: number
+    warning_count: number
+    time_range: { start: string; end: string }
+  }
+}
+
 // Types
 export interface ClusterOverview {
   total_namespaces: number
