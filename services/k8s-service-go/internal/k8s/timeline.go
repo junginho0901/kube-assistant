@@ -1,9 +1,13 @@
 package k8s
 
 import (
+	"context"
+	"fmt"
+	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // TimelineResult holds merged events and rollout history for a timeline view.
@@ -58,6 +62,67 @@ func extractContainerImages(containers []corev1.Container) []string {
 		images = append(images, c.Image)
 	}
 	return images
+}
+
+// getTimelineEvents fetches K8s events with optional resource filter and time cutoff.
+func (s *Service) getTimelineEvents(ctx context.Context, namespace, kind, name string, cutoff time.Time, limit int) ([]map[string]interface{}, error) {
+	opts := metav1.ListOptions{}
+	if name != "" && kind != "" {
+		opts.FieldSelector = fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=%s", name, kind)
+	} else if name != "" {
+		opts.FieldSelector = fmt.Sprintf("involvedObject.name=%s", name)
+	}
+
+	eventList, err := s.clientset.CoreV1().Events(namespace).List(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("list timeline events: %w", err)
+	}
+
+	// Filter by time and sort
+	filtered := make([]corev1.Event, 0, len(eventList.Items))
+	for _, e := range eventList.Items {
+		ts := eventTimestamp(e)
+		if !ts.Before(cutoff) {
+			filtered = append(filtered, e)
+		}
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		ti := eventTimestamp(filtered[i])
+		tj := eventTimestamp(filtered[j])
+		return ti.After(tj)
+	})
+
+	// Apply limit
+	if limit > 0 && len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+
+	result := make([]map[string]interface{}, 0, len(filtered))
+	for _, e := range filtered {
+		ts := eventTimestamp(e)
+		result = append(result, map[string]interface{}{
+			"timestamp": ts.UTC().Format(time.RFC3339),
+			"type":      e.Type,
+			"reason":    e.Reason,
+			"message":   e.Message,
+			"source":    e.Source.Component,
+			"resource": map[string]interface{}{
+				"kind":      e.InvolvedObject.Kind,
+				"name":      e.InvolvedObject.Name,
+				"namespace": e.InvolvedObject.Namespace,
+			},
+			"involved_object": map[string]interface{}{
+				"kind":      e.InvolvedObject.Kind,
+				"name":      e.InvolvedObject.Name,
+				"namespace": e.InvolvedObject.Namespace,
+			},
+			"count":      e.Count,
+			"first_seen": toISO(&e.FirstTimestamp),
+			"last_seen":  toISO(&e.LastTimestamp),
+		})
+	}
+	return result, nil
 }
 
 // nilIfEmpty returns nil if string is empty, otherwise the string.
