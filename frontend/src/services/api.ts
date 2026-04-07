@@ -2819,6 +2819,21 @@ export const api = {
     await client.delete(`/cluster/custom-resources/${group}/${version}/${plural}/${namespace}/${name}`)
   },
 
+  // ===== Timeline =====
+  getNamespaceTimeline: async (namespace: string, hours: number = 24, limit: number = 500): Promise<TimelineResult> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/timeline`, {
+      params: { hours, limit }
+    })
+    return data
+  },
+
+  getResourceTimeline: async (namespace: string, kind: string, name: string, hours: number = 24, limit: number = 500): Promise<TimelineResult> => {
+    const { data } = await client.get(`/cluster/namespaces/${namespace}/timeline/${kind}/${name}`, {
+      params: { hours, limit }
+    })
+    return data
+  },
+
   // ===== Dependency Graph =====
   getDependencyGraph: async (namespace: string): Promise<{
     nodes: Array<{
