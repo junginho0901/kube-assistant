@@ -17,6 +17,7 @@
     "namespaces": "네임스페이스",
     "nodes": "노드",
     "dependencyGraph": "리소스 의존성 그래프",
+    "timeline": "변경 이력",
     "advancedSearch": "고급 검색 (베타)",
     "pods": "파드",
     "deployments": "디플로이먼트",

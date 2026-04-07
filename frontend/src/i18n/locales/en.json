@@ -17,6 +17,7 @@
     "namespaces": "Namespaces",
     "nodes": "Nodes",
     "dependencyGraph": "Resource Dependency Graph",
+    "timeline": "Change History",
     "advancedSearch": "Advanced Search (Beta)",
     "pods": "Pods",
     "deployments": "Deployments",
