@@ -215,6 +215,113 @@ func (s *Service) getNamespaceRolloutHistory(ctx context.Context, namespace stri
 	return result, nil
 }
 
+func (s *Service) getDeploymentRolloutTimeline(ctx context.Context, namespace, name string, cutoff time.Time) ([]map[string]interface{}, error) {
+	rsList, err := s.clientset.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list replicasets for timeline: %w", err)
+	}
+
+	result := make([]map[string]interface{}, 0)
+	for _, rs := range rsList.Items {
+		if rs.CreationTimestamp.Time.Before(cutoff) {
+			continue
+		}
+
+		owned := false
+		for _, ref := range rs.OwnerReferences {
+			if ref.Kind == "Deployment" && ref.Name == name {
+				owned = true
+				break
+			}
+		}
+		if !owned {
+			continue
+		}
+
+		revStr, ok := rs.Annotations["deployment.kubernetes.io/revision"]
+		if !ok {
+			continue
+		}
+		rev, err := strconv.ParseInt(revStr, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		images := extractContainerImages(rs.Spec.Template.Spec.Containers)
+		changeCause := rs.Annotations["kubernetes.io/change-cause"]
+
+		replicas := int32(0)
+		if rs.Spec.Replicas != nil {
+			replicas = *rs.Spec.Replicas
+		}
+
+		result = append(result, map[string]interface{}{
+			"kind":         "Deployment",
+			"name":         name,
+			"namespace":    namespace,
+			"revision":     rev,
+			"change_cause": nilIfEmpty(changeCause),
+			"created_at":   toISO(&rs.CreationTimestamp),
+			"images":       images,
+			"replicas":     replicas,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		ti, _ := time.Parse(time.RFC3339, result[i]["created_at"].(string))
+		tj, _ := time.Parse(time.RFC3339, result[j]["created_at"].(string))
+		return ti.After(tj)
+	})
+
+	return result, nil
+}
+
+func (s *Service) getControllerRevisionTimeline(ctx context.Context, namespace, kind, name string, cutoff time.Time) ([]map[string]interface{}, error) {
+	crList, err := s.clientset.AppsV1().ControllerRevisions(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list controller revisions for timeline: %w", err)
+	}
+
+	result := make([]map[string]interface{}, 0)
+	for _, cr := range crList.Items {
+		if cr.CreationTimestamp.Time.Before(cutoff) {
+			continue
+		}
+
+		owned := false
+		for _, ref := range cr.OwnerReferences {
+			if ref.Kind == kind && ref.Name == name {
+				owned = true
+				break
+			}
+		}
+		if !owned {
+			continue
+		}
+
+		images := extractImagesFromControllerRevision(&cr)
+
+		result = append(result, map[string]interface{}{
+			"kind":         kind,
+			"name":         name,
+			"namespace":    namespace,
+			"revision":     cr.Revision,
+			"change_cause": nil,
+			"created_at":   toISO(&cr.CreationTimestamp),
+			"images":       images,
+			"replicas":     0,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		ti, _ := time.Parse(time.RFC3339, result[i]["created_at"].(string))
+		tj, _ := time.Parse(time.RFC3339, result[j]["created_at"].(string))
+		return ti.After(tj)
+	})
+
+	return result, nil
+}
+
 // nilIfEmpty returns nil if string is empty, otherwise the string.
 func nilIfEmpty(s string) interface{} {
 	if s == "" {
