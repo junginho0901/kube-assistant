@@ -20,6 +20,81 @@ type TimelineResult struct {
 	Summary        map[string]interface{}   `json:"summary"`
 }
 
+// GetNamespaceTimeline returns events and rollout history for a namespace within the given time window.
+func (s *Service) GetNamespaceTimeline(ctx context.Context, namespace string, hours int, limit int) (*TimelineResult, error) {
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+
+	var wg sync.WaitGroup
+	var events []map[string]interface{}
+	var rollouts []map[string]interface{}
+	var eventsErr, rolloutsErr error
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		events, eventsErr = s.getTimelineEvents(ctx, namespace, "", "", cutoff, limit)
+	}()
+	go func() {
+		defer wg.Done()
+		rollouts, rolloutsErr = s.getNamespaceRolloutHistory(ctx, namespace, cutoff)
+	}()
+	wg.Wait()
+
+	if eventsErr != nil {
+		return nil, eventsErr
+	}
+	if rolloutsErr != nil {
+		// Rollout history is optional; log but don't fail
+		rollouts = []map[string]interface{}{}
+	}
+
+	return buildTimelineResult(events, rollouts, cutoff), nil
+}
+
+// GetResourceTimeline returns events and rollout history for a specific resource.
+func (s *Service) GetResourceTimeline(ctx context.Context, namespace, kind, name string, hours int, limit int) (*TimelineResult, error) {
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+
+	var wg sync.WaitGroup
+	var events []map[string]interface{}
+	var rollouts []map[string]interface{}
+	var eventsErr, rolloutsErr error
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		events, eventsErr = s.getTimelineEvents(ctx, namespace, kind, name, cutoff, limit)
+	}()
+	go func() {
+		defer wg.Done()
+		switch kind {
+		case "Deployment", "StatefulSet", "DaemonSet":
+			rollouts, rolloutsErr = s.getResourceRolloutHistory(ctx, namespace, kind, name, cutoff)
+		default:
+			rollouts = []map[string]interface{}{}
+		}
+	}()
+	wg.Wait()
+
+	if eventsErr != nil {
+		return nil, eventsErr
+	}
+	if rolloutsErr != nil {
+		rollouts = []map[string]interface{}{}
+	}
+
+	return buildTimelineResult(events, rollouts, cutoff), nil
+}
+
+// getResourceRolloutHistory returns rollout history for a specific workload resource.
+func (s *Service) getResourceRolloutHistory(ctx context.Context, namespace, kind, name string, cutoff time.Time) ([]map[string]interface{}, error) {
+	if kind == "Deployment" {
+		return s.getDeploymentRolloutTimeline(ctx, namespace, name, cutoff)
+	}
+	// StatefulSet/DaemonSet use ControllerRevisions
+	return s.getControllerRevisionTimeline(ctx, namespace, kind, name, cutoff)
+}
+
 // buildTimelineResult constructs the final timeline response with summary.
 func buildTimelineResult(events, rollouts []map[string]interface{}, cutoff time.Time) *TimelineResult {
 	normalCount := 0
