@@ -441,8 +441,12 @@ func main() {
 		r.Get("/api/v1/custom-resources/{group}/{version}/{plural}/{namespace}/{name}/describe", h.DescribeCustomResourceInstance)
 		r.Delete("/api/v1/custom-resources/{group}/{version}/{plural}/{namespace}/{name}", h.DeleteCustomResourceInstance)
 
-		// Dependency Graph
+		// Dependency Graph (legacy)
 		r.Get("/api/v1/namespaces/{namespace}/dependency-graph", h.GetDependencyGraph)
+
+		// Resource Graph (upgraded)
+		r.Get("/api/v1/resource-graph", h.GetResourceGraph)
+		r.Get("/api/v1/namespaces/{namespace}/resource-graph", h.GetNamespaceResourceGraph)
 
 		// Timeline (nginx rewrites /api/v1/cluster/namespaces/* → /api/v1/namespaces/*)
 		r.Get("/api/v1/namespaces/{namespace}/timeline", h.GetNamespaceTimeline)
