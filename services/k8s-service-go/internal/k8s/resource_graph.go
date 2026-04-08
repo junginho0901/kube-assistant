@@ -278,3 +278,153 @@ func (s *Service) GetResourceGraph(ctx context.Context, namespaces []string) (ma
 		list, err := s.clientset.AutoscalingV2().HorizontalPodAutoscalers(ns).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return err
+		}
+		mu.Lock()
+		res.hpas = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	fetch("networkpolicies", func() error {
+		list, err := s.clientset.NetworkingV1().NetworkPolicies(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		res.networkPolicies = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	fetch("endpointslices", func() error {
+		list, err := s.clientset.DiscoveryV1().EndpointSlices(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		res.endpointSlices = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	fetch("endpoints", func() error {
+		list, err := s.clientset.CoreV1().Endpoints(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		res.endpoints = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	// --- Cluster-scoped resources ---
+	fetch("pvs", func() error {
+		list, err := s.clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		res.pvs = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	fetch("storageclasses", func() error {
+		list, err := s.clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		res.storageClasses = list.Items
+		mu.Unlock()
+		return nil
+	})
+
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	// Filter by namespaces if multiple specified
+	nsFilter := make(map[string]bool)
+	if len(namespaces) > 1 {
+		for _, n := range namespaces {
+			nsFilter[n] = true
+		}
+	}
+	inScope := func(namespace string) bool {
+		if len(nsFilter) == 0 {
+			return true
+		}
+		return nsFilter[namespace]
+	}
+
+	nodeMap := make(map[string]rgNode)
+	edges := make([]rgEdge, 0, 512)
+
+	addNode := func(n rgNode) {
+		if _, exists := nodeMap[n.ID]; !exists {
+			nodeMap[n.ID] = n
+		}
+	}
+
+	// ========== BUILD NODES & EDGES ==========
+
+	// --- Deployments ---
+	for i := range res.deployments {
+		d := &res.deployments[i]
+		if !inScope(d.Namespace) {
+			continue
+		}
+		ready := fmt.Sprintf("%d/%d", d.Status.ReadyReplicas, *d.Spec.Replicas)
+		status := "Running"
+		if d.Status.ReadyReplicas < *d.Spec.Replicas {
+			status = "Progressing"
+		}
+		addNode(rgNode{
+			ID: rgNodeID("Deployment", d.Namespace, d.Name), Kind: "Deployment",
+			Name: d.Name, Namespace: d.Namespace, Status: status, Ready: ready,
+			Labels: d.Labels, InstanceLabel: d.Labels["app.kubernetes.io/instance"],
+		})
+	}
+
+	// --- StatefulSets ---
+	for i := range res.statefulSets {
+		ss := &res.statefulSets[i]
+		if !inScope(ss.Namespace) {
+			continue
+		}
+		replicas := int32(1)
+		if ss.Spec.Replicas != nil {
+			replicas = *ss.Spec.Replicas
+		}
+		ready := fmt.Sprintf("%d/%d", ss.Status.ReadyReplicas, replicas)
+		addNode(rgNode{
+			ID: rgNodeID("StatefulSet", ss.Namespace, ss.Name), Kind: "StatefulSet",
+			Name: ss.Name, Namespace: ss.Namespace, Status: "Running", Ready: ready,
+			Labels: ss.Labels, InstanceLabel: ss.Labels["app.kubernetes.io/instance"],
+		})
+	}
+
+	// --- DaemonSets ---
+	for i := range res.daemonSets {
+		ds := &res.daemonSets[i]
+		if !inScope(ds.Namespace) {
+			continue
+		}
+		ready := fmt.Sprintf("%d/%d", ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
+		addNode(rgNode{
+			ID: rgNodeID("DaemonSet", ds.Namespace, ds.Name), Kind: "DaemonSet",
+			Name: ds.Name, Namespace: ds.Namespace, Status: "Running", Ready: ready,
+			Labels: ds.Labels, InstanceLabel: ds.Labels["app.kubernetes.io/instance"],
+		})
+	}
+
+	// --- ReplicaSets ---
+	for i := range res.replicaSets {
+		rs := &res.replicaSets[i]
+		if !inScope(rs.Namespace) {
+			continue
+		}
+		replicas := int32(1)
