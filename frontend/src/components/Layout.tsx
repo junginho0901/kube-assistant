@@ -109,7 +109,7 @@ export default function Layout() {
         { name: t('nav.clusterView'), href: '/cluster-view', icon: Layers },
         { name: t('nav.monitoring'), href: '/monitoring', icon: Activity },
         { name: t('nav.aiChat'), href: '/ai-chat', icon: MessageSquare },
-        { name: t('nav.dependencyGraph'), href: '/cluster/dependency-graph', icon: Waypoints },
+        { name: t('nav.resourceGraph'), href: '/cluster/resource-graph', icon: Waypoints },
         { name: t('nav.timeline'), href: '/timeline', icon: Clock },
       ],
     },
