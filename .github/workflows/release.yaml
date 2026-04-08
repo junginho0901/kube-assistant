@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOCKER_USER: jeonginho
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: auth-service
+            context: services
+            dockerfile: auth-service-go/Dockerfile
+          - name: ai-service
+            context: services/ai-service
+            dockerfile: ""
+          - name: k8s-service
+            context: services
+            dockerfile: k8s-service-go/Dockerfile
+          - name: session-service
+            context: services
+            dockerfile: session-service-go/Dockerfile
+          - name: frontend
+            context: frontend
+            dockerfile: ""
+          - name: tool-server
+            context: services/tool-server
+            dockerfile: ""
+          - name: model-config-controller-go
+            context: services/model-config-controller-go
+            dockerfile: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Hub login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile != '' && format('{0}/{1}', matrix.context, matrix.dockerfile) || format('{0}/Dockerfile', matrix.context) }}
+          push: true
+          tags: |
+            ${{ env.DOCKER_USER }}/kubest-${{ matrix.name }}:${{ steps.version.outputs.tag }}
+            ${{ env.DOCKER_USER }}/kubest-${{ matrix.name }}:latest
+
+  helm-package:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Update Chart version
+        run: |
+          sed -i "s/^version:.*/version: ${TAG#v}/" helm/kubest/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${TAG#v}\"/" helm/kubest/Chart.yaml
+          sed -i "s/imageTag:.*/imageTag: \"$TAG\"/" helm/kubest/values.yaml
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/kubest -d .helm-release
+
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: .helm-release/*.tgz
