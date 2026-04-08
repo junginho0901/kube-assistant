@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, Member, UserRole } from '@/services/api'
-import { CheckCircle, ChevronDown, RotateCcw, Trash2 } from 'lucide-react'
+import { CheckCircle, ChevronDown, Clock, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAccessToken } from '@/services/auth'
@@ -19,6 +19,28 @@ export default function AdminUsers() {
   const [openRoleDropdownUserId, setOpenRoleDropdownUserId] = useState<string | null>(null)
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
   const [reauthModalOpen, setReauthModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'read' as UserRole, hq: '', team: '' })
+
+  // Pending modal
+  const [pendingModalOpen, setPendingModalOpen] = useState(false)
+  const [pendingSelectedIds, setPendingSelectedIds] = useState<Set<string>>(new Set())
+
+  // Bulk upload
+  const [bulkUploadModalOpen, setBulkUploadModalOpen] = useState(false)
+  const [bulkUploadResult, setBulkUploadResult] = useState<{ created: Member[]; errors: Array<{ email: string; message: string }> } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const { data: hqOptions = [] } = useQuery({
+    queryKey: ['organizations', 'hq'],
+    queryFn: () => api.listOrganizations('hq'),
+    staleTime: 60000,
+  })
+  const { data: teamOptions = [] } = useQuery({
+    queryKey: ['organizations', 'team'],
+    queryFn: () => api.listOrganizations('team'),
+    staleTime: 60000,
+  })
 
   const { data: me } = useQuery({
     queryKey: ['me'],
@@ -39,22 +61,28 @@ export default function AdminUsers() {
   const updateRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: UserRole }) => api.adminUpdateUserRole(userId, role),
     onSuccess: (_data, vars) => {
-      // 본인 권한을 admin -> user 로 내린 경우: 안내 모달을 띄우고, 확인 시 로그아웃 + 재로그인 유도
       if (me?.id && vars.userId === me.id && vars.role !== 'admin') {
         setReauthModalOpen(true)
         return
       }
-
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       queryClient.invalidateQueries({ queryKey: ['me'] })
     },
     onError: (_err, vars) => {
-      // 실패 시 서버 값으로 되돌리기(다음 refetch에 맞춤)
       setRoleDrafts((prev) => {
         const next = { ...prev }
         delete next[vars.userId]
         return next
       })
+    },
+  })
+
+  const bulkUpdateRoleMutation = useMutation({
+    mutationFn: ({ userIds, role }: { userIds: string[]; role: UserRole }) => api.adminBulkUpdateRole(userIds, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setPendingSelectedIds(new Set())
+      setPendingModalOpen(false)
     },
   })
 
@@ -72,23 +100,44 @@ export default function AdminUsers() {
     },
   })
 
+  const createUserMutation = useMutation({
+    mutationFn: () => api.adminCreateUser({
+      name: newUser.name,
+      email: newUser.email,
+      password: newUser.password,
+      role: newUser.role,
+      hq: newUser.hq || undefined,
+      team: newUser.team || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setCreateModalOpen(false)
+      setNewUser({ name: '', email: '', password: '', role: 'read', hq: '', team: '' })
+    },
+  })
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: (csvUsers: Array<{ name: string; email: string; password: string; role: string; hq?: string; team?: string }>) =>
+      api.adminBulkCreateUsers(csvUsers),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      setBulkUploadResult(result)
+    },
+  })
+
   useEffect(() => {
     roleDropdownRef.current = null
   }, [openRoleDropdownUserId])
 
   useEffect(() => {
     if (!openRoleDropdownUserId) return
-
     const handleClickOutside = (event: MouseEvent) => {
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
         setOpenRoleDropdownUserId(null)
       }
     }
-
     document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [openRoleDropdownUserId])
 
   if (isLoading) {
@@ -101,14 +150,120 @@ export default function AdminUsers() {
 
   const rows: Member[] = Array.isArray(users) ? users : []
   const isBlocked = reauthModalOpen
+  const pendingRows = rows.filter((u) => u.role === 'pending')
+
+  const downloadCsvTemplate = () => {
+    const bom = '\uFEFF'
+    const hqNames = hqOptions.map((o) => o.name)
+    const teamNames = teamOptions.map((o) => o.name)
+    const comments = [
+      `# Available HQ: ${hqNames.length > 0 ? hqNames.join(', ') : '(none registered)'}`,
+      `# Available Team: ${teamNames.length > 0 ? teamNames.join(', ') : '(none registered)'}`,
+      `# role: read, write, admin`,
+    ].join('\n')
+    const header = 'name,email,password,role,hq,team'
+    const example = `Hong Gildong,hong@example.com,1234,read,${hqNames[0] || 'HQ'},${teamNames[0] || 'Team'}`
+    const blob = new Blob([bom + comments + '\n' + header + '\n' + example + '\n'], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'user_template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      if (!text) return
+      const lines = text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+      if (lines.length < 2) return
+
+      const parsed = lines.slice(1).map((line) => {
+        const cols = line.split(',').map((c) => c.trim())
+        return {
+          name: cols[0] || '',
+          email: cols[1] || '',
+          password: cols[2] || '',
+          role: cols[3] || 'read',
+          hq: cols[4] || undefined,
+          team: cols[5] || undefined,
+        }
+      }).filter((u) => u.name && u.email && u.password)
+
+      if (parsed.length === 0) return
+      bulkCreateMutation.mutate(parsed)
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const togglePendingSelect = (id: string) => {
+    setPendingSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllPending = () => {
+    if (pendingSelectedIds.size === pendingRows.length) {
+      setPendingSelectedIds(new Set())
+    } else {
+      setPendingSelectedIds(new Set(pendingRows.map((u) => u.id)))
+    }
+  }
+
+  const handlePendingBulkApprove = (role: UserRole) => {
+    const ids = Array.from(pendingSelectedIds)
+    if (ids.length === 0) return
+    bulkUpdateRoleMutation.mutate({ userIds: ids, role })
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-white">{tr('adminUsers.title', 'User management')}</h1>
-        <p className="mt-2 text-slate-400">
-          {tr('adminUsers.subtitle', 'Update user roles (read/write/admin).')}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">{tr('adminUsers.title', 'User management')}</h1>
+          <p className="mt-2 text-slate-400">
+            {tr('adminUsers.subtitle', 'Update user roles (read/write/admin).')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {pendingRows.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setPendingSelectedIds(new Set()); setPendingModalOpen(true) }}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 bg-amber-950/20 px-4 py-2.5 text-sm text-amber-300 hover:bg-amber-950/40 transition-colors"
+            >
+              <Clock className="w-4 h-4" />
+              {tr('adminUsers.pendingBtn', 'Pending')}
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400">
+                {pendingRows.length}
+              </span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { setBulkUploadResult(null); setBulkUploadModalOpen(true) }}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-800 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            {tr('adminUsers.bulkUpload', 'Bulk upload')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-500 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            {tr('adminUsers.createUser', 'Add user')}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-700 bg-slate-800/50 overflow-visible">
@@ -127,15 +282,26 @@ export default function AdminUsers() {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
               const isResetting = resetPasswordMutation.isPending && resetPasswordMutation.variables?.userId === u.id
               const isDeleting = deleteUserMutation.isPending && deleteUserMutation.variables?.userId === u.id
-              const resolvedRole = (u.role === 'admin' || u.role === 'write' || u.role === 'read')
+              const resolvedRole = (u.role === 'admin' || u.role === 'write' || u.role === 'read' || u.role === 'pending')
                 ? (u.role as UserRole)
                 : 'read'
               const currentRole = (roleDrafts[u.id] ?? resolvedRole) as UserRole
               const isOpen = openRoleDropdownUserId === u.id
               const isSelf = !!me?.id && me.id === u.id
+              const isPending = currentRole === 'pending'
               return (
-                <tr key={u.id} className="border-t border-slate-700 text-slate-200">
-                  <td className="px-4 py-3">{u.name}</td>
+                <tr
+                  key={u.id}
+                  className={`border-t border-slate-700 text-slate-200 ${isPending ? 'bg-amber-950/10' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    {u.name}
+                    {isPending && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400 border border-amber-500/20">
+                        {tr('adminUsers.pendingBadge', 'Pending')}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{u.email ?? '-'}</td>
                   <td className="px-4 py-3">
                     <div
@@ -163,7 +329,7 @@ export default function AdminUsers() {
                           role="menu"
                           className="absolute right-0 mt-2 w-32 rounded-xl border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden"
                         >
-                          {(['read', 'write', 'admin'] as const).map((role) => {
+                          {(['pending', 'read', 'write', 'admin'] as const).map((role) => {
                             const isSelected = currentRole === role
                             return (
                               <button
@@ -256,6 +422,343 @@ export default function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      {/* Pending approval modal */}
+      {pendingModalOpen && (
+        <ModalOverlay>
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/20">
+                <Clock className="h-5 w-5 text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {tr('adminUsers.pendingModal.title', 'Pending approval')}
+                </h2>
+                <p className="text-sm text-slate-400">
+                  {tr('adminUsers.pendingModal.subtitle', 'Select users to approve and assign a role.')}
+                </p>
+              </div>
+            </div>
+
+            {pendingRows.length === 0 ? (
+              <div className="mt-6 text-center text-sm text-slate-400 py-8">
+                {tr('adminUsers.pendingModal.empty', 'No pending users.')}
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 rounded-xl border border-slate-700 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-800">
+                      <tr className="text-left text-slate-300">
+                        <th className="px-3 py-2.5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={pendingSelectedIds.size === pendingRows.length && pendingRows.length > 0}
+                            onChange={toggleAllPending}
+                            className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-primary-600 focus:ring-primary-600 focus:ring-offset-0"
+                          />
+                        </th>
+                        <th className="px-3 py-2.5">{tr('adminUsers.table.name', 'Name')}</th>
+                        <th className="px-3 py-2.5">{tr('adminUsers.table.email', 'Email')}</th>
+                        <th className="px-3 py-2.5">{tr('adminUsers.form.hq', 'HQ')}</th>
+                        <th className="px-3 py-2.5">{tr('adminUsers.form.team', 'Team')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingRows.map((u) => {
+                        const isChecked = pendingSelectedIds.has(u.id)
+                        return (
+                          <tr
+                            key={u.id}
+                            className={`border-t border-slate-700 text-slate-200 cursor-pointer hover:bg-slate-800/50 ${isChecked ? 'bg-primary-950/20' : ''}`}
+                            onClick={() => togglePendingSelect(u.id)}
+                          >
+                            <td className="px-3 py-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => togglePendingSelect(u.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-primary-600 focus:ring-primary-600 focus:ring-offset-0"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5">{u.name}</td>
+                            <td className="px-3 py-2.5 text-slate-400">{u.email ?? '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-500">{u.hq ?? '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-500">{u.team ?? '-'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  {pendingSelectedIds.size > 0 && (
+                    <span className="text-xs text-slate-400">
+                      {tr('adminUsers.bulk.selected', '{{count}} selected', { count: pendingSelectedIds.size })}
+                    </span>
+                  )}
+                  <div className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => handlePendingBulkApprove('read')}
+                    disabled={pendingSelectedIds.size === 0 || bulkUpdateRoleMutation.isPending}
+                    className="rounded-lg bg-green-600/80 px-4 py-2 text-xs font-medium text-white hover:bg-green-600 disabled:opacity-40"
+                  >
+                    {tr('adminUsers.bulk.approveRead', 'Approve as READ')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePendingBulkApprove('write')}
+                    disabled={pendingSelectedIds.size === 0 || bulkUpdateRoleMutation.isPending}
+                    className="rounded-lg bg-blue-600/80 px-4 py-2 text-xs font-medium text-white hover:bg-blue-600 disabled:opacity-40"
+                  >
+                    {tr('adminUsers.bulk.approveWrite', 'Approve as WRITE')}
+                  </button>
+                </div>
+              </>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingModalOpen(false)}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                {tr('adminUsers.pendingModal.close', 'Close')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Bulk upload modal */}
+      {bulkUploadModalOpen && (
+        <ModalOverlay>
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white">
+              {tr('adminUsers.bulkUploadTitle', 'Bulk upload users')}
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {tr('adminUsers.bulkUploadDesc', 'Download the CSV template, fill in user data, and upload it.')}
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600/20 text-xs font-bold text-primary-400">1</span>
+                <span className="flex-1 text-sm text-slate-300">{tr('adminUsers.bulkStep1', 'Download CSV template')}</span>
+                <button
+                  type="button"
+                  onClick={downloadCsvTemplate}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-white hover:bg-slate-600"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {tr('adminUsers.bulkDownload', 'Download')}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600/20 text-xs font-bold text-primary-400">2</span>
+                <span className="flex-1 text-sm text-slate-300">{tr('adminUsers.bulkStep2', 'Upload filled CSV file')}</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  disabled={bulkCreateMutation.isPending}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs text-white hover:bg-primary-500 disabled:opacity-50"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  {bulkCreateMutation.isPending
+                    ? tr('adminUsers.bulkUploading', 'Uploading...')
+                    : tr('adminUsers.bulkUploadBtn', 'Upload')}
+                </button>
+              </div>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-950/40 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">{tr('adminUsers.bulkFormat', 'CSV format:')}</p>
+                <code className="text-xs text-slate-400">name,email,password,role,hq,team</code>
+              </div>
+
+              {bulkUploadResult && (
+                <div className="space-y-2">
+                  {bulkUploadResult.created.length > 0 && (
+                    <div className="rounded-lg border border-green-800/40 bg-green-950/20 px-4 py-2 text-sm text-green-300">
+                      {tr('adminUsers.bulkCreated', '{{count}} users created.', { count: bulkUploadResult.created.length })}
+                    </div>
+                  )}
+                  {bulkUploadResult.errors?.length > 0 && (
+                    <div className="rounded-lg border border-red-800/40 bg-red-950/20 px-4 py-2 text-sm text-red-300 space-y-1">
+                      {bulkUploadResult.errors.map((err, i) => (
+                        <div key={i}>{err.email}: {err.message}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setBulkUploadModalOpen(false); setBulkUploadResult(null) }}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                {tr('adminUsers.form.cancel', 'Cancel')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Create user modal */}
+      {createModalOpen && (
+        <ModalOverlay>
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={tr('adminUsers.createUserTitle', 'Add user')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white">
+              {tr('adminUsers.createUserTitle', 'Add user')}
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {tr('adminUsers.createUserSubtitle', 'Create a new user account with a specified role.')}
+            </p>
+
+            <form
+              className="mt-5 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!newUser.name || !newUser.email || !newUser.password) return
+                createUserMutation.mutate()
+              }}
+            >
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.name', 'Name')}</label>
+                <input
+                  value={newUser.name}
+                  onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder={tr('adminUsers.form.namePlaceholder', 'Jane Doe')}
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.hq', 'HQ')}</label>
+                  <select
+                    value={newUser.hq}
+                    onChange={(e) => setNewUser((p) => ({ ...p, hq: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  >
+                    <option value="">{tr('adminUsers.form.selectHq', 'Select HQ')}</option>
+                    {hqOptions.map((o) => (
+                      <option key={o.id} value={o.name}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.team', 'Team')}</label>
+                  <select
+                    value={newUser.team}
+                    onChange={(e) => setNewUser((p) => ({ ...p, team: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  >
+                    <option value="">{tr('adminUsers.form.selectTeam', 'Select Team')}</option>
+                    {teamOptions.map((o) => (
+                      <option key={o.id} value={o.name}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.email', 'Email')}</label>
+                <input
+                  value={newUser.email}
+                  onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder="user@example.com"
+                  type="email"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.password', 'Password')}</label>
+                <input
+                  value={newUser.password}
+                  onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder={tr('adminUsers.form.passwordPlaceholder', 'Initial password')}
+                  type="password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.role', 'Role')}</label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as UserRole }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
+                >
+                  <option value="read">READ</option>
+                  <option value="write">WRITE</option>
+                  <option value="admin">ADMIN</option>
+                </select>
+              </div>
+
+              {createUserMutation.isError && (
+                <div className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+                  {tr('adminUsers.createUserError', 'Failed to create user.')}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateModalOpen(false)
+                    setNewUser({ name: '', email: '', password: '', role: 'read', hq: '', team: '' })
+                  }}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+                >
+                  {tr('adminUsers.form.cancel', 'Cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={createUserMutation.isPending || !newUser.name || !newUser.email || !newUser.password}
+                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50"
+                >
+                  {createUserMutation.isPending
+                    ? tr('adminUsers.form.creating', 'Creating...')
+                    : tr('adminUsers.form.create', 'Create')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
 
       {reauthModalOpen && (
         <ModalOverlay>
