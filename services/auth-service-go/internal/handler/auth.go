@@ -231,6 +231,231 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, updated.ToResponse())
 }
 
+// AdminBulkUpdateRole handles PATCH /auth/admin/users/bulk-role
+func (h *AuthHandler) AdminBulkUpdateRole(w http.ResponseWriter, r *http.Request) {
+	payload, ok := auth.FromContext(r.Context())
+	if !ok || payload.Role != "admin" {
+		response.Error(w, http.StatusForbidden, "Admin access required")
+		return
+	}
+
+	var req model.BulkUpdateRoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	role := strings.ToLower(strings.TrimSpace(req.Role))
+	if role != "admin" && role != "read" && role != "write" && role != "pending" {
+		response.Error(w, http.StatusBadRequest, "Invalid role")
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		response.Error(w, http.StatusBadRequest, "No user IDs provided")
+		return
+	}
+
+	updated := make([]model.UserResponse, 0, len(req.UserIDs))
+	for _, uid := range req.UserIDs {
+		if uid == payload.UserID && role != "admin" {
+			continue // skip demoting self
+		}
+		if err := h.repo.UpdateUserRole(r.Context(), uid, role); err != nil {
+			continue
+		}
+		u, _ := h.repo.GetUserByID(r.Context(), uid)
+		if u != nil {
+			updated = append(updated, u.ToResponse())
+		}
+	}
+
+	response.JSON(w, http.StatusOK, updated)
+}
+
+// AdminBulkCreateUsers handles POST /auth/admin/users/bulk
+func (h *AuthHandler) AdminBulkCreateUsers(w http.ResponseWriter, r *http.Request) {
+	payload, ok := auth.FromContext(r.Context())
+	if !ok || payload.Role != "admin" {
+		response.Error(w, http.StatusForbidden, "Admin access required")
+		return
+	}
+
+	var req model.BulkCreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if len(req.Users) == 0 {
+		response.Error(w, http.StatusBadRequest, "No users provided")
+		return
+	}
+	if len(req.Users) > 100 {
+		response.Error(w, http.StatusBadRequest, "Maximum 100 users per request")
+		return
+	}
+
+	var created []model.UserResponse
+	var errors []model.BulkError
+
+	for _, u := range req.Users {
+		if u.Name == "" || !strings.Contains(u.Email, "@") || u.Password == "" {
+			errors = append(errors, model.BulkError{Email: u.Email, Message: "Missing required fields (name, email, password)"})
+			continue
+		}
+
+		role := strings.ToLower(strings.TrimSpace(u.Role))
+		if role == "" {
+			role = "read"
+		}
+		if role != "admin" && role != "read" && role != "write" && role != "pending" {
+			errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid role"})
+			continue
+		}
+
+		if u.HQ != nil && strings.TrimSpace(*u.HQ) != "" {
+			if ok, _ := h.repo.OrganizationExists(r.Context(), "hq", strings.TrimSpace(*u.HQ)); !ok {
+				errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid HQ: " + *u.HQ})
+				continue
+			}
+		}
+		if u.Team != nil && strings.TrimSpace(*u.Team) != "" {
+			if ok, _ := h.repo.OrganizationExists(r.Context(), "team", strings.TrimSpace(*u.Team)); !ok {
+				errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid Team: " + *u.Team})
+				continue
+			}
+		}
+
+		existing, _ := h.repo.GetUserByEmail(r.Context(), u.Email)
+		if existing != nil {
+			errors = append(errors, model.BulkError{Email: u.Email, Message: "Email already exists"})
+			continue
+		}
+
+		hash, err := security.HashPassword(u.Password, h.cfg.PasswordHashIterations)
+		if err != nil {
+			errors = append(errors, model.BulkError{Email: u.Email, Message: "Failed to hash password"})
+			continue
+		}
+
+		now := time.Now().UTC()
+		user := &model.User{
+			ID:           uuid.New().String(),
+			Name:         u.Name,
+			Email:        u.Email,
+			HQ:           u.HQ,
+			Team:         u.Team,
+			Role:         role,
+			PasswordHash: hash,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+
+		if err := h.repo.CreateUser(r.Context(), user); err != nil {
+			errors = append(errors, model.BulkError{Email: u.Email, Message: err.Error()})
+			continue
+		}
+
+		created = append(created, user.ToResponse())
+	}
+
+	response.JSON(w, http.StatusOK, model.BulkCreateUserResponse{
+		Created: created,
+		Errors:  errors,
+	})
+}
+
+// AdminCreateUser handles POST /auth/admin/users
+func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
+	payload, ok := auth.FromContext(r.Context())
+	if !ok || payload.Role != "admin" {
+		response.Error(w, http.StatusForbidden, "Admin access required")
+		return
+	}
+
+	var req model.AdminCreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Name == "" {
+		response.Error(w, http.StatusBadRequest, "Name required")
+		return
+	}
+	if !strings.Contains(req.Email, "@") {
+		response.Error(w, http.StatusBadRequest, "Invalid email")
+		return
+	}
+	if req.Password == "" {
+		response.Error(w, http.StatusBadRequest, "Password required")
+		return
+	}
+
+	role := strings.ToLower(strings.TrimSpace(req.Role))
+	if role == "" {
+		role = "read"
+	}
+	if role != "admin" && role != "read" && role != "write" && role != "pending" {
+		response.Error(w, http.StatusBadRequest, "Invalid role. Must be admin, read, write, or pending")
+		return
+	}
+
+	// Validate HQ/Team
+	if req.HQ != nil && strings.TrimSpace(*req.HQ) != "" {
+		if ok, _ := h.repo.OrganizationExists(r.Context(), "hq", strings.TrimSpace(*req.HQ)); !ok {
+			response.Error(w, http.StatusBadRequest, "Invalid HQ value")
+			return
+		}
+	}
+	if req.Team != nil && strings.TrimSpace(*req.Team) != "" {
+		if ok, _ := h.repo.OrganizationExists(r.Context(), "team", strings.TrimSpace(*req.Team)); !ok {
+			response.Error(w, http.StatusBadRequest, "Invalid Team value")
+			return
+		}
+	}
+
+	existing, _ := h.repo.GetUserByEmail(r.Context(), req.Email)
+	if existing != nil {
+		response.Error(w, http.StatusConflict, "Email already exists")
+		return
+	}
+
+	hash, err := security.HashPassword(req.Password, h.cfg.PasswordHashIterations)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to hash password")
+		return
+	}
+
+	now := time.Now().UTC()
+	user := &model.User{
+		ID:           uuid.New().String(),
+		Name:         req.Name,
+		Email:        req.Email,
+		HQ:           req.HQ,
+		Team:         req.Team,
+		Role:         role,
+		PasswordHash: hash,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := h.repo.CreateUser(r.Context(), user); err != nil {
+		response.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	actor, _ := h.repo.GetUserByID(r.Context(), payload.UserID)
+	var actorEmail *string
+	if actor != nil {
+		actorEmail = &actor.Email
+	}
+	after := jsonRaw(map[string]string{"email": user.Email, "role": role, "name": user.Name})
+	h.writeAuditLog(r, "user.create", &payload.UserID, actorEmail, &user.ID, &user.Email, nil, after)
+
+	response.JSON(w, http.StatusCreated, user.ToResponse())
+}
+
 // AdminListUsers handles GET /auth/admin/users
 func (h *AuthHandler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
@@ -275,8 +500,8 @@ func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	role := strings.ToLower(strings.TrimSpace(req.Role))
-	if role != "admin" && role != "read" && role != "write" {
-		response.Error(w, http.StatusBadRequest, "Invalid role. Must be admin, read, or write")
+	if role != "admin" && role != "read" && role != "write" && role != "pending" {
+		response.Error(w, http.StatusBadRequest, "Invalid role. Must be admin, read, write, or pending")
 		return
 	}
 
