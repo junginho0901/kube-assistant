@@ -82,7 +82,7 @@ k8s/secret.local.yaml.bak-20260224-001
 .dockerignore
 
 # External dependencies
-kagent/
+kubest/
 argo-cd/
 .tmp/
 tools/
