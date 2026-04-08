@@ -17,6 +17,7 @@
     "namespaces": "네임스페이스",
     "nodes": "노드",
     "dependencyGraph": "리소스 의존성 그래프",
+    "resourceGraph": "리소스 그래프",
     "timeline": "변경 이력",
     "advancedSearch": "고급 검색 (베타)",
     "pods": "파드",
@@ -2154,6 +2155,16 @@
     "binds": "바인딩",
     "noData": "이 네임스페이스에 리소스가 없습니다",
     "search": "리소스 검색..."
+  },
+  "resourceGraph": {
+    "title": "리소스 그래프",
+    "allNamespaces": "전체 네임스페이스",
+    "search": "리소스 검색...",
+    "filter": "필터",
+    "legend": "범례",
+    "sources": "소스",
+    "issuesOnly": "이슈",
+    "noData": "리소스를 찾을 수 없습니다"
   },
   "advancedSearch": {
     "title": "고급 검색",
