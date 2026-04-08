@@ -868,3 +868,74 @@ func (s *Service) GetResourceGraph(ctx context.Context, namespaces []string) (ma
 	}
 
 	// ========== DEDUPLICATE EDGES ==========
+	edgeSet := make(map[string]bool)
+	uniqueEdges := make([]rgEdge, 0, len(edges))
+	for _, e := range edges {
+		key := e.Source + "|" + e.Target + "|" + e.Type
+		if !edgeSet[key] {
+			edgeSet[key] = true
+			uniqueEdges = append(uniqueEdges, e)
+		}
+	}
+
+	// ========== BUILD RESPONSE ==========
+	nodeList := make([]map[string]interface{}, 0, len(nodeMap))
+	for _, n := range nodeMap {
+		node := map[string]interface{}{
+			"id":        n.ID,
+			"kind":      n.Kind,
+			"name":      n.Name,
+			"namespace": n.Namespace,
+			"status":    n.Status,
+		}
+		if n.Ready != "" {
+			node["ready"] = n.Ready
+		}
+		if len(n.Labels) > 0 {
+			node["labels"] = n.Labels
+		}
+		if n.NodeName != "" {
+			node["nodeName"] = n.NodeName
+		}
+		if n.OwnerKind != "" {
+			node["ownerKind"] = n.OwnerKind
+		}
+		if n.InstanceLabel != "" {
+			node["instanceLabel"] = n.InstanceLabel
+		}
+		nodeList = append(nodeList, node)
+	}
+
+	edgeList := make([]map[string]interface{}, 0, len(uniqueEdges))
+	for _, e := range uniqueEdges {
+		edgeList = append(edgeList, map[string]interface{}{
+			"source": e.Source,
+			"target": e.Target,
+			"type":   e.Type,
+		})
+	}
+
+	result := map[string]interface{}{
+		"nodes": nodeList,
+		"edges": edgeList,
+	}
+
+	s.cache.Set(ctx, cacheKey, result, 30*time.Second)
+	return result, nil
+}
+
+// selectorMatchesStr checks if all key-value pairs in selector exist in labels.
+func selectorMatchesStr(selector map[string]string, labels map[string]string) bool {
+	if len(selector) == 0 {
+		return false
+	}
+	if len(labels) == 0 {
+		return false
+	}
+	for k, v := range selector {
+		if labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
