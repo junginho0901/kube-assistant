@@ -69,6 +69,14 @@ type ClusterSetup struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// Organization represents an organizations row (HQ or Team).
+type Organization struct {
+	ID        int       `json:"id"`
+	Type      string    `json:"type"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // --- Request DTOs ---
 
 type RegisterRequest struct {
@@ -91,6 +99,34 @@ type ChangePasswordRequest struct {
 
 type UpdateRoleRequest struct {
 	Role string `json:"role"`
+}
+
+type AdminCreateUserRequest struct {
+	Name     string  `json:"name"`
+	Email    string  `json:"email"`
+	Password string  `json:"password"`
+	Role     string  `json:"role"`
+	HQ       *string `json:"hq,omitempty"`
+	Team     *string `json:"team,omitempty"`
+}
+
+type BulkUpdateRoleRequest struct {
+	UserIDs []string `json:"user_ids"`
+	Role    string   `json:"role"`
+}
+
+type BulkCreateUserRequest struct {
+	Users []AdminCreateUserRequest `json:"users"`
+}
+
+type BulkCreateUserResponse struct {
+	Created []UserResponse `json:"created"`
+	Errors  []BulkError    `json:"errors"`
+}
+
+type BulkError struct {
+	Email   string `json:"email"`
+	Message string `json:"message"`
 }
 
 type ClusterSetupRequest struct {
