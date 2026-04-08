@@ -73,7 +73,8 @@
     "customGroups": "Custom Resource Definitions",
     "userManagement": "User Management",
     "aiModels": "AI Models",
-    "nodeShell": "Node Shell"
+    "nodeShell": "Node Shell",
+    "organizations": "HQ / Team"
   },
   "layout": {
     "accountTitle": "Settings",
@@ -1903,6 +1904,58 @@
     "deleting": "Deleting...",
     "delete": "Delete",
     "empty": "No users found.",
+    "roles": {
+      "pending": "PENDING",
+      "read": "READ",
+      "write": "WRITE",
+      "admin": "ADMIN"
+    },
+    "createUser": "Add user",
+    "bulkUpload": "Bulk upload",
+    "bulkUploadTitle": "Bulk upload users",
+    "bulkUploadDesc": "Download the CSV template, fill in user data, and upload it.",
+    "bulkStep1": "Download CSV template",
+    "bulkStep2": "Upload filled CSV file",
+    "bulkDownload": "Download",
+    "bulkUploadBtn": "Upload",
+    "bulkUploading": "Uploading...",
+    "bulkFormat": "CSV format:",
+    "bulkCreated": "{{count}} users created.",
+    "pendingBtn": "Pending",
+    "pendingBadge": "Pending",
+    "pendingModal": {
+      "title": "Pending approval",
+      "subtitle": "Select users to approve and assign a role.",
+      "empty": "No pending users.",
+      "close": "Close"
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "approveRead": "Approve as READ",
+      "approveWrite": "Approve as WRITE",
+      "clearSelection": "Clear",
+      "selectPending": "Select all pending users"
+    },
+    "createUserTitle": "Add user",
+    "createUserSubtitle": "Create a new user account with a specified role.",
+    "createUserError": "Failed to create user.",
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "Jane Doe",
+      "hq": "HQ",
+      "hqPlaceholder": "e.g. Platform",
+      "team": "Team",
+      "teamPlaceholder": "e.g. DevOps",
+      "email": "Email",
+      "password": "Password",
+      "passwordPlaceholder": "Initial password",
+      "selectHq": "Select HQ",
+      "selectTeam": "Select Team",
+      "role": "Role",
+      "cancel": "Cancel",
+      "creating": "Creating...",
+      "create": "Create"
+    },
     "reauth": {
       "ariaLabel": "Re-authentication required",
       "title": "Role updated",
@@ -2000,6 +2053,12 @@
       "none": "(no StorageClass)"
     }
   },
+  "pending": {
+    "title": "Waiting for approval",
+    "description": "Your account has been created. An administrator needs to approve your account before you can access the service.",
+    "hint": "Please contact your administrator to get your account approved.",
+    "logout": "Sign out"
+  },
   "login": {
     "errors": {
       "passwordMismatch": "Passwords do not match.",
@@ -2040,10 +2099,17 @@
       "teamPlaceholder": "e.g. DevOps",
       "email": "Email",
       "password": "Password",
+      "selectHq": "Select HQ",
+      "selectTeam": "Select Team",
       "confirmPassword": "Confirm password",
       "processing": "Processing...",
       "submitLogin": "Sign in",
       "submitRegister": "Create account"
+    },
+    "registered": {
+      "title": "Account created",
+      "description": "Your account has been created. An administrator needs to approve your account before you can sign in.",
+      "backToLogin": "Back to sign in"
     }
   },
   "setup": {
@@ -2497,5 +2563,19 @@
     "resourceFilter": "Resource Kind",
     "refresh": "Refresh",
     "closeSummary": "Close Summary"
+  },
+  "adminOrg": {
+    "title": "HQ / Team management",
+    "subtitle": "Manage the list of HQs and Teams that users can select during registration.",
+    "hqTitle": "HQ",
+    "hqSubtitle": "Headquarters / Divisions",
+    "teamTitle": "Team",
+    "teamSubtitle": "Teams / Groups",
+    "inputPlaceholder": "Enter name...",
+    "add": "Add",
+    "addError": "Failed to add. It may already exist.",
+    "empty": "No items registered.",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "deleteTitle": "Delete"
   }
 }
