@@ -50,7 +50,18 @@ func AuthMiddleware(jwtMgr *JWTManager) func(http.Handler) http.Handler {
 				role = "read"
 			}
 
-			payload := auth.TokenPayload{UserID: userID, Role: role}
+			var permissions []string
+			if permsRaw, ok := claims["permissions"]; ok {
+				if permsList, ok := permsRaw.([]interface{}); ok {
+					for _, p := range permsList {
+						if s, ok := p.(string); ok {
+							permissions = append(permissions, s)
+						}
+					}
+				}
+			}
+
+			payload := auth.TokenPayload{UserID: userID, Role: role, Permissions: permissions}
 			ctx := context.WithValue(r.Context(), auth.TokenPayloadContextKey(), payload)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
