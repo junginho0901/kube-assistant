@@ -6,6 +6,7 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 import { Loader2, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'attacher' | 'pv' | 'node' | 'attached' | 'error' | 'age'
@@ -174,13 +175,8 @@ export default function VolumeAttachments() {
     queryKey: ['storage', 'volumeattachments'],
     queryFn: () => api.getVolumeAttachments(false),
   })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canCreate = me?.role === 'admin' || me?.role === 'write'
+  const { has } = usePermission()
+  const canCreate = has('resource.volumeattachment.create')
 
   useKubeWatchList({
     enabled: true,

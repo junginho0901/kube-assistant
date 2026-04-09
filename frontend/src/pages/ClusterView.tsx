@@ -5,6 +5,7 @@ import { api } from '@/services/api'
 import type { PodInfo } from '@/services/api'
 import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 import { useKubeWatchList } from '@/services/useKubeWatchList'
+import { usePermission } from '@/hooks/usePermission'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import PodExecTerminal from '@/components/PodExecTerminal'
 import { 
@@ -53,12 +54,7 @@ export default function ClusterView() {
   const locale = i18n.language === 'ko' ? 'ko-KR' : 'en-US'
   const na = tr('common.notAvailable', 'N/A')
   const emptyValue = tr('common.empty', '-')
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    retry: false,
-    staleTime: 30000,
-  })
+  const { has } = usePermission()
   const [selectedNamespace, setSelectedNamespace] = useState<string>('all')
   const [selectedPod, setSelectedPod] = useState<PodDetail | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<string>('')
@@ -564,8 +560,8 @@ export default function ClusterView() {
     return nodeA.localeCompare(nodeB)
   })
 
-  const isAdmin = me?.role === 'admin'
-  const canDeletePod = ['admin', 'write'].includes(String(me?.role || '').toLowerCase())
+  const isAdmin = has('resource.pod.create')
+  const canDeletePod = has('resource.pod.delete')
 
   const pickReason = (reasons: string[], priority: string[]) => {
     for (const p of priority) {

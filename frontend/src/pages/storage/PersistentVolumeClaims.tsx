@@ -6,6 +6,7 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey =
@@ -177,13 +178,8 @@ export default function PersistentVolumeClaims() {
     queryKey: ['storage', 'pvcs', selectedNamespace],
     queryFn: () => api.getPVCs(selectedNamespace === 'all' ? undefined : selectedNamespace, false),
   })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canCreate = me?.role === 'admin' || me?.role === 'write'
+  const { has } = usePermission()
+  const canCreate = has('resource.pvc.create')
 
   useKubeWatchList({
     enabled: true,

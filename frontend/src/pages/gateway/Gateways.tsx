@@ -6,6 +6,7 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'namespace' | 'class' | 'status' | 'listeners' | 'routes' | 'addresses' | 'age'
@@ -178,13 +179,8 @@ export default function Gateways() {
         : api.getGateways(selectedNamespace, false)
     ),
   })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canCreate = me?.role === 'admin' || me?.role === 'write'
+  const { has } = usePermission()
+  const canCreate = has('resource.gateway.create')
 
   useKubeWatchList({
     enabled: true,

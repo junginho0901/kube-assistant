@@ -6,6 +6,7 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 import { Loader2, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey =
@@ -194,13 +195,8 @@ export default function PersistentVolumes() {
     queryKey: ['storage', 'pvs'],
     queryFn: () => api.getPVs(),
   })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canCreate = me?.role === 'admin' || me?.role === 'write'
+  const { has } = usePermission()
+  const canCreate = has('resource.pv.create')
 
   useKubeWatchList({
     enabled: true,
