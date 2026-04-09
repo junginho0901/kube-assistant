@@ -68,6 +68,22 @@ func (r *Repository) InitSchema(ctx context.Context) error {
 			ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS team VARCHAR;
 		EXCEPTION WHEN OTHERS THEN NULL;
 		END $$`,
+		// RBAC: roles table
+		`CREATE TABLE IF NOT EXISTS roles (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR NOT NULL UNIQUE,
+			description VARCHAR NOT NULL DEFAULT '',
+			is_system BOOLEAN NOT NULL DEFAULT false,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		// RBAC: role_permissions table
+		`CREATE TABLE IF NOT EXISTS role_permissions (
+			id SERIAL PRIMARY KEY,
+			role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+			permission VARCHAR NOT NULL,
+			UNIQUE(role_id, permission)
+		)`,
 	}
 
 	for _, q := range queries {
@@ -78,13 +94,284 @@ func (r *Repository) InitSchema(ctx context.Context) error {
 	return nil
 }
 
+// SeedSystemRoles ensures the four system roles exist and migrates auth_users.role → role_id.
+func (r *Repository) SeedSystemRoles(ctx context.Context) error {
+	type seedRole struct {
+		Name        string
+		Description string
+		Permissions []string
+	}
+	seeds := []seedRole{
+		{"Pending", "승인 대기", nil},
+		{"Read", "읽기 전용", []string{
+			"menu.workloads", "menu.network", "menu.storage", "menu.security",
+			"menu.cluster", "menu.gateway", "menu.gpu", "menu.configuration", "menu.dashboard",
+			"resource.*.read",
+		}},
+		{"Write", "읽기/쓰기", []string{
+			"menu.*",
+			"resource.*.read", "resource.*.create", "resource.*.edit", "resource.*.delete",
+			"resource.cronjob.suspend", "resource.cronjob.trigger",
+			"resource.secret.reveal",
+			"ai.tool.*",
+		}},
+		{"Admin", "전체 관리자", []string{"*"}},
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("seed roles begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, s := range seeds {
+		var roleID int
+		err := tx.QueryRow(ctx,
+			`INSERT INTO roles (name, description, is_system)
+			 VALUES ($1, $2, true)
+			 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
+			 RETURNING id`, s.Name, s.Description,
+		).Scan(&roleID)
+		if err != nil {
+			return fmt.Errorf("seed role %s: %w", s.Name, err)
+		}
+		// Reset permissions for system roles
+		if _, err := tx.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, roleID); err != nil {
+			return fmt.Errorf("clear perms %s: %w", s.Name, err)
+		}
+		for _, p := range s.Permissions {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO role_permissions (role_id, permission) VALUES ($1, $2)`,
+				roleID, p,
+			); err != nil {
+				return fmt.Errorf("insert perm %s/%s: %w", s.Name, p, err)
+			}
+		}
+	}
+
+	// Migrate auth_users.role string → role_id if role_id column doesn't exist yet
+	var hasRoleID bool
+	err = tx.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'auth_users' AND column_name = 'role_id'
+		)`).Scan(&hasRoleID)
+	if err != nil {
+		return fmt.Errorf("check role_id column: %w", err)
+	}
+
+	if !hasRoleID {
+		// Add role_id column
+		if _, err := tx.Exec(ctx,
+			`ALTER TABLE auth_users ADD COLUMN role_id INT REFERENCES roles(id)`); err != nil {
+			return fmt.Errorf("add role_id column: %w", err)
+		}
+
+		// Map existing role strings to role_id
+		roleMappings := map[string]string{
+			"pending": "Pending",
+			"read":    "Read",
+			"write":   "Write",
+			"admin":   "Admin",
+		}
+		for oldRole, roleName := range roleMappings {
+			if _, err := tx.Exec(ctx,
+				`UPDATE auth_users SET role_id = (SELECT id FROM roles WHERE name = $1) WHERE role = $2`,
+				roleName, oldRole,
+			); err != nil {
+				return fmt.Errorf("migrate role %s: %w", oldRole, err)
+			}
+		}
+
+		// Set any remaining NULL role_id to Read
+		if _, err := tx.Exec(ctx,
+			`UPDATE auth_users SET role_id = (SELECT id FROM roles WHERE name = 'Read') WHERE role_id IS NULL`,
+		); err != nil {
+			return fmt.Errorf("migrate null roles: %w", err)
+		}
+
+		// Make role_id NOT NULL
+		if _, err := tx.Exec(ctx,
+			`ALTER TABLE auth_users ALTER COLUMN role_id SET NOT NULL`); err != nil {
+			return fmt.Errorf("set role_id not null: %w", err)
+		}
+
+		// Drop old role column
+		if _, err := tx.Exec(ctx,
+			`ALTER TABLE auth_users DROP COLUMN role`); err != nil {
+			return fmt.Errorf("drop role column: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// --- Role operations ---
+
+func (r *Repository) CreateRole(ctx context.Context, name, description string, permissions []string) (*model.RoleWithPermissions, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var role model.Role
+	err = tx.QueryRow(ctx,
+		`INSERT INTO roles (name, description) VALUES ($1, $2)
+		 RETURNING id, name, description, is_system, created_at, updated_at`,
+		name, description,
+	).Scan(&role.ID, &role.Name, &role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range permissions {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO role_permissions (role_id, permission) VALUES ($1, $2)`, role.ID, p,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &model.RoleWithPermissions{Role: role, Permissions: permissions}, nil
+}
+
+func (r *Repository) GetRoleByID(ctx context.Context, id int) (*model.RoleWithPermissions, error) {
+	var role model.Role
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, description, is_system, created_at, updated_at FROM roles WHERE id = $1`, id,
+	).Scan(&role.ID, &role.Name, &role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	perms, err := r.GetPermissionsByRoleID(ctx, role.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &model.RoleWithPermissions{Role: role, Permissions: perms}, nil
+}
+
+func (r *Repository) GetRoleByName(ctx context.Context, name string) (*model.RoleWithPermissions, error) {
+	var role model.Role
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, description, is_system, created_at, updated_at FROM roles WHERE name = $1`, name,
+	).Scan(&role.ID, &role.Name, &role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	perms, err := r.GetPermissionsByRoleID(ctx, role.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &model.RoleWithPermissions{Role: role, Permissions: perms}, nil
+}
+
+func (r *Repository) ListRoles(ctx context.Context) ([]model.RoleWithPermissions, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, name, description, is_system, created_at, updated_at FROM roles ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []model.RoleWithPermissions
+	for rows.Next() {
+		var role model.Role
+		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt); err != nil {
+			return nil, err
+		}
+		perms, err := r.GetPermissionsByRoleID(ctx, role.ID)
+		if err != nil {
+			return nil, err
+		}
+		roles = append(roles, model.RoleWithPermissions{Role: role, Permissions: perms})
+	}
+	if roles == nil {
+		roles = []model.RoleWithPermissions{}
+	}
+	return roles, rows.Err()
+}
+
+func (r *Repository) UpdateRole(ctx context.Context, id int, name, description string, permissions []string) (*model.RoleWithPermissions, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var role model.Role
+	err = tx.QueryRow(ctx,
+		`UPDATE roles SET name = $1, description = $2, updated_at = NOW()
+		 WHERE id = $3
+		 RETURNING id, name, description, is_system, created_at, updated_at`,
+		name, description, id,
+	).Scan(&role.ID, &role.Name, &role.Description, &role.IsSystem, &role.CreatedAt, &role.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, id); err != nil {
+		return nil, err
+	}
+	for _, p := range permissions {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO role_permissions (role_id, permission) VALUES ($1, $2)`, id, p,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &model.RoleWithPermissions{Role: role, Permissions: permissions}, nil
+}
+
+func (r *Repository) DeleteRole(ctx context.Context, id int) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM roles WHERE id = $1 AND is_system = false`, id)
+	return err
+}
+
+func (r *Repository) GetPermissionsByRoleID(ctx context.Context, roleID int) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT permission FROM role_permissions WHERE role_id = $1 ORDER BY permission`, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var perms []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		perms = append(perms, p)
+	}
+	if perms == nil {
+		perms = []string{}
+	}
+	return perms, rows.Err()
+}
+
 // --- User operations ---
 
 func (r *Repository) CreateUser(ctx context.Context, u *model.User) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO auth_users (id, name, email, hq, team, role, password_hash, created_at, updated_at)
+		`INSERT INTO auth_users (id, name, email, hq, team, role_id, password_hash, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		u.ID, u.Name, u.Email, u.HQ, u.Team, u.Role, u.PasswordHash, u.CreatedAt, u.UpdatedAt,
+		u.ID, u.Name, u.Email, u.HQ, u.Team, u.RoleID, u.PasswordHash, u.CreatedAt, u.UpdatedAt,
 	)
 	return err
 }
@@ -92,9 +379,9 @@ func (r *Repository) CreateUser(ctx context.Context, u *model.User) error {
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, email, hq, team, role, password_hash, created_at, updated_at
-		 FROM auth_users WHERE email = $1`, email,
-	).Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.Role, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT u.id, u.name, u.email, u.hq, u.team, u.role_id, r.name, u.password_hash, u.created_at, u.updated_at
+		 FROM auth_users u JOIN roles r ON r.id = u.role_id WHERE u.email = $1`, email,
+	).Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.RoleID, &u.RoleName, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -104,9 +391,9 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.U
 func (r *Repository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, email, hq, team, role, password_hash, created_at, updated_at
-		 FROM auth_users WHERE id = $1`, id,
-	).Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.Role, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT u.id, u.name, u.email, u.hq, u.team, u.role_id, r.name, u.password_hash, u.created_at, u.updated_at
+		 FROM auth_users u JOIN roles r ON r.id = u.role_id WHERE u.id = $1`, id,
+	).Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.RoleID, &u.RoleName, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -115,8 +402,9 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (*model.User, e
 
 func (r *Repository) ListUsers(ctx context.Context, limit, offset int) ([]model.User, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, email, hq, team, role, password_hash, created_at, updated_at
-		 FROM auth_users ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`, limit, offset,
+		`SELECT u.id, u.name, u.email, u.hq, u.team, u.role_id, r.name, u.password_hash, u.created_at, u.updated_at
+		 FROM auth_users u JOIN roles r ON r.id = u.role_id
+		 ORDER BY u.created_at DESC, u.id DESC LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
 		return nil, err
@@ -126,7 +414,7 @@ func (r *Repository) ListUsers(ctx context.Context, limit, offset int) ([]model.
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.Role, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.HQ, &u.Team, &u.RoleID, &u.RoleName, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -137,10 +425,10 @@ func (r *Repository) ListUsers(ctx context.Context, limit, offset int) ([]model.
 	return users, rows.Err()
 }
 
-func (r *Repository) UpdateUserRole(ctx context.Context, id, role string) error {
+func (r *Repository) UpdateUserRole(ctx context.Context, id string, roleID int) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE auth_users SET role = $1, updated_at = $2 WHERE id = $3`,
-		role, time.Now().UTC(), id,
+		`UPDATE auth_users SET role_id = $1, updated_at = $2 WHERE id = $3`,
+		roleID, time.Now().UTC(), id,
 	)
 	return err
 }
