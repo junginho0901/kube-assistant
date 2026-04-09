@@ -122,7 +122,7 @@ export default function Account() {
             <div className="mt-3 text-xs text-slate-400">{tr('account.profile.team', 'Team')}</div>
             <div className="mt-1 text-sm text-white">{me?.team ?? '-'}</div>
             <div className="mt-3 text-xs text-slate-400">{tr('account.profile.role', 'Role')}</div>
-            <div className="mt-1 text-sm text-white">{me?.role ?? '-'}</div>
+            <div className="mt-1 text-sm text-white">{me?.role?.name ?? '-'}</div>
           </div>
         </div>
 

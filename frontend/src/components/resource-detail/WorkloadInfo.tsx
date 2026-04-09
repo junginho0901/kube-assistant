@@ -19,6 +19,7 @@ import {
   fmtTs,
 } from './DetailCommon'
 import { ResourceLink } from './ResourceLink'
+import { usePermission } from '@/hooks/usePermission'
 
 interface Props {
   name: string
@@ -144,10 +145,7 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
     enabled: needsDescribe,
     retry: false,
   })
-
-  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 30000 })
-  const isWriteRole = me?.role === 'admin' || me?.role === 'write'
-  const isAdminRole = me?.role === 'admin'
+  const { has } = usePermission()
 
   const [triggerDialogOpen, setTriggerDialogOpen] = useState(false)
   const [triggerToast, setTriggerToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -474,7 +472,7 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
         </div>
       )}
 
-      <InfoSection title="Basic Info" actions={isRollbackKind && isAdminRole ? (
+      <InfoSection title="Basic Info" actions={isRollbackKind && has('resource.workload.rollback') ? (
         <button
           onClick={() => setRollbackDialogOpen(true)}
           className="text-xs px-2 py-1 rounded border border-slate-700 bg-slate-800 text-white hover:border-slate-500"
@@ -627,23 +625,27 @@ export default function WorkloadInfo({ name, namespace, kind, rawJson }: Props) 
       )}
 
       {isCronJob && (
-        <InfoSection title="CronJob Info" actions={isWriteRole ? (
+        <InfoSection title="CronJob Info" actions={(has('resource.cronjob.suspend') || has('resource.cronjob.trigger')) ? (
           <div className="flex gap-2">
-            <button
-              onClick={() => suspendMut.mutate(!(describe?.suspend ?? spec.suspend))}
-              disabled={suspendMut.isPending}
-              className="text-xs px-2 py-1 rounded border border-slate-700 bg-slate-800 text-white hover:border-slate-500 flex items-center gap-1 disabled:opacity-50"
-            >
-              {(describe?.suspend ?? spec.suspend) ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-              {(describe?.suspend ?? spec.suspend) ? tr('cronjob.resume', 'Resume') : tr('cronjob.suspend', 'Suspend')}
-            </button>
-            <button
-              onClick={() => setTriggerDialogOpen(true)}
-              className="text-xs px-2 py-1 rounded border border-slate-700 bg-slate-800 text-white hover:border-slate-500 flex items-center gap-1"
-            >
-              <Zap className="w-3 h-3" />
-              {tr('cronjob.runNow', 'Run Now')}
-            </button>
+            {has('resource.cronjob.suspend') && (
+              <button
+                onClick={() => suspendMut.mutate(!(describe?.suspend ?? spec.suspend))}
+                disabled={suspendMut.isPending}
+                className="text-xs px-2 py-1 rounded border border-slate-700 bg-slate-800 text-white hover:border-slate-500 flex items-center gap-1 disabled:opacity-50"
+              >
+                {(describe?.suspend ?? spec.suspend) ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                {(describe?.suspend ?? spec.suspend) ? tr('cronjob.resume', 'Resume') : tr('cronjob.suspend', 'Suspend')}
+              </button>
+            )}
+            {has('resource.cronjob.trigger') && (
+              <button
+                onClick={() => setTriggerDialogOpen(true)}
+                className="text-xs px-2 py-1 rounded border border-slate-700 bg-slate-800 text-white hover:border-slate-500 flex items-center gap-1"
+              >
+                <Zap className="w-3 h-3" />
+                {tr('cronjob.runNow', 'Run Now')}
+              </button>
+            )}
           </div>
         ) : undefined}>
           <div className="space-y-2">

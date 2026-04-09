@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, Member, UserRole } from '@/services/api'
+import { api, Member, RoleWithDetails } from '@/services/api'
 import { CheckCircle, ChevronDown, Clock, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -15,12 +15,12 @@ export default function AdminUsers() {
     t(key, { defaultValue: fallback, ...options })
   const [limit] = useState(100)
   const [offset] = useState(0)
-  const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({})
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, number>>({})
   const [openRoleDropdownUserId, setOpenRoleDropdownUserId] = useState<string | null>(null)
   const roleDropdownRef = useRef<HTMLDivElement | null>(null)
   const [reauthModalOpen, setReauthModalOpen] = useState(false)
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'read' as UserRole, hq: '', team: '' })
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role_id: 0, hq: '', team: '' })
 
   // Pending modal
   const [pendingModalOpen, setPendingModalOpen] = useState(false)
@@ -42,6 +42,12 @@ export default function AdminUsers() {
     staleTime: 60000,
   })
 
+  const { data: roles = [] } = useQuery<RoleWithDetails[]>({
+    queryKey: ['roles'],
+    queryFn: api.listRoles,
+    staleTime: 60000,
+  })
+
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: api.me,
@@ -59,9 +65,10 @@ export default function AdminUsers() {
   })
 
   const updateRoleMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) => api.adminUpdateUserRole(userId, role),
+    mutationFn: ({ userId, roleId }: { userId: string; roleId: number }) => api.adminUpdateUserRole(userId, roleId),
     onSuccess: (_data, vars) => {
-      if (me?.id && vars.userId === me.id && vars.role !== 'admin') {
+      const roleName = roles.find((r) => r.id === vars.roleId)?.name
+      if (me?.id && vars.userId === me.id && roleName !== 'admin') {
         setReauthModalOpen(true)
         return
       }
@@ -78,7 +85,7 @@ export default function AdminUsers() {
   })
 
   const bulkUpdateRoleMutation = useMutation({
-    mutationFn: ({ userIds, role }: { userIds: string[]; role: UserRole }) => api.adminBulkUpdateRole(userIds, role),
+    mutationFn: ({ userIds, roleId }: { userIds: string[]; roleId: number }) => api.adminBulkUpdateRole(userIds, roleId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       setPendingSelectedIds(new Set())
@@ -105,19 +112,19 @@ export default function AdminUsers() {
       name: newUser.name,
       email: newUser.email,
       password: newUser.password,
-      role: newUser.role,
+      role_id: newUser.role_id,
       hq: newUser.hq || undefined,
       team: newUser.team || undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       setCreateModalOpen(false)
-      setNewUser({ name: '', email: '', password: '', role: 'read', hq: '', team: '' })
+      setNewUser({ name: '', email: '', password: '', role_id: 0, hq: '', team: '' })
     },
   })
 
   const bulkCreateMutation = useMutation({
-    mutationFn: (csvUsers: Array<{ name: string; email: string; password: string; role: string; hq?: string; team?: string }>) =>
+    mutationFn: (csvUsers: Array<{ name: string; email: string; password: string; role_id: number; hq?: string; team?: string }>) =>
       api.adminBulkCreateUsers(csvUsers),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
@@ -150,7 +157,7 @@ export default function AdminUsers() {
 
   const rows: Member[] = Array.isArray(users) ? users : []
   const isBlocked = reauthModalOpen
-  const pendingRows = rows.filter((u) => u.role === 'pending')
+  const pendingRows = rows.filter((u) => u.role?.name === 'pending')
 
   const downloadCsvTemplate = () => {
     const bom = '\uFEFF'
@@ -159,7 +166,7 @@ export default function AdminUsers() {
     const comments = [
       `# Available HQ: ${hqNames.length > 0 ? hqNames.join(', ') : '(none registered)'}`,
       `# Available Team: ${teamNames.length > 0 ? teamNames.join(', ') : '(none registered)'}`,
-      `# role: read, write, admin`,
+      `# role: ${roles.filter((r) => r.name !== 'pending').map((r) => r.name).join(', ') || 'read, write, admin'}`,
     ].join('\n')
     const header = 'name,email,password,role,hq,team'
     const example = `Hong Gildong,hong@example.com,1234,read,${hqNames[0] || 'HQ'},${teamNames[0] || 'Team'}`
@@ -184,15 +191,17 @@ export default function AdminUsers() {
 
       const parsed = lines.slice(1).map((line) => {
         const cols = line.split(',').map((c) => c.trim())
+        const roleName = cols[3] || 'read'
+        const matchedRole = roles.find((r) => r.name === roleName)
         return {
           name: cols[0] || '',
           email: cols[1] || '',
           password: cols[2] || '',
-          role: cols[3] || 'read',
+          role_id: matchedRole?.id ?? 0,
           hq: cols[4] || undefined,
           team: cols[5] || undefined,
         }
-      }).filter((u) => u.name && u.email && u.password)
+      }).filter((u) => u.name && u.email && u.password && u.role_id > 0)
 
       if (parsed.length === 0) return
       bulkCreateMutation.mutate(parsed)
@@ -218,10 +227,12 @@ export default function AdminUsers() {
     }
   }
 
-  const handlePendingBulkApprove = (role: UserRole) => {
+  const handlePendingBulkApprove = (roleName: string) => {
     const ids = Array.from(pendingSelectedIds)
     if (ids.length === 0) return
-    bulkUpdateRoleMutation.mutate({ userIds: ids, role })
+    const matchedRole = roles.find((r) => r.name === roleName)
+    if (!matchedRole) return
+    bulkUpdateRoleMutation.mutate({ userIds: ids, roleId: matchedRole.id })
   }
 
   return (
@@ -282,13 +293,12 @@ export default function AdminUsers() {
               const isUpdating = updateRoleMutation.isPending && updateRoleMutation.variables?.userId === u.id
               const isResetting = resetPasswordMutation.isPending && resetPasswordMutation.variables?.userId === u.id
               const isDeleting = deleteUserMutation.isPending && deleteUserMutation.variables?.userId === u.id
-              const resolvedRole = (u.role === 'admin' || u.role === 'write' || u.role === 'read' || u.role === 'pending')
-                ? (u.role as UserRole)
-                : 'read'
-              const currentRole = (roleDrafts[u.id] ?? resolvedRole) as UserRole
+              const userRoleId = u.role?.id ?? 0
+              const currentRoleId = roleDrafts[u.id] ?? userRoleId
+              const currentRoleName = roles.find((r) => r.id === currentRoleId)?.name ?? u.role?.name ?? 'unknown'
               const isOpen = openRoleDropdownUserId === u.id
               const isSelf = !!me?.id && me.id === u.id
-              const isPending = currentRole === 'pending'
+              const isPending = currentRoleName === 'pending'
               return (
                 <tr
                   key={u.id}
@@ -319,7 +329,7 @@ export default function AdminUsers() {
                         aria-expanded={isOpen}
                       >
                         <span className="truncate">
-                          {tr(`adminUsers.roles.${currentRole}`, currentRole.toUpperCase())}
+                          {tr(`adminUsers.roles.${currentRoleName}`, currentRoleName.toUpperCase())}
                         </span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
@@ -329,25 +339,25 @@ export default function AdminUsers() {
                           role="menu"
                           className="absolute right-0 mt-2 w-32 rounded-xl border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden"
                         >
-                          {(['pending', 'read', 'write', 'admin'] as const).map((role) => {
-                            const isSelected = currentRole === role
+                          {roles.map((role) => {
+                            const isSelected = currentRoleId === role.id
                             return (
                               <button
-                                key={role}
+                                key={role.id}
                                 type="button"
                                 role="menuitem"
                                 onClick={() => {
                                   setOpenRoleDropdownUserId(null)
-                                  if (role === currentRole) return
-                                  setRoleDrafts((prev) => ({ ...prev, [u.id]: role }))
-                                  updateRoleMutation.mutate({ userId: u.id, role })
+                                  if (role.id === currentRoleId) return
+                                  setRoleDrafts((prev) => ({ ...prev, [u.id]: role.id }))
+                                  updateRoleMutation.mutate({ userId: u.id, roleId: role.id })
                                 }}
                                 className={`w-full px-3 py-2 text-xs flex items-center gap-2 hover:bg-slate-800 transition-colors ${
                                   isSelected ? 'bg-slate-800 text-white' : 'text-slate-200'
                                 }`}
                               >
                                 <span className="flex-1 text-left">
-                                  {tr(`adminUsers.roles.${role}`, role.toUpperCase())}
+                                  {tr(`adminUsers.roles.${role.name}`, role.name.toUpperCase())}
                                 </span>
                                 {isSelected && <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />}
                               </button>
@@ -649,7 +659,7 @@ export default function AdminUsers() {
               className="mt-5 space-y-3"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (!newUser.name || !newUser.email || !newUser.password) return
+                if (!newUser.name || !newUser.email || !newUser.password || !newUser.role_id) return
                 createUserMutation.mutate()
               }}
             >
@@ -718,13 +728,14 @@ export default function AdminUsers() {
               <div>
                 <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.role', 'Role')}</label>
                 <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as UserRole }))}
+                  value={newUser.role_id}
+                  onChange={(e) => setNewUser((p) => ({ ...p, role_id: Number(e.target.value) }))}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
                 >
-                  <option value="read">READ</option>
-                  <option value="write">WRITE</option>
-                  <option value="admin">ADMIN</option>
+                  <option value={0}>{tr('adminUsers.form.selectRole', 'Select role')}</option>
+                  {roles.filter((r) => r.name !== 'pending').map((r) => (
+                    <option key={r.id} value={r.id}>{r.name.toUpperCase()}</option>
+                  ))}
                 </select>
               </div>
 
@@ -739,7 +750,7 @@ export default function AdminUsers() {
                   type="button"
                   onClick={() => {
                     setCreateModalOpen(false)
-                    setNewUser({ name: '', email: '', password: '', role: 'read', hq: '', team: '' })
+                    setNewUser({ name: '', email: '', password: '', role_id: 0, hq: '', team: '' })
                   }}
                   className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
                 >
@@ -747,7 +758,7 @@ export default function AdminUsers() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createUserMutation.isPending || !newUser.name || !newUser.email || !newUser.password}
+                  disabled={createUserMutation.isPending || !newUser.name || !newUser.email || !newUser.password || !newUser.role_id}
                   className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50"
                 >
                   {createUserMutation.isPending
