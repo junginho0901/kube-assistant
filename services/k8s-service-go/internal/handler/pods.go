@@ -97,7 +97,7 @@ func (h *Handler) GetPodRBAC(w http.ResponseWriter, r *http.Request) {
 
 // DeletePod handles DELETE /api/v1/namespaces/{namespace}/pods/{pod_name}.
 func (h *Handler) DeletePod(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.pod.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
