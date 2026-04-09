@@ -17,8 +17,23 @@ import (
 
 // TokenPayload contains the validated JWT claims.
 type TokenPayload struct {
-	UserID string
-	Role   string
+	UserID      string
+	Role        string   // 하위호환 유지
+	Permissions []string // 신규: permission 기반 접근 제어
+}
+
+// HasPermission checks if the payload has the given permission.
+// Supports wildcard matching: "*", "resource.*", "resource.pod.*"
+func (p TokenPayload) HasPermission(perm string) bool {
+	for _, pp := range p.Permissions {
+		if pp == "*" || pp == perm {
+			return true
+		}
+		if strings.HasSuffix(pp, ".*") && strings.HasPrefix(perm, pp[:len(pp)-1]) {
+			return true
+		}
+	}
+	return false
 }
 
 type contextKey string
@@ -192,7 +207,18 @@ func (v *JWTValidator) Validate(tokenStr string) (TokenPayload, error) {
 		role = "read"
 	}
 
-	return TokenPayload{UserID: userID, Role: role}, nil
+	var permissions []string
+	if permsRaw, ok := claims["permissions"]; ok {
+		if permsList, ok := permsRaw.([]interface{}); ok {
+			for _, p := range permsList {
+				if s, ok := p.(string); ok {
+					permissions = append(permissions, s)
+				}
+			}
+		}
+	}
+
+	return TokenPayload{UserID: userID, Role: role, Permissions: permissions}, nil
 }
 
 // Middleware returns an HTTP middleware that validates JWT tokens.

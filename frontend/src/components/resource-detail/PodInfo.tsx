@@ -9,6 +9,7 @@ import { usePrometheusQueries } from '@/hooks/usePrometheusQuery'
 import { PrometheusSection, MetricBar } from './PrometheusMetrics'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import PodExecTerminal from '@/components/PodExecTerminal'
+import { usePermission } from '@/hooks/usePermission'
 
 interface Props {
   name: string
@@ -133,14 +134,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
   const [isExecShellOpen, setIsExecShellOpen] = useState(false)
   const execContainerRef = useRef<HTMLDivElement>(null)
   const execShellRef = useRef<HTMLDivElement>(null)
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    retry: false,
-    staleTime: 30000,
-  })
-  const isAdmin = me?.role === 'admin'
+  const { has } = usePermission()
 
   const { data: podDescribe, isLoading } = useQuery({
     queryKey: ['pod-describe', namespace, name],
@@ -278,7 +272,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
         <SummaryBadge label="Phase" value={phase} color={phase === 'Running' ? 'green' : phase === 'Pending' ? 'amber' : phase === 'Failed' ? 'red' : 'default'} />
         <SummaryBadge label="Restarts" value={restartCount} color={restartCount > 5 ? 'amber' : 'default'} />
         <SummaryBadge label="Containers" value={containerNames.length} />
-        {isAdmin && phase === 'Running' && containerNames.length > 0 && (
+        {has('resource.pod.exec') && phase === 'Running' && containerNames.length > 0 && (
           <div className="flex items-center gap-2 ml-auto">
             {/* Container 커스텀 드롭다운 */}
             <div className="relative" ref={execContainerRef}>
@@ -488,7 +482,7 @@ export default function PodInfo({ name, namespace, rawJson }: Props) {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-white break-words">{c.name || `container-${i + 1}`}</span>
                     <div className="flex items-center gap-2">
-                      {isAdmin && stateKey === 'running' && (
+                      {has('resource.pod.exec') && stateKey === 'running' && (
                         <button
                           onClick={() => setExecTarget(c.name)}
                           className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 transition-colors"

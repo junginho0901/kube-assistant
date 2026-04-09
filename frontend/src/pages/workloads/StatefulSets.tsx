@@ -6,6 +6,7 @@ import { api, type StatefulSetInfo } from '@/services/api'
 import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
+import { usePermission } from '@/hooks/usePermission'
 
 export default function StatefulSets() {
   const queryClient = useQueryClient()
@@ -22,13 +23,8 @@ export default function StatefulSets() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(12)
   const namespaceDropdownRef = useRef<HTMLDivElement>(null)
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canWrite = me?.role === 'admin' || me?.role === 'write'
+  const { has } = usePermission()
+  const canWrite = has('resource.statefulset.create')
 
   const { data: namespaces } = useQuery({
     queryKey: ['namespaces'],

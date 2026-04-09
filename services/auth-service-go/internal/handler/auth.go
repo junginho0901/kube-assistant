@@ -72,6 +72,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pendingRole, err := h.repo.GetRoleByName(r.Context(), "Pending")
+	if err != nil || pendingRole == nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to resolve pending role")
+		return
+	}
+
 	now := time.Now().UTC()
 	user := &model.User{
 		ID:           uuid.New().String(),
@@ -79,7 +85,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Email:        req.Email,
 		HQ:           req.HQ,
 		Team:         req.Team,
-		Role:         "pending",
+		RoleID:       pendingRole.ID,
+		RoleName:     pendingRole.Name,
 		PasswordHash: hash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -117,7 +124,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.jwtMgr.CreateToken(user.ID, user.Role)
+	permissions, err := h.repo.GetPermissionsByRoleID(r.Context(), user.RoleID)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to load permissions")
+		return
+	}
+
+	token, err := h.jwtMgr.CreateToken(user.ID, user.RoleName, permissions)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to create token")
 		return
@@ -138,7 +151,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, model.LoginResponse{
 		AccessToken: token,
 		TokenType:   "bearer",
-		User:        user.ToResponse(),
+		User:        user.ToResponseWithPermissions(permissions),
 	})
 }
 
@@ -173,7 +186,8 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, user.ToResponse())
+	permissions, _ := h.repo.GetPermissionsByRoleID(r.Context(), user.RoleID)
+	response.JSON(w, http.StatusOK, user.ToResponseWithPermissions(permissions))
 }
 
 // ChangePassword handles POST /auth/change-password
@@ -234,8 +248,8 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 // AdminBulkUpdateRole handles PATCH /auth/admin/users/bulk-role
 func (h *AuthHandler) AdminBulkUpdateRole(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.update") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -245,9 +259,10 @@ func (h *AuthHandler) AdminBulkUpdateRole(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	role := strings.ToLower(strings.TrimSpace(req.Role))
-	if role != "admin" && role != "read" && role != "write" && role != "pending" {
-		response.Error(w, http.StatusBadRequest, "Invalid role")
+	// Validate role_id exists
+	targetRole, err := h.repo.GetRoleByID(r.Context(), req.RoleID)
+	if err != nil || targetRole == nil {
+		response.Error(w, http.StatusBadRequest, "Invalid role_id")
 		return
 	}
 	if len(req.UserIDs) == 0 {
@@ -257,10 +272,10 @@ func (h *AuthHandler) AdminBulkUpdateRole(w http.ResponseWriter, r *http.Request
 
 	updated := make([]model.UserResponse, 0, len(req.UserIDs))
 	for _, uid := range req.UserIDs {
-		if uid == payload.UserID && role != "admin" {
-			continue // skip demoting self
+		if uid == payload.UserID {
+			continue // skip changing own role
 		}
-		if err := h.repo.UpdateUserRole(r.Context(), uid, role); err != nil {
+		if err := h.repo.UpdateUserRole(r.Context(), uid, req.RoleID); err != nil {
 			continue
 		}
 		u, _ := h.repo.GetUserByID(r.Context(), uid)
@@ -275,8 +290,8 @@ func (h *AuthHandler) AdminBulkUpdateRole(w http.ResponseWriter, r *http.Request
 // AdminBulkCreateUsers handles POST /auth/admin/users/bulk
 func (h *AuthHandler) AdminBulkCreateUsers(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.create") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -296,45 +311,50 @@ func (h *AuthHandler) AdminBulkCreateUsers(w http.ResponseWriter, r *http.Reques
 	}
 
 	var created []model.UserResponse
-	var errors []model.BulkError
+	var bulkErrors []model.BulkError
 
 	for _, u := range req.Users {
 		if u.Name == "" || !strings.Contains(u.Email, "@") || u.Password == "" {
-			errors = append(errors, model.BulkError{Email: u.Email, Message: "Missing required fields (name, email, password)"})
+			bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Missing required fields (name, email, password)"})
 			continue
 		}
 
-		role := strings.ToLower(strings.TrimSpace(u.Role))
-		if role == "" {
-			role = "read"
+		// Validate role_id
+		roleID := u.RoleID
+		if roleID == 0 {
+			readRole, _ := h.repo.GetRoleByName(r.Context(), "Read")
+			if readRole != nil {
+				roleID = readRole.ID
+			}
 		}
-		if role != "admin" && role != "read" && role != "write" && role != "pending" {
-			errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid role"})
+		targetRole, err := h.repo.GetRoleByID(r.Context(), roleID)
+		if err != nil || targetRole == nil {
+			bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Invalid role_id"})
 			continue
 		}
 
 		if u.HQ != nil && strings.TrimSpace(*u.HQ) != "" {
 			if ok, _ := h.repo.OrganizationExists(r.Context(), "hq", strings.TrimSpace(*u.HQ)); !ok {
-				errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid HQ: " + *u.HQ})
+				bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Invalid HQ: " + *u.HQ})
 				continue
 			}
 		}
 		if u.Team != nil && strings.TrimSpace(*u.Team) != "" {
 			if ok, _ := h.repo.OrganizationExists(r.Context(), "team", strings.TrimSpace(*u.Team)); !ok {
-				errors = append(errors, model.BulkError{Email: u.Email, Message: "Invalid Team: " + *u.Team})
+				bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Invalid Team: " + *u.Team})
 				continue
 			}
 		}
 
 		existing, _ := h.repo.GetUserByEmail(r.Context(), u.Email)
 		if existing != nil {
-			errors = append(errors, model.BulkError{Email: u.Email, Message: "Email already exists"})
+			bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Email already exists"})
 			continue
 		}
 
 		hash, err := security.HashPassword(u.Password, h.cfg.PasswordHashIterations)
 		if err != nil {
-			errors = append(errors, model.BulkError{Email: u.Email, Message: "Failed to hash password"})
+			bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: "Failed to hash password"})
 			continue
 		}
 
@@ -345,14 +365,15 @@ func (h *AuthHandler) AdminBulkCreateUsers(w http.ResponseWriter, r *http.Reques
 			Email:        u.Email,
 			HQ:           u.HQ,
 			Team:         u.Team,
-			Role:         role,
+			RoleID:       roleID,
+			RoleName:     targetRole.Name,
 			PasswordHash: hash,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}
 
 		if err := h.repo.CreateUser(r.Context(), user); err != nil {
-			errors = append(errors, model.BulkError{Email: u.Email, Message: err.Error()})
+			bulkErrors = append(bulkErrors, model.BulkError{Email: u.Email, Message: err.Error()})
 			continue
 		}
 
@@ -361,15 +382,15 @@ func (h *AuthHandler) AdminBulkCreateUsers(w http.ResponseWriter, r *http.Reques
 
 	response.JSON(w, http.StatusOK, model.BulkCreateUserResponse{
 		Created: created,
-		Errors:  errors,
+		Errors:  bulkErrors,
 	})
 }
 
 // AdminCreateUser handles POST /auth/admin/users
 func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.create") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -392,12 +413,17 @@ func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := strings.ToLower(strings.TrimSpace(req.Role))
-	if role == "" {
-		role = "read"
+	// Validate role_id
+	roleID := req.RoleID
+	if roleID == 0 {
+		readRole, _ := h.repo.GetRoleByName(r.Context(), "Read")
+		if readRole != nil {
+			roleID = readRole.ID
+		}
 	}
-	if role != "admin" && role != "read" && role != "write" && role != "pending" {
-		response.Error(w, http.StatusBadRequest, "Invalid role. Must be admin, read, write, or pending")
+	targetRole, err := h.repo.GetRoleByID(r.Context(), roleID)
+	if err != nil || targetRole == nil {
+		response.Error(w, http.StatusBadRequest, "Invalid role_id")
 		return
 	}
 
@@ -434,7 +460,8 @@ func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
 		Email:        req.Email,
 		HQ:           req.HQ,
 		Team:         req.Team,
-		Role:         role,
+		RoleID:       roleID,
+		RoleName:     targetRole.Name,
 		PasswordHash: hash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -450,7 +477,7 @@ func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
 	if actor != nil {
 		actorEmail = &actor.Email
 	}
-	after := jsonRaw(map[string]string{"email": user.Email, "role": role, "name": user.Name})
+	after := jsonRaw(map[string]string{"email": user.Email, "role": targetRole.Name, "name": user.Name})
 	h.writeAuditLog(r, "user.create", &payload.UserID, actorEmail, &user.ID, &user.Email, nil, after)
 
 	response.JSON(w, http.StatusCreated, user.ToResponse())
@@ -459,8 +486,8 @@ func (h *AuthHandler) AdminCreateUser(w http.ResponseWriter, r *http.Request) {
 // AdminListUsers handles GET /auth/admin/users
 func (h *AuthHandler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.read") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -486,8 +513,8 @@ func (h *AuthHandler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 // AdminUpdateUser handles PATCH /auth/admin/users/{user_id}
 func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.update") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -499,9 +526,10 @@ func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := strings.ToLower(strings.TrimSpace(req.Role))
-	if role != "admin" && role != "read" && role != "write" && role != "pending" {
-		response.Error(w, http.StatusBadRequest, "Invalid role. Must be admin, read, write, or pending")
+	// Validate role_id
+	targetRole, err := h.repo.GetRoleByID(r.Context(), req.RoleID)
+	if err != nil || targetRole == nil {
+		response.Error(w, http.StatusBadRequest, "Invalid role_id")
 		return
 	}
 
@@ -511,15 +539,15 @@ func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldRole := target.Role
-	if err := h.repo.UpdateUserRole(r.Context(), userID, role); err != nil {
+	oldRoleName := target.RoleName
+	if err := h.repo.UpdateUserRole(r.Context(), userID, req.RoleID); err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// Audit
-	before := jsonRaw(map[string]string{"role": oldRole})
-	after := jsonRaw(map[string]string{"role": role})
+	before := jsonRaw(map[string]string{"role": oldRoleName})
+	after := jsonRaw(map[string]string{"role": targetRole.Name})
 	actor, _ := h.repo.GetUserByID(r.Context(), payload.UserID)
 	var actorEmail *string
 	if actor != nil {
@@ -537,8 +565,8 @@ func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 // AdminResetPassword handles POST /auth/admin/users/{user_id}/reset-password
 func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.update") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -577,8 +605,8 @@ func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request)
 // AdminDeleteUser handles DELETE /auth/admin/users/{user_id}
 func (h *AuthHandler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.users.delete") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -599,7 +627,7 @@ func (h *AuthHandler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	before := jsonRaw(map[string]string{"role": target.Role, "email": target.Email, "name": target.Name})
+	before := jsonRaw(map[string]string{"role": target.RoleName, "email": target.Email, "name": target.Name})
 	after := jsonRaw(map[string]bool{"deleted": true})
 	actor, _ := h.repo.GetUserByID(r.Context(), payload.UserID)
 	var actorEmail *string
@@ -631,8 +659,8 @@ func (h *AuthHandler) ListOrganizations(w http.ResponseWriter, r *http.Request) 
 // AdminCreateOrganization handles POST /auth/admin/organizations
 func (h *AuthHandler) AdminCreateOrganization(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.organizations.create") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 
@@ -668,8 +696,8 @@ func (h *AuthHandler) AdminCreateOrganization(w http.ResponseWriter, r *http.Req
 // AdminDeleteOrganization handles DELETE /auth/admin/organizations/{id}
 func (h *AuthHandler) AdminDeleteOrganization(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
-	if !ok || payload.Role != "admin" {
-		response.Error(w, http.StatusForbidden, "Admin access required")
+	if !ok || !payload.HasPermission("admin.organizations.delete") {
+		response.Error(w, http.StatusForbidden, "Permission denied")
 		return
 	}
 

@@ -7,6 +7,7 @@ import { Loader2, ChevronDown, ChevronUp, RefreshCw, Search, Boxes, Plus } from 
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 
 /* ──────────── types ──────────── */
 interface NamespaceInfo {
@@ -60,14 +61,9 @@ export default function Namespaces() {
       }
     },
   })
+  const { has } = usePermission()
 
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-
-  const isWriteRole = me?.role === 'admin' || me?.role === 'write'
+  const isWriteRole = has('resource.namespace.create')
 
   /* ── helpers ── */
   const formatRelative = (iso?: string | null) => {

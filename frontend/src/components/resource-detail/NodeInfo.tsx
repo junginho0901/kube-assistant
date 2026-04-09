@@ -11,6 +11,7 @@ import { InfoSection, InfoRow, KeyValueTags, UsageCard, EventsTable, fmtRel, fmt
 import { ResourceLink } from './ResourceLink'
 import { usePrometheusQueries } from '@/hooks/usePrometheusQuery'
 import { PrometheusSection, MetricCard } from './PrometheusMetrics'
+import { usePermission } from '@/hooks/usePermission'
 
 interface Props { name: string }
 
@@ -27,9 +28,7 @@ export default function NodeInfo({ name }: Props) {
   const [drainError, setDrainError] = useState<string | null>(null)
   const [showNodeShell, setShowNodeShell] = useState(false)
   const [metricsAvailable] = useState(true)
-
-  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 30000 })
-  const isAdmin = me?.role === 'admin'
+  const { has } = usePermission()
 
   const { data: nodeDescribe, isLoading, isError } = useQuery({
     queryKey: ['cluster', 'nodes', 'describe', name],
@@ -212,24 +211,28 @@ export default function NodeInfo({ name }: Props) {
   return (
     <>
       {/* Action Buttons */}
-      {isAdmin && (
+      {(has('resource.node.cordon') || has('resource.node.drain') || has('resource.node.shell')) && (
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => nodeDescribe.unschedulable ? uncordonMut.mutate(name) : cordonMut.mutate(name)}
-            disabled={isSchedulingMut || isDrainMut}
-            className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
-          >
-            {isSchedulingMut ? (nodeDescribe.unschedulable ? tr('nodes.actions.uncordoning', 'Uncordoning...') : tr('nodes.actions.cordoning', 'Cordoning...'))
-              : (nodeDescribe.unschedulable ? tr('nodes.actions.uncordon', 'Uncordon') : tr('nodes.actions.cordon', 'Cordon'))}
-          </button>
-          <button
-            onClick={() => { setDrainDialogOpen(true); setDrainError(null) }}
-            disabled={isDrainMut || isSchedulingMut}
-            className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
-          >
-            {isDrainMut ? tr('nodes.actions.draining', 'Draining...') : tr('nodes.actions.drain', 'Drain')}
-          </button>
-          {nodeShellSettings.isEnabled && (
+          {has('resource.node.cordon') && (
+            <button
+              onClick={() => nodeDescribe.unschedulable ? uncordonMut.mutate(name) : cordonMut.mutate(name)}
+              disabled={isSchedulingMut || isDrainMut}
+              className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+            >
+              {isSchedulingMut ? (nodeDescribe.unschedulable ? tr('nodes.actions.uncordoning', 'Uncordoning...') : tr('nodes.actions.cordoning', 'Cordoning...'))
+                : (nodeDescribe.unschedulable ? tr('nodes.actions.uncordon', 'Uncordon') : tr('nodes.actions.cordon', 'Cordon'))}
+            </button>
+          )}
+          {has('resource.node.drain') && (
+            <button
+              onClick={() => { setDrainDialogOpen(true); setDrainError(null) }}
+              disabled={isDrainMut || isSchedulingMut}
+              className="text-xs px-3 py-1 rounded-md border border-slate-700 bg-slate-800 text-white hover:border-slate-500 disabled:opacity-60"
+            >
+              {isDrainMut ? tr('nodes.actions.draining', 'Draining...') : tr('nodes.actions.drain', 'Drain')}
+            </button>
+          )}
+          {has('resource.node.shell') && nodeShellSettings.isEnabled && (
             <button
               onClick={() => setShowNodeShell(true)}
               disabled={!isLinuxNode}

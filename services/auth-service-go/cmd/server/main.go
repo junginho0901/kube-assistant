@@ -60,6 +60,13 @@ func main() {
 	}
 	slog.Info("database schema initialized")
 
+	// Seed system roles and migrate auth_users.role → role_id
+	if err := repo.SeedSystemRoles(ctx); err != nil {
+		slog.Error("failed to seed system roles", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("system roles seeded")
+
 	// Bootstrap default users
 	bootstrapUsers(ctx, repo, cfg)
 
@@ -76,6 +83,7 @@ func main() {
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(repo, jwtMgr, cfg)
+	roleHandler := handler.NewRoleHandler(repo)
 	setupHandler := handler.NewSetupHandler(repo, cfg)
 	healthHandler := handler.NewHealthHandler(pool)
 
@@ -121,6 +129,7 @@ func main() {
 
 		// Public (for registration form dropdowns)
 		r.Get("/organizations", authHandler.ListOrganizations)
+		r.Get("/roles", roleHandler.ListRoles)
 
 		// Protected endpoints
 		r.Group(func(r chi.Router) {
@@ -128,8 +137,12 @@ func main() {
 
 			r.Get("/me", authHandler.Me)
 			r.Post("/change-password", authHandler.ChangePassword)
+			r.Get("/permissions", roleHandler.ListPermissions)
 
 			// Admin endpoints
+			r.Post("/admin/roles", roleHandler.CreateRole)
+			r.Put("/admin/roles/{id}", roleHandler.UpdateRole)
+			r.Delete("/admin/roles/{id}", roleHandler.DeleteRole)
 			r.Post("/admin/organizations", authHandler.AdminCreateOrganization)
 			r.Delete("/admin/organizations/{id}", authHandler.AdminDeleteOrganization)
 			r.Post("/admin/users/bulk", authHandler.AdminBulkCreateUsers)
@@ -173,16 +186,22 @@ func main() {
 
 func bootstrapUsers(ctx context.Context, repo *repository.Repository, cfg config.Config) {
 	users := []struct {
-		email, password, role, name string
+		email, password, roleName, name string
 	}{
-		{cfg.DefaultAdminEmail, cfg.DefaultAdminPassword, "admin", "admin"},
-		{cfg.DefaultReadEmail, cfg.DefaultReadPassword, "read", "read"},
-		{cfg.DefaultWriteEmail, cfg.DefaultWritePassword, "write", "write"},
+		{cfg.DefaultAdminEmail, cfg.DefaultAdminPassword, "Admin", "admin"},
+		{cfg.DefaultReadEmail, cfg.DefaultReadPassword, "Read", "read"},
+		{cfg.DefaultWriteEmail, cfg.DefaultWritePassword, "Write", "write"},
 	}
 
 	for _, u := range users {
 		existing, _ := repo.GetUserByEmail(ctx, u.email)
 		if existing != nil {
+			continue
+		}
+
+		role, err := repo.GetRoleByName(ctx, u.roleName)
+		if err != nil || role == nil {
+			slog.Error("failed to find role for bootstrap user", "email", u.email, "role", u.roleName)
 			continue
 		}
 
@@ -197,7 +216,8 @@ func bootstrapUsers(ctx context.Context, repo *repository.Repository, cfg config
 			ID:           uuid.New().String(),
 			Name:         u.name,
 			Email:        u.email,
-			Role:         u.role,
+			RoleID:       role.ID,
+			RoleName:     role.Name,
 			PasswordHash: hash,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -206,7 +226,7 @@ func bootstrapUsers(ctx context.Context, repo *repository.Repository, cfg config
 		if err := repo.CreateUser(ctx, user); err != nil {
 			slog.Error("failed to create bootstrap user", "email", u.email, "error", err)
 		} else {
-			slog.Info("bootstrap user created", "email", u.email, "role", u.role)
+			slog.Info("bootstrap user created", "email", u.email, "role", u.roleName)
 		}
 	}
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { X, Info, FileCode, Trash2, ArrowLeft } from 'lucide-react'
 import { useResourceDetail } from './ResourceDetailContext'
+import { usePermission } from '@/hooks/usePermission'
 import { api } from '@/services/api'
 import YamlEditor from './YamlEditor'
 import { ModalOverlay } from './ModalOverlay'
@@ -219,111 +220,9 @@ export default function ResourceDetailDrawer() {
   const ns = target?.namespace
   const name = target?.name ?? ''
   const kind = target?.kind ?? ''
-
-  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 30000, enabled: !!target })
-  const isAdmin = me?.role === 'admin'
-  const isWriteRole = me?.role === 'admin' || me?.role === 'write'
-  const canEditYaml = kind === 'Node' ? isAdmin : isWriteRole
-  const canDeleteNode = kind === 'Node' && isAdmin
-  const canDeletePod = kind === 'Pod' && !!ns && isWriteRole
-  const canDeleteNamespace = kind === 'Namespace' && isWriteRole
-  const canDeleteDeployment = kind === 'Deployment' && !!ns && isWriteRole
-  const canDeleteStatefulSet = kind === 'StatefulSet' && !!ns && isWriteRole
-  const canDeleteDaemonSet = kind === 'DaemonSet' && !!ns && isWriteRole
-  const canDeleteJob = kind === 'Job' && !!ns && isWriteRole
-  const canDeleteReplicaSet = kind === 'ReplicaSet' && !!ns && isWriteRole
-  const canDeleteCronJob = kind === 'CronJob' && !!ns && isWriteRole
-  const canDeletePVC = kind === 'PersistentVolumeClaim' && !!ns && isWriteRole
-  const canDeletePV = kind === 'PersistentVolume' && isWriteRole
-  const canDeleteStorageClass = kind === 'StorageClass' && isWriteRole
-  const canDeleteVolumeAttachment = kind === 'VolumeAttachment' && isWriteRole
-  const canDeleteService = kind === 'Service' && !!ns && isWriteRole
-  const canDeleteIngress = kind === 'Ingress' && !!ns && isWriteRole
-  const canDeleteIngressClass = kind === 'IngressClass' && isWriteRole
-  const canDeleteNetworkPolicy = kind === 'NetworkPolicy' && !!ns && isWriteRole
-  const canDeleteGateway = kind === 'Gateway' && !!ns && isWriteRole
-  const canDeleteGatewayClass = kind === 'GatewayClass' && isWriteRole
-  const canDeleteHTTPRoute = kind === 'HTTPRoute' && !!ns && isWriteRole
-  const canDeleteGRPCRoute = kind === 'GRPCRoute' && !!ns && isWriteRole
-  const canDeleteReferenceGrant = kind === 'ReferenceGrant' && !!ns && isWriteRole
-  const canDeleteBackendTLSPolicy = kind === 'BackendTLSPolicy' && !!ns && isWriteRole
-  const canDeleteBackendTrafficPolicy = kind === 'BackendTrafficPolicy' && !!ns && isWriteRole
-  const canDeleteEndpoints = kind === 'Endpoints' && !!ns && isWriteRole
-  const canDeleteEndpointSlice = kind === 'EndpointSlice' && !!ns && isWriteRole
-  const canDeleteDeviceClass = kind === 'DeviceClass' && isWriteRole
-  const canDeleteResourceClaim = kind === 'ResourceClaim' && !!ns && isWriteRole
-  const canDeleteResourceClaimTemplate = kind === 'ResourceClaimTemplate' && !!ns && isWriteRole
-  const canDeleteResourceSlice = kind === 'ResourceSlice' && isWriteRole
-  const canDeleteServiceAccount = kind === 'ServiceAccount' && !!ns && isWriteRole
-  const canDeleteRole = kind === 'Role' && !!ns && isWriteRole
-  const canDeleteRoleBinding = kind === 'RoleBinding' && !!ns && isWriteRole
-  const canDeleteClusterRole = kind === 'ClusterRole' && isAdmin
-  const canDeleteClusterRoleBinding = kind === 'ClusterRoleBinding' && isAdmin
-  const canDeleteConfigMap = kind === 'ConfigMap' && !!ns && isWriteRole
-  const canDeleteSecret = kind === 'Secret' && !!ns && isWriteRole
-  const canDeleteHPA = kind === 'HorizontalPodAutoscaler' && !!ns && isWriteRole
-  const canDeleteVPA = kind === 'VerticalPodAutoscaler' && !!ns && isWriteRole
-  const canDeletePDB = kind === 'PodDisruptionBudget' && !!ns && isWriteRole
-  const canDeletePriorityClass = kind === 'PriorityClass' && isAdmin
-  const canDeleteRuntimeClass = kind === 'RuntimeClass' && isAdmin
-  const canDeleteLease = kind === 'Lease' && !!ns && isWriteRole
-  const canDeleteResourceQuota = kind === 'ResourceQuota' && !!ns && isWriteRole
-  const canDeleteLimitRange = kind === 'LimitRange' && !!ns && isWriteRole
-  const canDeleteMutatingWebhookConfig = kind === 'MutatingWebhookConfiguration' && isAdmin
-  const canDeleteValidatingWebhookConfig = kind === 'ValidatingWebhookConfiguration' && isAdmin
-  const canDeleteCRD = kind === 'CustomResourceDefinition' && isAdmin
-  const canDeleteCRInstance = kind === 'CustomResourceInstance' && isWriteRole
-  const canDelete = [
-    canDeleteNode,
-    canDeletePod,
-    canDeleteNamespace,
-    canDeleteDeployment,
-    canDeleteStatefulSet,
-    canDeleteDaemonSet,
-    canDeleteJob,
-    canDeleteReplicaSet,
-    canDeleteCronJob,
-    canDeletePVC,
-    canDeletePV,
-    canDeleteStorageClass,
-    canDeleteVolumeAttachment,
-    canDeleteService,
-    canDeleteIngress,
-    canDeleteIngressClass,
-    canDeleteNetworkPolicy,
-    canDeleteGateway,
-    canDeleteGatewayClass,
-    canDeleteHTTPRoute,
-    canDeleteGRPCRoute,
-    canDeleteReferenceGrant,
-    canDeleteBackendTLSPolicy,
-    canDeleteBackendTrafficPolicy,
-    canDeleteEndpoints,
-    canDeleteEndpointSlice,
-    canDeleteDeviceClass,
-    canDeleteResourceClaim,
-    canDeleteResourceClaimTemplate,
-    canDeleteResourceSlice,
-    canDeleteServiceAccount,
-    canDeleteRole,
-    canDeleteRoleBinding,
-    canDeleteClusterRole,
-    canDeleteClusterRoleBinding,
-    canDeleteConfigMap,
-    canDeleteSecret,
-    canDeleteHPA,
-    canDeleteVPA,
-    canDeletePDB,
-    canDeletePriorityClass,
-    canDeleteRuntimeClass,
-    canDeleteLease,
-    canDeleteResourceQuota,
-    canDeleteLimitRange,
-    canDeleteMutatingWebhookConfig,
-    canDeleteValidatingWebhookConfig,
-    canDeleteCRD,
-    canDeleteCRInstance,
-  ].some(Boolean)
+  const { has } = usePermission()
+  const canDelete = has(`resource.${kind.toLowerCase()}.delete`)
+  const canEditYaml = has(`resource.${kind.toLowerCase()}.edit`)
 
   const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
     queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
@@ -346,7 +245,7 @@ export default function ResourceDetailDrawer() {
   })
 
   const handleApplyYaml = async (rawYaml: string) => {
-    const yaml = kind === 'Secret' && isWriteRole ? encodeSecretYaml(rawYaml) : rawYaml
+    const yaml = kind === 'Secret' && canEditYaml ? encodeSecretYaml(rawYaml) : rawYaml
     if (kind === 'Node') await api.applyNodeYaml(name, yaml)
     else if (kind === 'Namespace') await api.applyNamespaceYaml(name, yaml)
     else if (kind === 'CustomResourceDefinition') await api.applyResourceYaml('customresourcedefinitions', name, yaml, undefined)
@@ -1186,7 +1085,7 @@ export default function ResourceDetailDrawer() {
             <div className="h-full">
               <YamlEditor
                 key={`${kind}-${name}-${ns || ''}`}
-                value={kind === 'Secret' && isWriteRole && yamlData?.yaml ? decodeSecretYaml(yamlData.yaml) : yamlData?.yaml || ''}
+                value={kind === 'Secret' && canEditYaml && yamlData?.yaml ? decodeSecretYaml(yamlData.yaml) : yamlData?.yaml || ''}
                 canEdit={canEditYaml}
                 isLoading={yamlLoading}
                 isRefreshing={yamlFetching}

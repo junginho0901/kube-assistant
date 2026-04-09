@@ -62,7 +62,7 @@ func (h *Handler) GetStatefulSetYAML(w http.ResponseWriter, r *http.Request) {
 
 // DeleteStatefulSet handles DELETE /api/v1/namespaces/{namespace}/statefulsets/{name}.
 func (h *Handler) DeleteStatefulSet(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.statefulset.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -130,7 +130,7 @@ func (h *Handler) GetDaemonSetYAML(w http.ResponseWriter, r *http.Request) {
 
 // DeleteDaemonSet handles DELETE /api/v1/namespaces/{namespace}/daemonsets/{name}.
 func (h *Handler) DeleteDaemonSet(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.daemonset.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -198,7 +198,7 @@ func (h *Handler) GetReplicaSetYAML(w http.ResponseWriter, r *http.Request) {
 
 // DeleteReplicaSet handles DELETE /api/v1/namespaces/{namespace}/replicasets/{name}.
 func (h *Handler) DeleteReplicaSet(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.replicaset.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -266,7 +266,7 @@ func (h *Handler) GetJobYAML(w http.ResponseWriter, r *http.Request) {
 
 // DeleteJob handles DELETE /api/v1/namespaces/{namespace}/jobs/{name}.
 func (h *Handler) DeleteJob(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.job.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -334,7 +334,7 @@ func (h *Handler) GetCronJobYAML(w http.ResponseWriter, r *http.Request) {
 
 // SuspendCronJob handles PATCH /api/v1/namespaces/{namespace}/cronjobs/{name}/suspend.
 func (h *Handler) SuspendCronJob(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.cronjob.suspend"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -358,7 +358,7 @@ func (h *Handler) SuspendCronJob(w http.ResponseWriter, r *http.Request) {
 
 // TriggerCronJob handles POST /api/v1/namespaces/{namespace}/cronjobs/{name}/trigger.
 func (h *Handler) TriggerCronJob(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.cronjob.trigger"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -388,7 +388,7 @@ func (h *Handler) GetCronJobOwnedJobs(w http.ResponseWriter, r *http.Request) {
 
 // DeleteCronJob handles DELETE /api/v1/namespaces/{namespace}/cronjobs/{name}.
 func (h *Handler) DeleteCronJob(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireWrite(r); err != nil {
+	if err := h.requirePermission(r, "resource.cronjob.delete"); err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -438,7 +438,7 @@ func (h *Handler) GetWorkloadRevisions(w http.ResponseWriter, r *http.Request) {
 
 // RollbackWorkload handles POST /api/v1/namespaces/{namespace}/{kind}/{name}/rollback.
 func (h *Handler) RollbackWorkload(w http.ResponseWriter, r *http.Request) {
-	if err := h.requireAdmin(r); err != nil {
+	if err := h.requirePermission(r, "resource.workload.rollback"); err != nil {
 		h.handleError(w, err)
 		return
 	}

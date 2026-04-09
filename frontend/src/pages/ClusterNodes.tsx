@@ -6,6 +6,7 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { Loader2, ChevronDown, ChevronUp, Plus, RefreshCw, Search, Server } from 'lucide-react'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { usePermission } from '@/hooks/usePermission'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 
 interface NodeInfo {
@@ -48,13 +49,8 @@ export default function ClusterNodes() {
     queryKey: ['cluster', 'nodes'],
     queryFn: () => api.getNodes(false),
   })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-  })
-  const canCreate = me?.role === 'admin'
+  const { has } = usePermission()
+  const canCreate = has('resource.node.create')
 
   useKubeWatchList({
     enabled: true,
