@@ -1891,6 +1891,8 @@
     "table": {
       "name": "Name",
       "email": "Email",
+      "hq": "HQ",
+      "team": "Team",
       "role": "Role",
       "password": "Password",
       "delete": "Delete"
