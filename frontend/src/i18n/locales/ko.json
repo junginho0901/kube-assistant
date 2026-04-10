@@ -2770,5 +2770,93 @@
       "gpuUtil": "GPU 사용률",
       "memUtil": "메모리 사용률"
     }
+  },
+  "deviceClassesPage": {
+    "title": "디바이스 클래스",
+    "subtitle": "동적 리소스 할당(DRA)을 위한 DeviceClass 리소스를 관리합니다.",
+    "create": "DeviceClass 생성",
+    "createTitle": "YAML로 DeviceClass 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "디바이스 클래스 이름으로 검색...",
+    "noResults": "디바이스 클래스를 찾을 수 없습니다.",
+    "matchCount": "{{count}}개의 디바이스 클래스가 일치합니다.",
+    "stats": {
+      "total": "전체",
+      "withConditions": "Condition 있음"
+    },
+    "table": {
+      "name": "이름",
+      "selectors": "Selector",
+      "conditions": "Condition",
+      "age": "Age"
+    }
+  },
+  "resourceClaimsPage": {
+    "title": "Resource Claim",
+    "subtitle": "DRA ResourceClaim 리소스를 관리합니다.",
+    "create": "ResourceClaim 생성",
+    "createTitle": "YAML로 ResourceClaim 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "ResourceClaim 이름으로 검색...",
+    "noResults": "ResourceClaim을 찾을 수 없습니다.",
+    "matchCount": "{{count}}개의 ResourceClaim이 일치합니다.",
+    "allNamespaces": "모든 네임스페이스",
+    "stats": {
+      "total": "전체",
+      "allocated": "할당됨",
+      "reserved": "예약됨",
+      "pending": "대기 중"
+    },
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "requests": "요청",
+      "status": "상태",
+      "age": "Age"
+    }
+  },
+  "resourceClaimTemplatesPage": {
+    "title": "Resource Claim Template",
+    "subtitle": "DRA ResourceClaimTemplate 리소스를 관리합니다.",
+    "create": "ResourceClaimTemplate 생성",
+    "createTitle": "YAML로 ResourceClaimTemplate 생성",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "ResourceClaimTemplate 이름으로 검색...",
+    "noResults": "ResourceClaimTemplate을 찾을 수 없습니다.",
+    "matchCount": "{{count}}개의 ResourceClaimTemplate이 일치합니다.",
+    "allNamespaces": "모든 네임스페이스",
+    "stats": {
+      "total": "전체"
+    },
+    "table": {
+      "namespace": "네임스페이스",
+      "name": "이름",
+      "requests": "요청",
+      "age": "Age"
+    }
+  },
+  "resourceSlicesPage": {
+    "title": "Resource Slice",
+    "subtitle": "노드가 광고하는 DRA ResourceSlice 리소스를 조회합니다.",
+    "refresh": "새로고침",
+    "refreshTitle": "강제 새로고침",
+    "searchPlaceholder": "리소스 슬라이스 이름, 노드, 드라이버 또는 풀로 검색...",
+    "noResults": "리소스 슬라이스를 찾을 수 없습니다.",
+    "matchCount": "{{count}}개의 리소스 슬라이스가 일치합니다.",
+    "stats": {
+      "total": "전체",
+      "totalDevices": "전체 디바이스"
+    },
+    "table": {
+      "name": "이름",
+      "node": "노드",
+      "driver": "드라이버",
+      "pool": "풀",
+      "devices": "디바이스",
+      "age": "Age"
+    }
   }
 }
