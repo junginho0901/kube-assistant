@@ -20,6 +20,7 @@ import AdminUsers from './pages/AdminUsers'
 import AdminAIModels from './pages/AdminAIModels'
 import AdminNodeShell from './pages/AdminNodeShell'
 import AdminOrganizations from './pages/AdminOrganizations'
+import AdminRoles from './pages/AdminRoles'
 import Account from './pages/Account'
 import HPAs from './pages/workloads/HPAs'
 import VPAs from './pages/workloads/VPAs'
@@ -145,6 +146,7 @@ function App() {
             <Route path="admin/ai-models" element={<RequireAdmin><AdminAIModels /></RequireAdmin>} />
             <Route path="admin/node-shell" element={<RequireAdmin><AdminNodeShell /></RequireAdmin>} />
             <Route path="admin/organizations" element={<RequireAdmin><AdminOrganizations /></RequireAdmin>} />
+            <Route path="admin/roles" element={<RequireAdmin><AdminRoles /></RequireAdmin>} />
           </Route>
         </Routes>
       </BrowserRouter>
