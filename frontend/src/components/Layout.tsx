@@ -256,6 +256,7 @@ export default function Layout() {
       adminOnly: true,
       items: [
         { name: t('nav.userManagement'), href: '/admin/users', icon: Shield },
+        { name: t('nav.roleManagement'), href: '/admin/roles', icon: Key },
         { name: t('nav.organizations'), href: '/admin/organizations', icon: Boxes },
         { name: t('nav.aiModels'), href: '/admin/ai-models', icon: MessageSquare },
         { name: t('nav.nodeShell'), href: '/admin/node-shell', icon: Terminal },
