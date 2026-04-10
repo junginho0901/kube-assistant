@@ -72,6 +72,7 @@
     "customInstances": "Custom Resource Instances",
     "customGroups": "Custom Resource Definitions",
     "userManagement": "User Management",
+    "roleManagement": "Role Management",
     "aiModels": "AI Models",
     "nodeShell": "Node Shell",
     "organizations": "HQ / Team"
@@ -1890,6 +1891,8 @@
     "table": {
       "name": "Name",
       "email": "Email",
+      "hq": "HQ",
+      "team": "Team",
       "role": "Role",
       "password": "Password",
       "delete": "Delete"
@@ -1961,6 +1964,16 @@
       "title": "Role updated",
       "subtitle": "For security, please sign in again. You will be taken to the login page.",
       "confirm": "OK"
+    },
+    "viewDetail": "View details",
+    "detail": {
+      "title": "User details",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving...",
+      "close": "Close",
+      "permissions": "Permissions",
+      "noPerms": "No permissions assigned"
     }
   },
   "account": {
@@ -2576,6 +2589,30 @@
     "addError": "Failed to add. It may already exist.",
     "empty": "No items registered.",
     "deleteConfirm": "Delete \"{{name}}\"?",
-    "deleteTitle": "Delete"
+    "deleteTitle": "Delete",
+    "viewMembers": "View members",
+    "hqMembers": "HQ members",
+    "teamMembers": "Team members",
+    "noMembers": "No members in this organization.",
+    "close": "Close",
+    "col": {
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "hq": "HQ",
+      "team": "Team"
+    }
+  },
+  "adminRoles": {
+    "viewUsers": "View users with this role",
+    "usersWithRole": "Users with this role",
+    "noUsers": "No users assigned to this role.",
+    "closeUsers": "Close",
+    "col": {
+      "userName": "Name",
+      "userEmail": "Email",
+      "userHq": "HQ",
+      "userTeam": "Team"
+    }
   }
 }
