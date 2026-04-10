@@ -1964,6 +1964,16 @@
       "title": "Role updated",
       "subtitle": "For security, please sign in again. You will be taken to the login page.",
       "confirm": "OK"
+    },
+    "viewDetail": "View details",
+    "detail": {
+      "title": "User details",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving...",
+      "close": "Close",
+      "permissions": "Permissions",
+      "noPerms": "No permissions assigned"
     }
   },
   "account": {
