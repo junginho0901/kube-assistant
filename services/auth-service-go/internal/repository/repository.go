@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -430,6 +431,47 @@ func (r *Repository) UpdateUserRole(ctx context.Context, id string, roleID int) 
 		`UPDATE auth_users SET role_id = $1, updated_at = $2 WHERE id = $3`,
 		roleID, time.Now().UTC(), id,
 	)
+	return err
+}
+
+// UpdateUserProfile updates name/hq/team fields. Nil arguments are skipped.
+func (r *Repository) UpdateUserProfile(ctx context.Context, id string, name *string, hq *string, team *string) error {
+	sets := []string{}
+	args := []interface{}{}
+	idx := 1
+	if name != nil {
+		sets = append(sets, fmt.Sprintf("name = $%d", idx))
+		args = append(args, *name)
+		idx++
+	}
+	if hq != nil {
+		sets = append(sets, fmt.Sprintf("hq = $%d", idx))
+		// empty string → NULL so the column is cleared cleanly
+		if *hq == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, *hq)
+		}
+		idx++
+	}
+	if team != nil {
+		sets = append(sets, fmt.Sprintf("team = $%d", idx))
+		if *team == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, *team)
+		}
+		idx++
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	sets = append(sets, fmt.Sprintf("updated_at = $%d", idx))
+	args = append(args, time.Now().UTC())
+	idx++
+	args = append(args, id)
+	query := fmt.Sprintf("UPDATE auth_users SET %s WHERE id = $%d", strings.Join(sets, ", "), idx)
+	_, err := r.pool.Exec(ctx, query, args...)
 	return err
 }
 
