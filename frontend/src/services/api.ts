@@ -1305,6 +1305,14 @@ export const api = {
     return data
   },
 
+  adminUpdateUser: async (
+    userId: string,
+    payload: { name?: string; hq?: string; team?: string; role_id?: number },
+  ): Promise<Member> => {
+    const { data } = await client.patch(`/auth/admin/users/${userId}`, payload)
+    return data
+  },
+
   adminResetUserPassword: async (userId: string): Promise<Member> => {
     const { data } = await client.post(`/auth/admin/users/${userId}/reset-password`)
     return data
