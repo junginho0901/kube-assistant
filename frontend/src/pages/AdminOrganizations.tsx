@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, Organization } from '@/services/api'
-import { Plus, Trash2 } from 'lucide-react'
+import { api, Member, Organization } from '@/services/api'
+import { Plus, Trash2, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ModalOverlay } from '@/components/ModalOverlay'
+import { usePermission } from '@/hooks/usePermission'
 
 export default function AdminOrganizations() {
   const queryClient = useQueryClient()
@@ -12,6 +14,10 @@ export default function AdminOrganizations() {
 
   const [newHq, setNewHq] = useState('')
   const [newTeam, setNewTeam] = useState('')
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
+
+  const { has: hasPerm } = usePermission()
+  const canListUsers = hasPerm('admin.users.read')
 
   const { data: hqs = [] } = useQuery({
     queryKey: ['organizations', 'hq'],
@@ -22,6 +28,17 @@ export default function AdminOrganizations() {
     queryKey: ['organizations', 'team'],
     queryFn: () => api.listOrganizations('team'),
   })
+
+  const { data: allUsers = [] } = useQuery<Member[]>({
+    queryKey: ['admin-users', 'all'],
+    queryFn: () => api.adminListUsers({ limit: 200, offset: 0 }),
+    enabled: canListUsers,
+    staleTime: 10000,
+  })
+
+  const orgMembers = selectedOrg
+    ? allUsers.filter((u) => (selectedOrg.type === 'hq' ? u.hq : u.team) === selectedOrg.name)
+    : []
 
   const createMutation = useMutation({
     mutationFn: ({ type, name }: { type: 'hq' | 'team'; name: string }) => api.adminCreateOrganization(type, name),
@@ -86,27 +103,46 @@ export default function AdminOrganizations() {
         {items.length === 0 && (
           <p className="text-sm text-slate-500 py-2">{tr('adminOrg.empty', 'No items registered.')}</p>
         )}
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-900/30 px-4 py-2.5"
-          >
-            <span className="text-sm text-slate-200">{item.name}</span>
-            <button
-              type="button"
-              onClick={() => {
-                const ok = window.confirm(tr('adminOrg.deleteConfirm', 'Delete "{{name}}"?', { name: item.name }))
-                if (!ok) return
-                deleteMutation.mutate({ id: item.id, type: item.type })
-              }}
-              disabled={deleteMutation.isPending && deleteMutation.variables?.id === item.id}
-              className="rounded p-1 text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
-              title={tr('adminOrg.deleteTitle', 'Delete')}
+        {items.map((item) => {
+          const memberCount = canListUsers
+            ? allUsers.filter((u) => (item.type === 'hq' ? u.hq : u.team) === item.name).length
+            : null
+          return (
+            <div
+              key={item.id}
+              className="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-900/30 px-4 py-2.5 hover:bg-slate-900/60 transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+              <button
+                type="button"
+                onClick={() => setSelectedOrg(item)}
+                disabled={!canListUsers}
+                className="flex-1 flex items-center gap-2 text-left text-sm text-slate-200 hover:text-primary-300 disabled:cursor-default disabled:hover:text-slate-200"
+                title={canListUsers ? tr('adminOrg.viewMembers', 'View members') : ''}
+              >
+                <span>{item.name}</span>
+                {memberCount !== null && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-700/50 px-2 py-0.5 text-[10px] text-slate-400">
+                    <Users className="w-3 h-3" />
+                    {memberCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = window.confirm(tr('adminOrg.deleteConfirm', 'Delete "{{name}}"?', { name: item.name }))
+                  if (!ok) return
+                  deleteMutation.mutate({ id: item.id, type: item.type })
+                }}
+                disabled={deleteMutation.isPending && deleteMutation.variables?.id === item.id}
+                className="rounded p-1 text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                title={tr('adminOrg.deleteTitle', 'Delete')}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -138,6 +174,90 @@ export default function AdminOrganizations() {
           setNewTeam,
         )}
       </div>
+
+      {selectedOrg && (
+        <ModalOverlay onClose={() => setSelectedOrg(null)}>
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl max-h-[80vh] flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/10 border border-primary-500/20">
+                  <Users className="h-5 w-5 text-primary-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{selectedOrg.name}</h2>
+                  <p className="text-sm text-slate-400">
+                    {selectedOrg.type === 'hq'
+                      ? tr('adminOrg.hqMembers', 'HQ members')
+                      : tr('adminOrg.teamMembers', 'Team members')}
+                    <span className="ml-2 text-slate-500">({orgMembers.length})</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrg(null)}
+                className="rounded p-1.5 text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-xl border border-slate-700/50">
+              {orgMembers.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-500">
+                  {tr('adminOrg.noMembers', 'No members in this organization.')}
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800 sticky top-0">
+                    <tr className="text-left text-slate-300">
+                      <th className="px-3 py-2.5">{tr('adminOrg.col.name', 'Name')}</th>
+                      <th className="px-3 py-2.5">{tr('adminOrg.col.email', 'Email')}</th>
+                      <th className="px-3 py-2.5">{tr('adminOrg.col.role', 'Role')}</th>
+                      <th className="px-3 py-2.5">
+                        {selectedOrg.type === 'hq'
+                          ? tr('adminOrg.col.team', 'Team')
+                          : tr('adminOrg.col.hq', 'HQ')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orgMembers.map((u) => (
+                      <tr key={u.id} className="border-t border-slate-700 text-slate-200">
+                        <td className="px-3 py-2.5">{u.name}</td>
+                        <td className="px-3 py-2.5 text-slate-400">{u.email ?? '-'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="inline-block rounded bg-slate-700/60 px-2 py-0.5 text-[11px] text-slate-300">
+                            {u.role?.name ?? '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500">
+                          {selectedOrg.type === 'hq' ? (u.team ?? '-') : (u.hq ?? '-')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedOrg(null)}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                {tr('adminOrg.close', 'Close')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   )
 }
