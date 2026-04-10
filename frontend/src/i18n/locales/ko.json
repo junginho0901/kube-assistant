@@ -72,6 +72,7 @@
     "customInstances": "커스텀 리소스 인스턴스",
     "customGroups": "커스텀 리소스 정의",
     "userManagement": "유저 관리",
+    "roleManagement": "역할 관리",
     "aiModels": "AI 모델 설정",
     "nodeShell": "노드 셸",
     "organizations": "본부 / 팀"

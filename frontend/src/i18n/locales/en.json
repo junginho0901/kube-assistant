@@ -72,6 +72,7 @@
     "customInstances": "Custom Resource Instances",
     "customGroups": "Custom Resource Definitions",
     "userManagement": "User Management",
+    "roleManagement": "Role Management",
     "aiModels": "AI Models",
     "nodeShell": "Node Shell",
     "organizations": "HQ / Team"
