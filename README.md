@@ -1,6 +1,12 @@
-# 🚀 Kube Assistant - MSA 아키텍처
+# Kubest
 
-AI-powered Kubernetes cluster management assistant with Microservice Architecture. Natural language interface for K8s resource queries, log analysis, and cluster monitoring using OpenAI.
+> Kubernetes DevOps Assistant with AI Chat
+
+Kubest는 자연어 기반 AI 어시스턴트와 풍부한 대시보드를 결합한 Kubernetes 운영 플랫폼입니다.
+멀티 클러스터 관리, GPU/DRA 모니터링, RBAC, Node Shell, 토폴로지 시각화 등 운영에 필요한 기능을
+하나의 UI에서 제공합니다.
+
+---
 
 ## 📊 아키텍처 개요
 
