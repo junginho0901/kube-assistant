@@ -2136,7 +2136,12 @@ export default function Dashboard() {
                 const memoryPercent = parseFloat(node.memory_percent)
 
                 return (
-                  <div key={node.name} className="space-y-3">
+                  <button
+                    type="button"
+                    key={node.name}
+                    onClick={() => openDetail({ kind: 'Node', name: node.name })}
+                    className="w-full text-left space-y-3 p-2 -m-2 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-cyan-500/20">
                         <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
@@ -2197,7 +2202,7 @@ export default function Dashboard() {
                         />
                       </div>
                     </div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
