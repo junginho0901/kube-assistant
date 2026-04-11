@@ -63,6 +63,43 @@ helm uninstall kubest -n kubest
 
 ---
 
+## 주요 기능
+
+### AI Assistant
+- OpenAI · Anthropic · Gemini 다중 LLM 지원
+- 세션 기반 대화형 챗봇 (스트리밍)
+- 로그 분석 / 트러블슈팅 / 리소스 설명 / 최적화 제안
+- Tool calling 기반 K8s 리소스 자동 조회
+
+### Kubernetes 리소스 관리
+- **Workloads**: Pod, Deployment, StatefulSet, DaemonSet, Job, CronJob, ReplicaSet, HPA, VPA, PDB
+- **Network**: Service, Ingress, NetworkPolicy, EndpointSlice, Gateway API
+- **Storage**: PV, PVC, StorageClass, VolumeSnapshot
+- **Configuration**: ConfigMap, Secret, ResourceQuota, LimitRange, PriorityClass
+- **Security**: Role, ClusterRole, RoleBinding, ServiceAccount
+- **Custom Resources**: CRD 동적 탐색 및 편집
+
+### GPU & DRA (Dynamic Resource Allocation)
+- GPU 노드 / Pod / 사용률 대시보드
+- DeviceClass, ResourceClaim, ResourceClaimTemplate, ResourceSlice 관리
+- NVIDIA GPU 메트릭 시각화
+
+### 운영 도구
+- **Topology View**: 클러스터 리소스 관계 시각화 (React Flow)
+- **Dependency Graph**: 워크로드 간 의존성 그래프
+- **Node Shell**: 웹 기반 노드 터미널 (xterm.js)
+- **Advanced Search**: JSONPath · 표현식 기반 리소스 탐색
+- **Monitoring**: Prometheus 메트릭 차트, 이상 감지, 상관 분석
+- **Multi-Cluster**: 여러 클러스터 동시 관리
+
+### 인증 / 권한
+- JWT 기반 자체 인증 (auth-service)
+- 조직(Organization) / 팀(Team) / 사용자(User) 계층
+- 리소스 단위 RBAC (Custom Roles)
+- i18n: 한국어 · 영어
+
+---
+
 ## 📊 아키텍처 개요
 
 ```
