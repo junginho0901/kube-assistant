@@ -128,46 +128,36 @@ helm uninstall kubest -n kubest
                                                    └──────────┘
 ```
 
-## 🎯 서비스 구성
+### 서비스 구성
 
-### 1. **AI Service** (Port 8001)
-- **역할**: OpenAI 통합 및 AI 기능 전담
-- **기능**:
-  - 세션 기반 AI 챗봇 (`/api/v1/ai/sessions/{id}/chat`)
-  - 로그 분석 (`/api/v1/ai/analyze-logs`)
-  - 트러블슈팅 (`/api/v1/ai/troubleshoot`)
-  - 리소스 설명 (`/api/v1/ai/explain-resource`)
-  - 최적화 제안 (`/api/v1/ai/suggest-optimization`)
-- **의존성**: PostgreSQL, Redis, K8s Service
+| 서비스 | 언어 | 포트 | 역할 |
+| --- | --- | --- | --- |
+| `gateway` | NGINX | 8000 | API 라우팅, CORS, SSE/WebSocket 프록시 |
+| `auth-service` | Go | 8004 | 사용자 인증, JWT 발급, JWKS, 조직/팀/RBAC |
+| `ai-service` | Python (FastAPI) | 8001 | LLM 통합, 챗봇, 로그 분석, Tool calling |
+| `k8s-service` | Go | 8002 | K8s 리소스 CRUD, WebSocket 로그/exec, 토폴로지 |
+| `session-service` | Go | 8003 | 채팅 세션 / 메시지 히스토리 |
+| `tool-server` | Go | - | AI Tool 호출 백엔드 |
+| `model-config-controller` | Go (controller-runtime) | - | `ModelConfig` CRD 컨트롤러 |
+| `frontend` | React + Vite + TS | 5173 | UI |
+| `postgres` | - | 5432 | 메인 DB |
+| `redis` | - | 6379 | 캐시 / 세션 컨텍스트 |
 
-### 2. **K8s Service** (Port 8002)
-- **역할**: Kubernetes 클러스터 관리 전담
-- **기능**:
-  - 클러스터 리소스 조회 (`/api/v1/cluster/*`)
-  - Pod/Deployment/Service 관리
-  - WebSocket 로그 스트리밍 (`/api/v1/ws/*`)
-  - 토폴로지 시각화 (`/api/v1/topology/*`)
-- **의존성**: Kubernetes API, kubeconfig
+### 컨테이너 이미지
 
-### 3. **Session Service** (Port 8003)
-- **역할**: 채팅 세션 및 히스토리 관리
-- **기능**:
-  - 세션 CRUD (`/api/v1/sessions/*`)
-  - 메시지 히스토리 저장/조회
-  - Tool Context 저장 (Redis)
-- **의존성**: PostgreSQL
+모든 이미지는 Docker Hub에 게시되어 있습니다.
 
-### 4. **API Gateway** (Port 8000)
-- **역할**: 라우팅 및 로드 밸런싱
-- **기능**:
-  - 요청 라우팅
-  - CORS 처리
-  - SSE 및 WebSocket 프록시
-- **기술**: NGINX
+| 이미지 |
+| --- |
+| `jeonginho/kubest-frontend` |
+| `jeonginho/kubest-auth-service` |
+| `jeonginho/kubest-ai-service` |
+| `jeonginho/kubest-k8s-service` |
+| `jeonginho/kubest-session-service` |
+| `jeonginho/kubest-tool-server` |
+| `jeonginho/kubest-model-config-controller-go` |
 
-### 5. **Frontend** (Port 5173)
-- **역할**: React 기반 UI
-- **기술**: React + TypeScript + Tailwind CSS
+---
 
 ## 📁 디렉토리 구조
 
