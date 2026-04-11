@@ -2025,7 +2025,12 @@ export default function Dashboard() {
             // 데이터가 있을 때: 데이터 표시 (백그라운드 갱신 중에도 이전 데이터 유지)
             <div className="space-y-3">
               {topResources.top_pods.map((pod, index) => (
-                <div key={`${pod.namespace}-${pod.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                <button
+                  type="button"
+                  key={`${pod.namespace}-${pod.name}`}
+                  onClick={() => openDetail({ kind: 'Pod', name: pod.name, namespace: pod.namespace })}
+                  className="w-full text-left p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500/20">
                       <span className="text-primary-400 font-bold text-sm">#{index + 1}</span>
@@ -2047,7 +2052,7 @@ export default function Dashboard() {
                       <span className="text-blue-400 font-mono font-medium">{pod.memory}</span>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : topResources?.pod_error ? (
