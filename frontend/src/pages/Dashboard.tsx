@@ -3152,7 +3152,11 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((svc) => (
-                          <div key={`${svc.namespace}-${svc.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                          <div
+                            key={`${svc.namespace}-${svc.name}`}
+                            onClick={() => openDetail({ kind: 'Service', name: svc.name, namespace: svc.namespace })}
+                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
+                          >
                             <div className="flex items-center justify-between">
                               <div>
                                 <h3 className="font-medium text-white">{svc.name}</h3>
