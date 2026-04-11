@@ -3184,7 +3184,11 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       {filteredResources.length > 0 ? (
                         filteredResources.map((deploy) => (
-                          <div key={`${deploy.namespace}-${deploy.name}`} className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                          <div
+                            key={`${deploy.namespace}-${deploy.name}`}
+                            onClick={() => openDetail({ kind: 'Deployment', name: deploy.name, namespace: deploy.namespace })}
+                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
+                          >
                             <div className="flex items-center justify-between">
                               <div>
                                 <h3 className="font-medium text-white">{deploy.name}</h3>
