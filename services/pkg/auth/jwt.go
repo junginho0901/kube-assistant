@@ -225,7 +225,7 @@ func (v *JWTValidator) Validate(tokenStr string) (TokenPayload, error) {
 // It checks the Authorization header first, then falls back to a cookie
 // (needed for browser WebSocket connections which can't set custom headers).
 func (v *JWTValidator) Middleware(next http.Handler) http.Handler {
-	return v.MiddlewareWithCookie("kube-assistant.token", next)
+	return v.MiddlewareWithCookie("kubeast.token", next)
 }
 
 // MiddlewareWithCookie returns middleware that checks Authorization header first,

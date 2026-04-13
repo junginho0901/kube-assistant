@@ -1,4 +1,4 @@
-module github.com/junginho0901/kube-assistant/services/pkg
+module github.com/junginho0901/kubeast/services/pkg
 
 go 1.22
 
