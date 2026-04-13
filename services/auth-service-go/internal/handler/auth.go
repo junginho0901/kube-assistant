@@ -640,6 +640,10 @@ func (h *AuthHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdminResetPassword handles POST /auth/admin/users/{user_id}/reset-password
+//
+// 1회용 랜덤 비밀번호를 생성하여 사용자의 PasswordHash 를 갱신하고,
+// 평문 비밀번호를 응답에 포함시켜 관리자가 사용자에게 전달할 수 있게 합니다.
+// 평문은 DB 에 저장되지 않으며 응답 한 번에만 노출됩니다.
 func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	payload, ok := auth.FromContext(r.Context())
 	if !ok || !payload.HasPermission("admin.users.update") {
@@ -654,7 +658,13 @@ func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	newHash, err := security.HashPassword("1111", h.cfg.PasswordHashIterations)
+	tempPassword, err := security.GenerateRandomPassword(12)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Failed to generate password")
+		return
+	}
+
+	newHash, err := security.HashPassword(tempPassword, h.cfg.PasswordHashIterations)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to hash password")
 		return
@@ -676,7 +686,10 @@ func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request)
 	if updated == nil {
 		updated = target
 	}
-	response.JSON(w, http.StatusOK, updated.ToResponse())
+	response.JSON(w, http.StatusOK, model.AdminResetPasswordResponse{
+		UserResponse:      updated.ToResponse(),
+		TemporaryPassword: tempPassword,
+	})
 }
 
 // AdminDeleteUser handles DELETE /auth/admin/users/{user_id}
