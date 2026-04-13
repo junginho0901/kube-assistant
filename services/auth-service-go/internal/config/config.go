@@ -56,11 +56,13 @@ func Load() Config {
 
 		PasswordHashIterations: pkgconfig.GetEnvInt("PASSWORD_HASH_ITERATIONS", 210000),
 
-		DefaultAdminEmail:    pkgconfig.GetEnv("DEFAULT_ADMIN_EMAIL", "admin@local"),
-		DefaultAdminPassword: pkgconfig.GetEnv("DEFAULT_ADMIN_PASSWORD", "admin"),
-		DefaultReadEmail:     pkgconfig.GetEnv("DEFAULT_READ_EMAIL", "read@local"),
+		DefaultAdminEmail: pkgconfig.GetEnv("DEFAULT_ADMIN_EMAIL", "admin"),
+		// 프로덕션에서는 반드시 DEFAULT_ADMIN_PASSWORD 환경변수로 강한 값을 주입하세요.
+		// helm chart 는 자동으로 랜덤 생성합니다 (templates/secret.yaml 참고).
+		DefaultAdminPassword: pkgconfig.GetEnv("DEFAULT_ADMIN_PASSWORD", "change-me-do-not-use-in-prod"),
+		DefaultReadEmail:     pkgconfig.GetEnv("DEFAULT_READ_EMAIL", "read"),
 		DefaultReadPassword:  pkgconfig.GetEnv("DEFAULT_READ_PASSWORD", "read"),
-		DefaultWriteEmail:    pkgconfig.GetEnv("DEFAULT_WRITE_EMAIL", "write@local"),
+		DefaultWriteEmail:    pkgconfig.GetEnv("DEFAULT_WRITE_EMAIL", "write"),
 		DefaultWritePassword: pkgconfig.GetEnv("DEFAULT_WRITE_PASSWORD", "write"),
 
 		AuthCookieName: pkgconfig.GetEnv("AUTH_COOKIE_NAME", "kube-assistant.token"),
