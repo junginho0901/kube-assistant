@@ -3,7 +3,7 @@
 # Kubest Installer
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/JeongInho/kubest/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/JeongInho/kubeast/main/install.sh | bash
 #
 #   # Or with options:
 #   curl -sSL ... | bash -s -- --node-port 30080
@@ -13,12 +13,12 @@
 set -euo pipefail
 
 # Defaults
-NAMESPACE="kubest"
-RELEASE_NAME="kubest"
+NAMESPACE="kubeast"
+RELEASE_NAME="kubeast"
 CHART_VERSION="0.1.0"
 SERVICE_TYPE="NodePort"
 NODE_PORT="30333"
-REPO_URL="https://github.com/JeongInho/kube-assistant"
+REPO_URL="https://github.com/JeongInho/kubeast"
 
 # Colors
 RED='\033[0;31m'
@@ -28,10 +28,10 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()  { echo -e "${CYAN}[kubest]${NC} $1"; }
-ok()    { echo -e "${GREEN}[kubest]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[kubest]${NC} $1"; }
-fail()  { echo -e "${RED}[kubest]${NC} $1"; exit 1; }
+info()  { echo -e "${CYAN}[kubeast]${NC} $1"; }
+ok()    { echo -e "${GREEN}[kubeast]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[kubeast]${NC} $1"; }
+fail()  { echo -e "${RED}[kubeast]${NC} $1"; exit 1; }
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: curl -sSL <url>/install.sh | bash -s -- [OPTIONS]"
       echo ""
       echo "Options:"
-      echo "  --namespace <ns>     Namespace (default: kubest)"
+      echo "  --namespace <ns>     Namespace (default: kubeast)"
       echo "  --node-port <port>   NodePort number (default: 30080)"
       echo "  --load-balancer      Use LoadBalancer instead of NodePort"
       echo "  --cluster-ip         Use ClusterIP (for use with ingress)"
@@ -75,16 +75,16 @@ TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
 if command -v git >/dev/null 2>&1; then
-  git clone --depth 1 --branch "v${CHART_VERSION}" "$REPO_URL.git" "$TMPDIR/kubest" 2>/dev/null || \
-  git clone --depth 1 "$REPO_URL.git" "$TMPDIR/kubest" 2>/dev/null || \
+  git clone --depth 1 --branch "v${CHART_VERSION}" "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
+  git clone --depth 1 "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
   fail "Failed to download chart. Check your internet connection."
 else
-  curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$TMPDIR/kubest.tar.gz" || fail "Failed to download chart."
-  tar -xzf "$TMPDIR/kubest.tar.gz" -C "$TMPDIR"
-  mv "$TMPDIR"/kubest-main "$TMPDIR/kubest" 2>/dev/null || mv "$TMPDIR"/AgentForCMP-main "$TMPDIR/kubest" 2>/dev/null || true
+  curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$TMPDIR/kubeast.tar.gz" || fail "Failed to download chart."
+  tar -xzf "$TMPDIR/kubeast.tar.gz" -C "$TMPDIR"
+  mv "$TMPDIR"/kubeast-main "$TMPDIR/kubeast" 2>/dev/null || mv "$TMPDIR"/AgentForCMP-main "$TMPDIR/kubeast" 2>/dev/null || true
 fi
 
-CHART_PATH="$TMPDIR/kubest/helm/kubest"
+CHART_PATH="$TMPDIR/kubeast/helm/kubeast"
 [ -f "$CHART_PATH/Chart.yaml" ] || fail "Chart not found in downloaded files."
 ok "Chart downloaded"
 
@@ -138,7 +138,7 @@ else
 fi
 
 echo ""
-ADMIN_PW=$(kubectl -n "$NAMESPACE" get secret kubest-secrets \
+ADMIN_PW=$(kubectl -n "$NAMESPACE" get secret kubeast-secrets \
   -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
 echo "  Default account:"
 echo "    ID:       admin"
@@ -147,7 +147,7 @@ if [[ -n "$ADMIN_PW" ]]; then
   echo -e "    ${YELLOW}⚠ 로그인 후 즉시 비밀번호를 변경하세요.${NC}"
 else
   echo "    Password: <secret 조회 실패 — 아래 명령으로 직접 확인>"
-  echo "      kubectl -n $NAMESPACE get secret kubest-secrets \\"
+  echo "      kubectl -n $NAMESPACE get secret kubeast-secrets \\"
   echo "        -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' | base64 -d ; echo"
 fi
 echo ""
@@ -157,5 +157,5 @@ echo "    2. Connect your cluster"
 echo "    3. Sign in with admin account"
 echo "    4. Go to Admin > AI Models to add your AI provider"
 echo ""
-echo -e "  Uninstall: ${CYAN}helm uninstall kubest -n ${NAMESPACE}${NC}"
+echo -e "  Uninstall: ${CYAN}helm uninstall kubeast -n ${NAMESPACE}${NC}"
 echo ""

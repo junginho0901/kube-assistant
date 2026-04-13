@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kube-assistant}"
-NAMESPACE="${NAMESPACE:-kube-assistant}"
+KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kubeast}"
+NAMESPACE="${NAMESPACE:-kubeast}"
 IMAGE_TAG="${IMAGE_TAG:-local}"
 WAIT="${WAIT:-true}"
-DEFAULT_KUBECONFIG_PATH="/tmp/kube-assistant-kubeconfig"
+DEFAULT_KUBECONFIG_PATH="/tmp/kubeast-kubeconfig"
 
 resolve_kubeconfig_path() {
   # Priority:
@@ -45,14 +45,14 @@ Options:
   --all                Rebuild all known services
   --list               List available services
   --tag <tag>           Image tag (default: dev)
-  --cluster <name>      Kind cluster name (default: kube-assistant)
-  --namespace <ns>      Kubernetes namespace (default: kube-assistant)
+  --cluster <name>      Kind cluster name (default: kubeast)
+  --namespace <ns>      Kubernetes namespace (default: kubeast)
   --no-wait             Do not wait for rollout to finish
   -h, --help            Show this help
 
 Examples:
   scripts/rebuild-kind.sh ai-service frontend
-  scripts/rebuild-kind.sh --tag dev --cluster kube-assistant tool-server
+  scripts/rebuild-kind.sh --tag dev --cluster kubeast tool-server
   scripts/rebuild-kind.sh --all
 USAGE
 }
@@ -193,7 +193,7 @@ build_and_load() {
 
   local ctx
   ctx="$(get_context "$svc")"
-  local image="kube-assistant/${svc}:${IMAGE_TAG}"
+  local image="kubeast/${svc}:${IMAGE_TAG}"
 
   if [[ -z "$ctx" ]]; then
     echo "Unknown service: $svc" >&2

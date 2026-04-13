@@ -68,7 +68,7 @@ step "Building and pushing (tag: $TAG)"
 
 for entry in "${SERVICES[@]}"; do
   IFS=':' read -r name ctx dockerfile <<< "$entry"
-  img="${DOCKER_USER}/kubest-${name}"
+  img="${DOCKER_USER}/kubeast-${name}"
 
   echo -e "\n  ${YELLOW}[${name}]${NC}"
 
@@ -102,9 +102,9 @@ done
 
 # Update values.yaml imageTag
 if [[ "$TAG" != "latest" ]]; then
-  step "Updating helm/kubest/values.yaml"
-  sed -i '' "s/imageTag: .*/imageTag: \"${TAG}\"/" "$ROOT/helm/kubest/values.yaml" 2>/dev/null || \
-  sed -i "s/imageTag: .*/imageTag: \"${TAG}\"/" "$ROOT/helm/kubest/values.yaml" 2>/dev/null || true
+  step "Updating helm/kubeast/values.yaml"
+  sed -i '' "s/imageTag: .*/imageTag: \"${TAG}\"/" "$ROOT/helm/kubeast/values.yaml" 2>/dev/null || \
+  sed -i "s/imageTag: .*/imageTag: \"${TAG}\"/" "$ROOT/helm/kubeast/values.yaml" 2>/dev/null || true
   ok "imageTag → ${TAG}"
 fi
 
@@ -114,6 +114,6 @@ echo ""
 echo "  Images pushed:"
 for entry in "${SERVICES[@]}"; do
   name="${entry%%:*}"
-  echo "    ${DOCKER_USER}/kubest-${name}:${TAG}"
+  echo "    ${DOCKER_USER}/kubeast-${name}:${TAG}"
 done
 echo ""

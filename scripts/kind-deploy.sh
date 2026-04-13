@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kube-assistant}"
+KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-kubeast}"
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-$ROOT/.kubeconfig-kind}"
 
 export KUBECONFIG="$KUBECONFIG_PATH"
@@ -12,13 +12,13 @@ if ! kind get clusters | grep -qx "$KIND_CLUSTER_NAME"; then
 fi
 
 declare -a IMAGES=(
-  "kube-assistant/auth-service:local services/auth-service"
-  "kube-assistant/ai-service:local services/ai-service"
-  "kube-assistant/k8s-service:local services/k8s-service"
-  "kube-assistant/tool-server:local services/tool-server"
-  "kube-assistant/session-service:local services/session-service"
-  "kube-assistant/frontend:local frontend"
-  "kube-assistant/model-config-controller-go:local services/model-config-controller-go"
+  "kubeast/auth-service:local services/auth-service"
+  "kubeast/ai-service:local services/ai-service"
+  "kubeast/k8s-service:local services/k8s-service"
+  "kubeast/tool-server:local services/tool-server"
+  "kubeast/session-service:local services/session-service"
+  "kubeast/frontend:local frontend"
+  "kubeast/model-config-controller-go:local services/model-config-controller-go"
 )
 
 for item in "${IMAGES[@]}"; do
@@ -31,8 +31,8 @@ done
 kubectl apply -k "$ROOT/k8s"
 
 if [[ -f "$ROOT/k8s/secret.local.yaml" ]]; then
-  kubectl -n kube-assistant apply -f "$ROOT/k8s/secret.local.yaml"
+  kubectl -n kubeast apply -f "$ROOT/k8s/secret.local.yaml"
 fi
 
-kubectl -n kube-assistant rollout restart deploy/model-config-controller-go || true
-kubectl -n kube-assistant rollout restart deploy/k8s-service deploy/frontend || true
+kubectl -n kubeast rollout restart deploy/model-config-controller-go || true
+kubectl -n kubeast rollout restart deploy/k8s-service deploy/frontend || true

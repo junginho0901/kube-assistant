@@ -13,9 +13,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KIND_NAME="kube-assistant"
-NS="kube-assistant"
-KUBECONFIG_PATH="/tmp/kube-assistant-kubeconfig"
+KIND_NAME="kubeast"
+NS="kubeast"
+KUBECONFIG_PATH="/tmp/kubeast-kubeconfig"
 TAG="local"
 
 # Colors
@@ -87,7 +87,7 @@ if [[ "$MODE" == "--keep" || "$MODE" == "--db" ]]; then
   fi
 
   # 모든 테이블 데이터 삭제 (순서 중요: FK 의존성)
-  kubectl exec -n "$NS" "$PG_POD" -- psql -U kubest -d kubest -c "
+  kubectl exec -n "$NS" "$PG_POD" -- psql -U kubeast -d kubeast -c "
     -- AI service tables
     DELETE FROM session_contexts;
     DELETE FROM messages;
@@ -114,7 +114,7 @@ if [[ "$MODE" == "--keep" || "$MODE" == "--db" ]]; then
   fi
 
   # 클러스터 목록 ConfigMap 삭제
-  kubectl delete configmap kube-assistant-clusters -n "$NS" --ignore-not-found 2>/dev/null
+  kubectl delete configmap kubeast-clusters -n "$NS" --ignore-not-found 2>/dev/null
   ok "Deleted cluster registry ConfigMap"
 
   # auth-service 재시작하면 기본 계정 자동 생성됨
@@ -155,7 +155,7 @@ if [[ "$MODE" == "--keep" || "$MODE" == "--db" ]]; then
     step "Done! Access http://localhost:30080/setup"
     echo ""
     # --db 모드는 secret 을 건드리지 않으므로 기존 값을 그대로 보여줌
-    DB_ADMIN_PW=$(kubectl -n "$NS" get secret kube-assistant-secrets \
+    DB_ADMIN_PW=$(kubectl -n "$NS" get secret kubeast-secrets \
       -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
     [[ -z "$DB_ADMIN_PW" ]] && DB_ADMIN_PW="<secret 조회 실패>"
     echo "  Accounts:"
@@ -186,7 +186,7 @@ IMAGES=(
 BUILT_IMAGES=()
 for entry in "${IMAGES[@]}"; do
   IFS=':' read -r name ctx dockerfile <<< "$entry"
-  img="kube-assistant/${name}:${TAG}"
+  img="kubeast/${name}:${TAG}"
   echo -e "  Building ${YELLOW}${img}${NC} ..."
   if [[ -n "$dockerfile" ]]; then
     docker build -t "$img" -f "$ROOT/$ctx/$dockerfile" "$ROOT/$ctx" 2>&1 | tail -1
@@ -226,7 +226,7 @@ fi
 step "Generating random admin password"
 ADMIN_PW="$(openssl rand -hex 10)"  # 20 hex chars
 ADMIN_PW_B64="$(printf '%s' "$ADMIN_PW" | base64)"
-kubectl -n "$NS" patch secret kube-assistant-secrets --type='json' \
+kubectl -n "$NS" patch secret kubeast-secrets --type='json' \
   -p="[{\"op\":\"replace\",\"path\":\"/data/DEFAULT_ADMIN_PASSWORD\",\"value\":\"${ADMIN_PW_B64}\"}]" \
   >/dev/null
 ok "admin password injected (length=${#ADMIN_PW})"
@@ -237,13 +237,13 @@ ok "admin password injected (length=${#ADMIN_PW})"
 step "Patching image tags to :${TAG}"
 
 for name in auth-service ai-service k8s-service session-service frontend; do
-  kubectl set image "deployment/${name}" "${name}=kube-assistant/${name}:${TAG}" -n "$NS" 2>/dev/null || true
+  kubectl set image "deployment/${name}" "${name}=kubeast/${name}:${TAG}" -n "$NS" 2>/dev/null || true
 done
 # tool-server: 단일 deployment
-kubectl set image "deployment/tool-server" "tool-server=kube-assistant/tool-server:${TAG}" -n "$NS" 2>/dev/null || true
+kubectl set image "deployment/tool-server" "tool-server=kubeast/tool-server:${TAG}" -n "$NS" 2>/dev/null || true
 # model-config-controller-go (container name = controller)
 kubectl set image "deployment/model-config-controller-go" \
-  "controller=kube-assistant/model-config-controller-go:${TAG}" -n "$NS" 2>/dev/null || true
+  "controller=kubeast/model-config-controller-go:${TAG}" -n "$NS" 2>/dev/null || true
 
 ok "Image tags patched"
 
@@ -276,32 +276,32 @@ if [[ -n "$PG_POD" ]]; then
     grep -q '0.0.0.0/0' /var/lib/postgresql/data/pg_hba.conf || echo 'host all all 0.0.0.0/0 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
     grep -q '::/0' /var/lib/postgresql/data/pg_hba.conf || echo 'host all all ::/0 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
   " >/dev/null 2>&1 || true
-  kubectl exec -n "$NS" "$PG_POD" -- psql -U kubest -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
+  kubectl exec -n "$NS" "$PG_POD" -- psql -U kubeast -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
   ok "pg_hba.conf updated"
 else
   warn "Postgres pod not found for pg_hba.conf update"
 fi
 
-# Postgres 데이터가 남아있으면 kubest DB가 없을 수 있으므로 안전하게 생성
-step "Ensuring kubest database exists"
+# Postgres 데이터가 남아있으면 kubeast DB가 없을 수 있으므로 안전하게 생성
+step "Ensuring kubeast database exists"
 PG_POD=""
 for attempt in $(seq 1 10); do
   PG_POD=$(kubectl get pod -n "$NS" -l app=postgres -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
   if [[ -n "$PG_POD" ]]; then
     # Pod Ready 상태인지 확인
-    kubectl exec -n "$NS" "$PG_POD" -- pg_isready -U kubest 2>/dev/null && break
+    kubectl exec -n "$NS" "$PG_POD" -- pg_isready -U kubeast 2>/dev/null && break
   fi
   echo "  Waiting for postgres to be ready... (attempt $attempt/10)"
   sleep 3
 done
 
 if [[ -n "$PG_POD" ]]; then
-  DB_EXISTS=$(kubectl exec -n "$NS" "$PG_POD" -- psql -U kubest -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='kubest'" 2>/dev/null || echo "")
+  DB_EXISTS=$(kubectl exec -n "$NS" "$PG_POD" -- psql -U kubeast -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='kubeast'" 2>/dev/null || echo "")
   if [[ "$DB_EXISTS" != "1" ]]; then
-    kubectl exec -n "$NS" "$PG_POD" -- psql -U kubest -d postgres -c "CREATE DATABASE kubest;" 2>/dev/null
-    ok "Created kubest database"
+    kubectl exec -n "$NS" "$PG_POD" -- psql -U kubeast -d postgres -c "CREATE DATABASE kubeast;" 2>/dev/null
+    ok "Created kubeast database"
   else
-    ok "kubest database already exists"
+    ok "kubeast database already exists"
   fi
 else
   fail "Postgres pod not found"

@@ -1,18 +1,18 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: kube-assistant
+  name: kubeast
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kube-assistant-config
-  namespace: kube-assistant
+  name: kubeast-config
+  namespace: kubeast
 data:
-  POSTGRES_USER: kubest
-  POSTGRES_DB: kubest
-  JWT_ISSUER: kube-assistant-auth
-  JWT_AUDIENCE: kube-assistant
+  POSTGRES_USER: kubeast
+  POSTGRES_DB: kubeast
+  JWT_ISSUER: kubeast-auth
+  JWT_AUDIENCE: kubeast
   JWT_EXPIRES_MINUTES: "10080"
   DEFAULT_ADMIN_EMAIL: admin
   OPENAI_MODEL: gpt-4o-mini
@@ -34,7 +34,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gateway-config
-  namespace: kube-assistant
+  namespace: kubeast
 data:
   nginx.conf: |
     events {
@@ -212,7 +212,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: k8s-service
-  namespace: kube-assistant
+  namespace: kubeast
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -221,7 +221,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: k8s-service
-    namespace: kube-assistant
+    namespace: kubeast
 roleRef:
   kind: ClusterRole
   name: view
@@ -234,7 +234,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: k8s-service
-    namespace: kube-assistant
+    namespace: kubeast
 roleRef:
   kind: ClusterRole
   name: system:discovery
@@ -259,7 +259,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-data
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   accessModes:
     - ReadWriteOnce
@@ -273,7 +273,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -291,9 +291,9 @@ spec:
             - containerPort: 5432
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
@@ -306,7 +306,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: postgres
@@ -318,7 +318,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -339,7 +339,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: redis
@@ -351,7 +351,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -364,15 +364,15 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: kube-assistant/auth-service:dev
+          image: kubeast/auth-service:dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8004
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           env:
             - name: DATABASE_URL
               value: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
@@ -387,7 +387,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: auth-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: auth-service
@@ -399,7 +399,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -412,15 +412,15 @@ spec:
     spec:
       containers:
         - name: ai-service
-          image: kube-assistant/ai-service:dev
+          image: kubeast/ai-service:dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8001
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           env:
             - name: DATABASE_URL
               value: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
@@ -435,7 +435,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ai-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: ai-service
@@ -447,7 +447,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: k8s-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -461,15 +461,15 @@ spec:
       serviceAccountName: k8s-service
       containers:
         - name: k8s-service
-          image: kube-assistant/k8s-service:dev
+          image: kubeast/k8s-service:dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8002
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           volumeMounts:
             - name: kubeconfig
               mountPath: /app/kubeconfig.yaml
@@ -484,7 +484,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: k8s-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: k8s-service
@@ -496,7 +496,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: session-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -509,15 +509,15 @@ spec:
     spec:
       containers:
         - name: session-service
-          image: kube-assistant/session-service:dev
+          image: kubeast/session-service:dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8003
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           env:
             - name: DATABASE_URL
               value: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
@@ -526,7 +526,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: session-service
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: session-service
@@ -538,7 +538,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gateway
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -567,7 +567,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gateway
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: gateway
@@ -581,7 +581,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   replicas: 1
   selector:
@@ -594,7 +594,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: kube-assistant/frontend:dev
+          image: kubeast/frontend:dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5173
@@ -602,19 +602,19 @@ spec:
             - name: VITE_API_URL
               valueFrom:
                 configMapKeyRef:
-                  name: kube-assistant-config
+                  name: kubeast-config
                   key: VITE_API_URL
             - name: VITE_WS_URL
               valueFrom:
                 configMapKeyRef:
-                  name: kube-assistant-config
+                  name: kubeast-config
                   key: VITE_WS_URL
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: kube-assistant
+  namespace: kubeast
 spec:
   selector:
     app: frontend

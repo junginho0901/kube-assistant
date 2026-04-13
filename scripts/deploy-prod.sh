@@ -30,10 +30,10 @@ done
 
 kubectl apply -k "$ROOT/k8s"
 
-kubectl -n kube-assistant set image deploy/auth-service auth-service="$REGISTRY/auth-service:$TAG"
-kubectl -n kube-assistant set image deploy/ai-service ai-service="$REGISTRY/ai-service:$TAG"
-kubectl -n kube-assistant set image deploy/k8s-service k8s-service="$REGISTRY/k8s-service:$TAG"
-kubectl -n kube-assistant set image deploy/tool-server tool-server="$REGISTRY/tool-server:$TAG"
-kubectl -n kube-assistant set image deploy/session-service session-service="$REGISTRY/session-service:$TAG"
-kubectl -n kube-assistant set image deploy/frontend frontend="$REGISTRY/frontend:$TAG"
-kubectl -n kube-assistant set image deploy/model-config-controller-go controller="$REGISTRY/model-config-controller-go:$TAG"
+kubectl -n kubeast set image deploy/auth-service auth-service="$REGISTRY/auth-service:$TAG"
+kubectl -n kubeast set image deploy/ai-service ai-service="$REGISTRY/ai-service:$TAG"
+kubectl -n kubeast set image deploy/k8s-service k8s-service="$REGISTRY/k8s-service:$TAG"
+kubectl -n kubeast set image deploy/tool-server tool-server="$REGISTRY/tool-server:$TAG"
+kubectl -n kubeast set image deploy/session-service session-service="$REGISTRY/session-service:$TAG"
+kubectl -n kubeast set image deploy/frontend frontend="$REGISTRY/frontend:$TAG"
+kubectl -n kubeast set image deploy/model-config-controller-go controller="$REGISTRY/model-config-controller-go:$TAG"
