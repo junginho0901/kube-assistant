@@ -34,6 +34,26 @@ func HashPassword(password string, iterations int) (string, error) {
 	return fmt.Sprintf("%s$%d$%s$%s", pbkdf2Alg, iterations, saltB64, dkB64), nil
 }
 
+// GenerateRandomPassword returns a cryptographically random alphanumeric
+// string of the requested length using crypto/rand. Used for admin
+// reset-password and bootstrap fallbacks where the plaintext is shown
+// to a human exactly once.
+func GenerateRandomPassword(length int) (string, error) {
+	if length <= 0 {
+		length = 16
+	}
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	buf := make([]byte, length)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("read random: %w", err)
+	}
+	out := make([]byte, length)
+	for i, b := range buf {
+		out[i] = charset[int(b)%len(charset)]
+	}
+	return string(out), nil
+}
+
 // VerifyPassword checks a password against a stored PBKDF2-SHA256 hash.
 // Timing-safe comparison to prevent timing attacks.
 func VerifyPassword(password, stored string) bool {
