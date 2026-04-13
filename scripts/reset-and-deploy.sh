@@ -154,10 +154,14 @@ if [[ "$MODE" == "--keep" || "$MODE" == "--db" ]]; then
 
     step "Done! Access http://localhost:30080/setup"
     echo ""
+    # --db 모드는 secret 을 건드리지 않으므로 기존 값을 그대로 보여줌
+    DB_ADMIN_PW=$(kubectl -n "$NS" get secret kube-assistant-secrets \
+      -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+    [[ -z "$DB_ADMIN_PW" ]] && DB_ADMIN_PW="<secret 조회 실패>"
     echo "  Accounts:"
-    echo "    admin@local / admin  (admin)"
-    echo "    read@local  / read   (read)"
-    echo "    write@local / write  (write)"
+    echo -e "    admin / ${YELLOW}${DB_ADMIN_PW}${NC}  (admin)"
+    echo "    read  / read   (read)"
+    echo "    write / write  (write)"
     echo ""
     exit 0
   fi
@@ -212,6 +216,20 @@ if [[ -f "$ROOT/k8s/secret.local.yaml" ]]; then
   kubectl apply -f "$ROOT/k8s/secret.local.yaml" -n "$NS"
   ok "Local secrets applied"
 fi
+
+# 매 reset 마다 admin 비밀번호를 새로 생성해서 secret 에 주입.
+# 이후 step 6 에서 auth-service 가 scale=0 → 1 되면서 새 secret 을 읽어 bootstrap.
+#
+# 주의: openssl rand -hex 사용. `tr -dc ... | head -c N` 조합은 head 가
+# 일찍 종료하면 tr 가 SIGPIPE 로 죽으면서 pipefail 에 걸려 스크립트가
+# 조용히 종료됨.
+step "Generating random admin password"
+ADMIN_PW="$(openssl rand -hex 10)"  # 20 hex chars
+ADMIN_PW_B64="$(printf '%s' "$ADMIN_PW" | base64)"
+kubectl -n "$NS" patch secret kube-assistant-secrets --type='json' \
+  -p="[{\"op\":\"replace\",\"path\":\"/data/DEFAULT_ADMIN_PASSWORD\",\"value\":\"${ADMIN_PW_B64}\"}]" \
+  >/dev/null
+ok "admin password injected (length=${#ADMIN_PW})"
 
 # ═══════════════════════════════════════════════════
 # 6. 이미지 태그 패치 (yaml은 :local, 실제는 :dev)
@@ -389,9 +407,11 @@ echo ""
 echo "  URL:  http://localhost:30080/setup"
 echo ""
 echo "  Accounts (created after first auth-service boot):"
-echo "    admin@local / admin   (admin)"
-echo "    read@local  / read    (read)"
-echo "    write@local / write   (write)"
+echo -e "    admin / ${YELLOW}${ADMIN_PW}${NC}   (admin) ← 랜덤 생성됨"
+echo "    read  / read    (read)"
+echo "    write / write   (write)"
+echo ""
+echo -e "  ${YELLOW}⚠ admin 비번은 매 reset 마다 새로 생성됩니다. 로그인 후 즉시 변경하세요.${NC}"
 echo ""
 echo "  Kubeconfig: $KUBECONFIG_PATH"
 echo "  Usage:      export KUBECONFIG=$KUBECONFIG_PATH"

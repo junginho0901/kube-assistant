@@ -138,9 +138,18 @@ else
 fi
 
 echo ""
+ADMIN_PW=$(kubectl -n "$NAMESPACE" get secret kubest-secrets \
+  -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
 echo "  Default account:"
-echo "    Email:    admin@local"
-echo "    Password: admin"
+echo "    ID:       admin"
+if [[ -n "$ADMIN_PW" ]]; then
+  echo -e "    Password: ${BOLD}${ADMIN_PW}${NC}"
+  echo -e "    ${YELLOW}⚠ 로그인 후 즉시 비밀번호를 변경하세요.${NC}"
+else
+  echo "    Password: <secret 조회 실패 — 아래 명령으로 직접 확인>"
+  echo "      kubectl -n $NAMESPACE get secret kubest-secrets \\"
+  echo "        -o jsonpath='{.data.DEFAULT_ADMIN_PASSWORD}' | base64 -d ; echo"
+fi
 echo ""
 echo "  Next steps:"
 echo "    1. Open the URL above"
