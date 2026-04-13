@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // DrainStatus tracks the status of a drain operation.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	"github.com/junginho0901/kube-assistant/services/pkg/auth"
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/auth"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 var wsUpgrader = websocket.Upgrader{

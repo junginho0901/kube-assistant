@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/junginho0901/kube-assistant/services/k8s-service-go/internal/cache"
+	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"

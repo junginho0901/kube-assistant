@@ -1,4 +1,4 @@
-module github.com/junginho0901/kube-assistant/services/k8s-service-go
+module github.com/junginho0901/kubeast/services/k8s-service-go
 
 go 1.22.0
 
@@ -6,7 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/gorilla/websocket v1.5.1
-	github.com/junginho0901/kube-assistant/services/pkg v0.0.0
+	github.com/junginho0901/kubeast/services/pkg v0.0.0
 	github.com/redis/go-redis/v9 v9.5.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.3
@@ -57,4 +57,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/junginho0901/kube-assistant/services/pkg => ../pkg
+replace github.com/junginho0901/kubeast/services/pkg => ../pkg

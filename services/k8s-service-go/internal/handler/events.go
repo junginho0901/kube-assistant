@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // GetEvents handles GET /api/v1/events.

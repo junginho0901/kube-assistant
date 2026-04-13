@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // isDRAAPINotAvailable checks if the error indicates DRA API is not installed.

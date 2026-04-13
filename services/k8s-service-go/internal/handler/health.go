@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // HealthRoot handles GET /.

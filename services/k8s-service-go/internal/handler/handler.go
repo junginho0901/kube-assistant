@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/junginho0901/kube-assistant/services/k8s-service-go/internal/config"
-	"github.com/junginho0901/kube-assistant/services/k8s-service-go/internal/k8s"
-	"github.com/junginho0901/kube-assistant/services/pkg/auth"
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/config"
+	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/k8s"
+	"github.com/junginho0901/kubeast/services/pkg/auth"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // Handler holds the dependencies for HTTP handlers.

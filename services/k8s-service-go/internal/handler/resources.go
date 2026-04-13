@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/junginho0901/kube-assistant/services/pkg/response"
+	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
 // GetGenericResources handles GET /api/v1/resources.
