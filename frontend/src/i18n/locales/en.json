@@ -1897,8 +1897,16 @@
       "password": "Password",
       "delete": "Delete"
     },
-    "resetPasswordConfirm": "Reset password to 1111?\\\\n\\\\nTarget: {{target}}",
-    "resetPasswordTitle": "Reset password to 1111",
+    "resetPasswordConfirm": "Generate a new temporary password?\n\nTarget: {{target}}\n\n* The password will be shown only once — copy and share it with the user.",
+    "resetPasswordTitle": "Issue temporary password",
+    "resetResult": {
+      "title": "Password reset",
+      "target": "Target: {{target}}",
+      "warning": "Copy this temporary password now — it will not be shown again. Ask the user to change it after signing in.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "close": "Done"
+    },
     "resetting": "Resetting...",
     "reset": "Reset PW",
     "deleteConfirm": "Delete this user?\\\\n\\\\nTarget: {{target}}\\\\n\\\\n* Deletions cannot be easily undone.",

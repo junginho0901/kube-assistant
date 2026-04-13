@@ -1937,8 +1937,16 @@
       "password": "비밀번호",
       "delete": "삭제"
     },
-    "resetPasswordConfirm": "비밀번호를 1111로 초기화할까요?\n\n대상: {{target}}",
-    "resetPasswordTitle": "비밀번호를 1111로 초기화",
+    "resetPasswordConfirm": "새 임시 비밀번호를 발급할까요?\n\n대상: {{target}}\n\n* 발급된 비밀번호는 한 번만 표시되며, 사용자에게 직접 전달해야 합니다.",
+    "resetPasswordTitle": "임시 비밀번호 발급",
+    "resetResult": {
+      "title": "비밀번호가 재발급되었습니다",
+      "target": "대상: {{target}}",
+      "warning": "지금 복사해두세요. 이 화면을 닫으면 다시 볼 수 없습니다. 사용자에게 전달 후 즉시 변경하도록 안내하세요.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "close": "확인"
+    },
     "resetting": "초기화중...",
     "reset": "PW 초기화",
     "deleteConfirm": "유저를 삭제할까요?\n\n대상: {{target}}\n\n* 삭제하면 복구가 어렵습니다.",
