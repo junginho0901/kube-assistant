@@ -7,8 +7,8 @@ from fastapi import Header, HTTPException
 
 
 AUTH_JWKS_URL = os.getenv("AUTH_JWKS_URL", "http://auth-service:8004/api/v1/auth/jwks.json")
-JWT_ISSUER = os.getenv("JWT_ISSUER", "kube-assistant-auth")
-JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "kube-assistant")
+JWT_ISSUER = os.getenv("JWT_ISSUER", "kubeast-auth")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "kubeast")
 
 _jwk_client = jwt.PyJWKClient(AUTH_JWKS_URL)
 

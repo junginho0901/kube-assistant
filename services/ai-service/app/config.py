@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     """애플리케이션 설정"""
     
     # App
-    APP_NAME: str = "K8s DevOps Assistant"
+    APP_NAME: str = "Kubeast"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     
