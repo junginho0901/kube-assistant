@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	GroupVersion  = schema.GroupVersion{Group: "ai.kube-assistant.io", Version: "v1alpha1"}
+	GroupVersion  = schema.GroupVersion{Group: "ai.kubeast.io", Version: "v1alpha1"}
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = SchemeBuilder.AddToScheme
 	Codecs        = serializer.NewCodecFactory(runtime.NewScheme())

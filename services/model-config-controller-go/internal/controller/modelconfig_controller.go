@@ -12,7 +12,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
-	"github.com/junginho0901/kube-assistant/model-config-controller-go/api/v1alpha1"
+	"github.com/junginho0901/kubeast/model-config-controller-go/api/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,7 +29,7 @@ import (
 var (
 	syncTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "kube_assistant",
+			Namespace: "kubeast",
 			Subsystem: "model_config_controller",
 			Name:      "sync_total",
 			Help:      "Total number of model config sync attempts",
@@ -38,7 +38,7 @@ var (
 	)
 	secretHashChangeTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "kube_assistant",
+			Namespace: "kubeast",
 			Subsystem: "model_config_controller",
 			Name:      "secret_hash_change_total",
 			Help:      "Total number of model config secret hash changes",

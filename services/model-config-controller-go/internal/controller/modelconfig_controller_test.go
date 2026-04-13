@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/junginho0901/kube-assistant/model-config-controller-go/api/v1alpha1"
+	"github.com/junginho0901/kubeast/model-config-controller-go/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

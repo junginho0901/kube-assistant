@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/junginho0901/kube-assistant/model-config-controller-go/api/v1alpha1"
-	"github.com/junginho0901/kube-assistant/model-config-controller-go/internal/controller"
+	"github.com/junginho0901/kubeast/model-config-controller-go/api/v1alpha1"
+	"github.com/junginho0901/kubeast/model-config-controller-go/internal/controller"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -25,7 +25,7 @@ func main() {
 
 	metricsAddr := envOrDefault("METRICS_ADDR", ":8080")
 	probeAddr := envOrDefault("HEALTH_PROBE_ADDR", ":8081")
-	leaderElectionID := envOrDefault("LEADER_ELECTION_ID", "model-config-controller-go.ai.kube-assistant.io")
+	leaderElectionID := envOrDefault("LEADER_ELECTION_ID", "model-config-controller-go.ai.kubeast.io")
 	leaderElectionNamespace := os.Getenv("LEADER_ELECTION_NAMESPACE")
 	if leaderElectionNamespace == "" {
 		leaderElectionNamespace = os.Getenv("WATCH_NAMESPACE")

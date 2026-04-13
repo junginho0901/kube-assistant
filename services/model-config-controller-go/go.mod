@@ -1,4 +1,4 @@
-module github.com/junginho0901/kube-assistant/model-config-controller-go
+module github.com/junginho0901/kubeast/model-config-controller-go
 
 go 1.21
 
