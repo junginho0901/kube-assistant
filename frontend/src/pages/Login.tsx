@@ -5,6 +5,7 @@ import { api } from '@/services/api'
 import { clearRedirectAfterLogin, getRedirectAfterLogin, setAccessToken } from '@/services/auth'
 import { Activity, Layers, LayoutDashboard, Lock, MessageSquare, UserPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import CustomDropdown from '@/components/CustomDropdown'
 
 type Mode = 'login' | 'register'
 
@@ -117,7 +118,7 @@ export default function Login() {
 
             <div className="space-y-3">
               <h1 className="text-[clamp(2.25rem,4vw,3.75rem)] font-bold tracking-tight text-white">
-                K8s DevOps Assistant
+                Kubeast
               </h1>
             </div>
 
@@ -236,36 +237,20 @@ export default function Login() {
 
                 {mode === 'register' && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1">
-                        {tr('login.form.hq', 'HQ')}
-                      </label>
-                      <select
-                        value={hq}
-                        onChange={(e) => setHq(e.target.value)}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      >
-                        <option value="">{tr('login.form.selectHq', 'Select HQ')}</option>
-                        {hqOptions.map((o) => (
-                          <option key={o.id} value={o.name}>{o.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1">
-                        {tr('login.form.team', 'Team')}
-                      </label>
-                      <select
-                        value={team}
-                        onChange={(e) => setTeam(e.target.value)}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 lg:py-2.5 text-sm lg:text-base text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      >
-                        <option value="">{tr('login.form.selectTeam', 'Select Team')}</option>
-                        {teamOptions.map((o) => (
-                          <option key={o.id} value={o.name}>{o.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <CustomDropdown
+                      label={tr('login.form.hq', 'HQ')}
+                      placeholder={tr('login.form.selectHq', 'Select HQ')}
+                      options={hqOptions.map((o) => ({ value: o.name, label: o.name }))}
+                      value={hq}
+                      onChange={setHq}
+                    />
+                    <CustomDropdown
+                      label={tr('login.form.team', 'Team')}
+                      placeholder={tr('login.form.selectTeam', 'Select Team')}
+                      options={teamOptions.map((o) => ({ value: o.name, label: o.name }))}
+                      value={team}
+                      onChange={setTeam}
+                    />
                   </div>
                 )}
 

@@ -7,6 +7,7 @@ import { clearAccessToken } from '@/services/auth'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { useTranslation } from 'react-i18next'
 import { usePermission } from '@/hooks/usePermission'
+import CustomDropdown from '@/components/CustomDropdown'
 
 export default function AdminUsers() {
   const navigate = useNavigate()
@@ -642,16 +643,12 @@ export default function AdminUsers() {
                       {tr('adminUsers.form.hq', 'HQ')}
                     </label>
                     {detailEditing ? (
-                      <select
+                      <CustomDropdown
+                        placeholder={tr('adminUsers.form.selectHq', 'Select HQ')}
+                        options={hqOptions.map((o) => ({ value: o.name, label: o.name }))}
                         value={detailDraft.hq}
-                        onChange={(e) => setDetailDraft((p) => ({ ...p, hq: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      >
-                        <option value="">{tr('adminUsers.form.selectHq', 'Select HQ')}</option>
-                        {hqOptions.map((o) => (
-                          <option key={o.id} value={o.name}>{o.name}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => setDetailDraft((p) => ({ ...p, hq: v }))}
+                      />
                     ) : (
                       <div className="rounded-lg border border-slate-700/50 bg-slate-950/30 px-3 py-2 text-sm text-slate-200">{u.hq || '-'}</div>
                     )}
@@ -661,16 +658,12 @@ export default function AdminUsers() {
                       {tr('adminUsers.form.team', 'Team')}
                     </label>
                     {detailEditing ? (
-                      <select
+                      <CustomDropdown
+                        placeholder={tr('adminUsers.form.selectTeam', 'Select Team')}
+                        options={teamOptions.map((o) => ({ value: o.name, label: o.name }))}
                         value={detailDraft.team}
-                        onChange={(e) => setDetailDraft((p) => ({ ...p, team: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      >
-                        <option value="">{tr('adminUsers.form.selectTeam', 'Select Team')}</option>
-                        {teamOptions.map((o) => (
-                          <option key={o.id} value={o.name}>{o.name}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => setDetailDraft((p) => ({ ...p, team: v }))}
+                      />
                     ) : (
                       <div className="rounded-lg border border-slate-700/50 bg-slate-950/30 px-3 py-2 text-sm text-slate-200">{u.team || '-'}</div>
                     )}
@@ -1024,32 +1017,20 @@ export default function AdminUsers() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.hq', 'HQ')}</label>
-                  <select
-                    value={newUser.hq}
-                    onChange={(e) => setNewUser((p) => ({ ...p, hq: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  >
-                    <option value="">{tr('adminUsers.form.selectHq', 'Select HQ')}</option>
-                    {hqOptions.map((o) => (
-                      <option key={o.id} value={o.name}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.team', 'Team')}</label>
-                  <select
-                    value={newUser.team}
-                    onChange={(e) => setNewUser((p) => ({ ...p, team: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  >
-                    <option value="">{tr('adminUsers.form.selectTeam', 'Select Team')}</option>
-                    {teamOptions.map((o) => (
-                      <option key={o.id} value={o.name}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <CustomDropdown
+                  label={tr('adminUsers.form.hq', 'HQ')}
+                  placeholder={tr('adminUsers.form.selectHq', 'Select HQ')}
+                  options={hqOptions.map((o) => ({ value: o.name, label: o.name }))}
+                  value={newUser.hq}
+                  onChange={(v) => setNewUser((p) => ({ ...p, hq: v }))}
+                />
+                <CustomDropdown
+                  label={tr('adminUsers.form.team', 'Team')}
+                  placeholder={tr('adminUsers.form.selectTeam', 'Select Team')}
+                  options={teamOptions.map((o) => ({ value: o.name, label: o.name }))}
+                  value={newUser.team}
+                  onChange={(v) => setNewUser((p) => ({ ...p, team: v }))}
+                />
               </div>
 
               <div>
