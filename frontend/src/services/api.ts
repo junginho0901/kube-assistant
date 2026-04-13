@@ -1184,6 +1184,11 @@ export interface Member {
   updated_at: string
 }
 
+// AdminResetPassword 응답: Member 필드 + 1회용 평문 비밀번호
+export interface AdminResetPasswordResponse extends Member {
+  temporary_password: string
+}
+
 export interface Organization {
   id: number
   type: 'hq' | 'team'
@@ -1313,7 +1318,7 @@ export const api = {
     return data
   },
 
-  adminResetUserPassword: async (userId: string): Promise<Member> => {
+  adminResetUserPassword: async (userId: string): Promise<AdminResetPasswordResponse> => {
     const { data } = await client.post(`/auth/admin/users/${userId}/reset-password`)
     return data
   },
