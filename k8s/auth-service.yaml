@@ -15,15 +15,15 @@ spec:
       serviceAccountName: auth-service
       containers:
         - name: auth-service
-          image: kube-assistant/auth-service:local
+          image: kubeast/auth-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8004
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           volumeMounts:
             - name: auth-keys
               mountPath: /app/.keys

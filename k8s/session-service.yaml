@@ -14,15 +14,15 @@ spec:
     spec:
       containers:
         - name: session-service
-          image: kube-assistant/session-service:local
+          image: kubeast/session-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8003
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           readinessProbe:
             httpGet:
               path: /health

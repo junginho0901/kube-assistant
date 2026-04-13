@@ -15,20 +15,20 @@ spec:
       serviceAccountName: tool-server
       containers:
         - name: tool-server
-          image: kube-assistant/tool-server:local
+          image: kubeast/tool-server:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8086
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           env:
             - name: TOKEN_PASSTHROUGH
               valueFrom:
                 configMapKeyRef:
-                  name: kube-assistant-config
+                  name: kubeast-config
                   key: TOOL_SERVER_TOKEN_PASSTHROUGH
           volumeMounts:
             - name: kubeconfig
@@ -76,4 +76,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: tool-server
-    namespace: kube-assistant
+    namespace: kubeast

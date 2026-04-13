@@ -14,15 +14,15 @@ spec:
     spec:
       containers:
         - name: ai-service
-          image: kube-assistant/ai-service:local
+          image: kubeast/ai-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8001
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
 ---
 apiVersion: v1
 kind: Service

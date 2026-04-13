@@ -49,17 +49,17 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
-                  name: kube-assistant-config
+                  name: kubeast-config
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: kube-assistant-secrets
+                  name: kubeast-secrets
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
-                  name: kube-assistant-config
+                  name: kubeast-config
                   key: POSTGRES_DB
           volumeMounts:
             - name: data

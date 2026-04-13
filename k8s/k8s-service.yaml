@@ -15,7 +15,7 @@ spec:
       serviceAccountName: k8s-service
       containers:
         - name: k8s-service
-          image: kube-assistant/k8s-service:local
+          image: kubeast/k8s-service:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8002
@@ -35,9 +35,9 @@ spec:
             timeoutSeconds: 3
           envFrom:
             - configMapRef:
-                name: kube-assistant-config
+                name: kubeast-config
             - secretRef:
-                name: kube-assistant-secrets
+                name: kubeast-secrets
           volumeMounts:
             - name: kubeconfig
               mountPath: /app/kubeconfig.yaml
