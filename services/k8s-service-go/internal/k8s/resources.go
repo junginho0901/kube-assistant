@@ -35,7 +35,7 @@ func (s *Service) GetAPIResources(ctx context.Context) ([]metav1.APIResourceList
 		return s.apiResourcesCache, nil
 	}
 
-	_, lists, err := s.discovery.ServerGroupsAndResources()
+	_, lists, err := s.Discovery().ServerGroupsAndResources()
 	if err != nil {
 		return nil, fmt.Errorf("discover API resources: %w", err)
 	}
@@ -366,9 +366,9 @@ func (s *Service) ApplyResourceYAML(ctx context.Context, resourceType, namespace
 
 	var patched *unstructured.Unstructured
 	if ns != "" {
-		patched, err = s.dynamic.Resource(gvr).Namespace(ns).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{FieldManager: "k8s-service"})
+		patched, err = s.Dynamic().Resource(gvr).Namespace(ns).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{FieldManager: "k8s-service"})
 	} else {
-		patched, err = s.dynamic.Resource(gvr).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{FieldManager: "k8s-service"})
+		patched, err = s.Dynamic().Resource(gvr).Patch(ctx, name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{FieldManager: "k8s-service"})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("patch %s %s: %w", resourceType, name, err)
@@ -462,12 +462,12 @@ func (s *Service) GetClusterConfig(ctx context.Context) (map[string]interface{},
 	result := map[string]interface{}{}
 
 	// Server URL
-	if s.restConfig != nil {
-		result["server"] = s.restConfig.Host
+	if s.RestConfig() != nil {
+		result["server"] = s.RestConfig().Host
 	}
 
 	// Cluster version
-	sv, err := s.clientset.Discovery().ServerVersion()
+	sv, err := s.Clientset().Discovery().ServerVersion()
 	if err == nil {
 		result["version"] = map[string]interface{}{
 			"major":        sv.Major,
@@ -482,7 +482,7 @@ func (s *Service) GetClusterConfig(ctx context.Context) (map[string]interface{},
 	}
 
 	// API groups
-	groups, err := s.discovery.ServerGroups()
+	groups, err := s.Discovery().ServerGroups()
 	if err == nil {
 		groupNames := make([]string, 0, len(groups.Groups))
 		for _, g := range groups.Groups {
