@@ -1333,6 +1333,8 @@
     "emptyTitle": "Start a new chat",
     "emptySubtitle": "Click a question below or type your own.",
     "resultZipDownload": "Download result ZIP",
+    "copyMessage": "Copy",
+    "copied": "Copied",
     "inputPlaceholder": "Type a message...",
     "stop": "Stop",
     "send": "Send",
