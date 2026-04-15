@@ -220,6 +220,27 @@ func (s *Service) GetGenericResourcesRaw(ctx context.Context, resourceType, name
 	}, nil
 }
 
+// GetGenericResourceRaw fetches a single resource returning the full unstructured K8s object.
+func (s *Service) GetGenericResourceRaw(ctx context.Context, resourceType, namespace, name string) (map[string]interface{}, error) {
+	gvr, namespaced, err := s.ResolveResource(ctx, resourceType)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := namespace
+	if !namespaced {
+		ns = ""
+	}
+
+	obj, err := s.GetResource(ctx, gvr, ns, name)
+	if err != nil {
+		return nil, fmt.Errorf("get %s %s: %w", resourceType, name, err)
+	}
+
+	obj.SetManagedFields(nil)
+	return obj.Object, nil
+}
+
 // DescribeGenericResource returns details for any resource type.
 func (s *Service) DescribeGenericResource(ctx context.Context, resourceType, namespace, name string) (map[string]interface{}, error) {
 	gvr, namespaced, err := s.ResolveResource(ctx, resourceType)

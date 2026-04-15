@@ -132,6 +132,30 @@ func (h *Handler) SearchResources(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, data)
 }
 
+// GetGenericResourceJSON handles GET /api/v1/resources/json.
+// Returns a single K8s resource as full unstructured JSON (same shape Advanced Search uses).
+func (h *Handler) GetGenericResourceJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	resourceType := queryParam(r, "resource_type", "")
+	namespace := queryParam(r, "namespace", "")
+	name := queryParam(r, "resource_name", "")
+	if name == "" {
+		name = queryParam(r, "name", "")
+	}
+
+	if resourceType == "" || name == "" {
+		response.Error(w, http.StatusBadRequest, "resource_type and resource_name are required")
+		return
+	}
+
+	data, err := h.svc.GetGenericResourceRaw(ctx, resourceType, namespace, name)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, data)
+}
+
 // GetGenericResourceYAML handles GET /api/v1/resources/yaml.
 func (h *Handler) GetGenericResourceYAML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
