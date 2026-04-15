@@ -36,10 +36,17 @@ func main() {
 	redisCache := cache.New(cfg.RedisHost, cfg.RedisPort, cfg.RedisDB)
 
 	// Init Kubernetes service
-	k8sSvc, err := k8s.NewService(cfg.KubeconfigPath, cfg.InCluster, redisCache)
+	k8sSvc, err := k8s.NewService(cfg.KubeconfigPath, cfg.InCluster, cfg.KubeconfigWatch, redisCache)
 	if err != nil {
 		slog.Error("failed to initialize k8s service", "err", err)
 		os.Exit(1)
+	}
+
+	// Start kubeconfig hot-reload watcher (docker mode).
+	if cfg.KubeconfigWatch {
+		watcherCtx, cancelWatcher := context.WithCancel(context.Background())
+		defer cancelWatcher()
+		go k8sSvc.WatchKubeconfig(watcherCtx)
 	}
 
 	// Init JWT validator
@@ -53,7 +60,7 @@ func main() {
 	h := handler.New(k8sSvc, cfg)
 
 	// Init WebSocket multiplexer
-	wsMux := ws.NewMultiplexer(k8sSvc.Clientset(), k8sSvc.Dynamic())
+	wsMux := ws.NewMultiplexer(k8sSvc)
 
 	// Setup router
 	r := chi.NewRouter()
