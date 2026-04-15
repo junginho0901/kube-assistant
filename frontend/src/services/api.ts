@@ -2480,6 +2480,17 @@ export const api = {
     return typeof data === 'string' ? { yaml: data } : data
   },
 
+  getResourceJson: async (resourceType: string, name: string, namespace?: string): Promise<Record<string, unknown>> => {
+    const { data } = await client.get('/cluster/resources/json', {
+      params: {
+        resource_type: resourceType,
+        resource_name: name,
+        ...(namespace && namespace !== '-' ? { namespace } : {}),
+      },
+    })
+    return data
+  },
+
   applyResourceYaml: async (resourceType: string, name: string, yaml: string, namespace?: string): Promise<{ status: string }> => {
     const { data } = await client.post('/cluster/resources/yaml/apply', {
       resource_type: resourceType,
