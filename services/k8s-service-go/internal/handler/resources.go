@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/junginho0901/kubeast/services/pkg/audit"
 	"github.com/junginho0901/kubeast/services/pkg/response"
 )
 
@@ -212,6 +213,11 @@ func (h *Handler) ApplyResourceYAML(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	data, err := h.svc.ApplyResourceYAML(ctx, body.ResourceType, body.Namespace, body.Name, body.YAML)
+	h.recordAuditWithPayload(r, "k8s.yaml.apply", body.ResourceType, body.Name, body.Namespace, err,
+		nil, audit.MustJSON(map[string]interface{}{
+			"resource_type": body.ResourceType,
+			"yaml_len":      len(body.YAML),
+		}))
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -236,6 +242,8 @@ func (h *Handler) CreateResourcesFromYAML(w http.ResponseWriter, r *http.Request
 
 	ctx := r.Context()
 	data, err := h.svc.CreateResourcesFromYAML(ctx, body.YAML)
+	h.recordAuditWithPayload(r, "k8s.yaml.create", "multi", "", "", err,
+		nil, audit.MustJSON(map[string]interface{}{"yaml_len": len(body.YAML)}))
 	if err != nil {
 		h.handleError(w, err)
 		return
