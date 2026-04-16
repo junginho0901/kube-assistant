@@ -15,6 +15,7 @@ import (
 	"github.com/junginho0901/kubeast/services/auth-service-go/internal/model"
 	"github.com/junginho0901/kubeast/services/auth-service-go/internal/repository"
 	"github.com/junginho0901/kubeast/services/auth-service-go/internal/security"
+	"github.com/junginho0901/kubeast/services/pkg/audit"
 	"github.com/junginho0901/kubeast/services/pkg/auth"
 	"github.com/junginho0901/kubeast/services/pkg/response"
 )
@@ -23,10 +24,11 @@ type AuthHandler struct {
 	repo       *repository.Repository
 	jwtMgr     *security.JWTManager
 	cfg        config.Config
+	auditStore audit.Store
 }
 
-func NewAuthHandler(repo *repository.Repository, jwtMgr *security.JWTManager, cfg config.Config) *AuthHandler {
-	return &AuthHandler{repo: repo, jwtMgr: jwtMgr, cfg: cfg}
+func NewAuthHandler(repo *repository.Repository, jwtMgr *security.JWTManager, cfg config.Config, auditStore audit.Store) *AuthHandler {
+	return &AuthHandler{repo: repo, jwtMgr: jwtMgr, cfg: cfg, auditStore: auditStore}
 }
 
 // Register handles POST /auth/register
@@ -130,7 +132,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.jwtMgr.CreateToken(user.ID, user.RoleName, permissions)
+	token, err := h.jwtMgr.CreateToken(user.ID, user.Email, user.RoleName, permissions)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Failed to create token")
 		return
