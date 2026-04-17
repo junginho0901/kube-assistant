@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/config"
+	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/helm"
 	"github.com/junginho0901/kubeast/services/k8s-service-go/internal/k8s"
 	"github.com/junginho0901/kubeast/services/pkg/audit"
 	"github.com/junginho0901/kubeast/services/pkg/auth"
@@ -19,14 +20,18 @@ type Handler struct {
 	svc        *k8s.Service
 	cfg        config.Config
 	auditStore audit.Writer
+	helmSvc    *helm.Service
 }
 
-// New creates a new Handler.
+// New creates a new Handler. The helm service is derived from the same
+// k8s.Service and cache so Helm SDK calls observe the kubeconfig
+// hot-reload path already wired up in main.go.
 func New(svc *k8s.Service, cfg config.Config, auditStore audit.Writer) *Handler {
 	return &Handler{
 		svc:        svc,
 		cfg:        cfg,
 		auditStore: auditStore,
+		helmSvc:    helm.NewService(svc, svc.Cache()),
 	}
 }
 
