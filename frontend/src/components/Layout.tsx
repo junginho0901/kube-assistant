@@ -44,6 +44,11 @@ type NavGroup = {
   label: string
   items: NavItem[]
   adminOnly?: boolean
+  // requiredPermission hides the entire group when the user lacks the
+  // permission. Existing groups do not use it (they rely on adminOnly
+  // or show for everyone); it is introduced for Helm which is the
+  // first group gated by a non-admin menu permission.
+  requiredPermission?: string
 }
 
 export default function Layout() {
@@ -269,6 +274,7 @@ export default function Layout() {
   const activeGroup = useMemo(() => {
     for (const group of navGroups) {
       if (group.adminOnly && !isAdmin) continue
+      if (group.requiredPermission && !hasPermission(group.requiredPermission)) continue
       for (const item of group.items) {
         const isActive = item.match
           ? item.match(location.pathname, location.search)
@@ -322,7 +328,11 @@ export default function Layout() {
 
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {navGroups
-              .filter((group) => (group.adminOnly ? isAdmin : true))
+              .filter((group) => {
+                if (group.adminOnly && !isAdmin) return false
+                if (group.requiredPermission && !hasPermission(group.requiredPermission)) return false
+                return true
+              })
               .map((group) => (
                 <div key={group.label} className="space-y-0.5">
                   <button
