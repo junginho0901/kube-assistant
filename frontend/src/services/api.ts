@@ -3131,6 +3131,22 @@ export const api = {
       )
       return data as HelmUpgradeResponse
     },
+    uninstall: async (
+      namespace: string,
+      name: string,
+      opts: { keepHistory?: boolean; dryRun?: boolean },
+    ): Promise<HelmUninstallResponse> => {
+      const { data } = await client.delete(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`,
+        {
+          params: {
+            ...(opts.keepHistory !== undefined ? { keepHistory: opts.keepHistory } : {}),
+            ...(opts.dryRun !== undefined ? { dryRun: opts.dryRun } : {}),
+          },
+        },
+      )
+      return data as HelmUninstallResponse
+    },
   },
 }
 
@@ -3205,6 +3221,15 @@ export interface HelmUpgradeResponse {
   status?: string
   diff?: string
   chartVersion: string
+}
+
+export interface HelmUninstallResponse {
+  dryRun: boolean
+  release: string
+  namespace: string
+  keepHistory: boolean
+  resources?: HelmReleaseResource[]
+  info?: string
 }
 
 let metricsDisabled = false
