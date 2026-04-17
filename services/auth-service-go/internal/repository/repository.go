@@ -106,14 +106,22 @@ func (r *Repository) SeedSystemRoles(ctx context.Context) error {
 		{"Pending", "승인 대기", nil},
 		{"Read", "읽기 전용", []string{
 			"menu.workloads", "menu.network", "menu.storage", "menu.security",
-			"menu.cluster", "menu.gateway", "menu.gpu", "menu.configuration", "menu.dashboard",
+			"menu.cluster", "menu.gateway", "menu.gpu", "menu.helm",
+			"menu.configuration", "menu.dashboard",
 			"resource.*.read",
+			"resource.helm.read",
 		}},
 		{"Write", "읽기/쓰기", []string{
 			"menu.*",
 			"resource.*.read", "resource.*.create", "resource.*.edit", "resource.*.delete",
 			"resource.cronjob.suspend", "resource.cronjob.trigger",
 			"resource.secret.reveal",
+			// Helm: write role gets read + rollback + upgrade (values) + test.
+			// Uninstall stays out by default — per docs/helm-plan.md §6-2
+			// it requires Admin to reduce blast radius from accidental
+			// production deletion.
+			"resource.helm.read", "resource.helm.rollback",
+			"resource.helm.upgrade", "resource.helm.test",
 			"ai.tool.*",
 		}},
 		{"Admin", "전체 관리자", []string{"*"}},

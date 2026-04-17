@@ -495,6 +495,22 @@ func main() {
 		r.Get("/api/v1/topology/deployment/{namespace}/{deployment_name}", h.GetDeploymentTopology)
 		r.Get("/api/v1/topology/storage", h.GetStorageTopology)
 
+		// Helm (v1.0 read-only — see docs/helm-plan.md §5)
+		r.Get("/api/v1/helm/releases", h.GetHelmReleases)
+		r.Get("/api/v1/helm/releases/{namespace}/{name}", h.GetHelmRelease)
+		r.Get("/api/v1/helm/releases/{namespace}/{name}/history", h.GetHelmReleaseHistory)
+		r.Get("/api/v1/helm/releases/{namespace}/{name}/resources", h.GetHelmReleaseResources)
+		r.Get("/api/v1/helm/releases/{namespace}/{name}/images", h.GetHelmReleaseImages)
+		r.Post("/api/v1/helm/releases/{namespace}/{name}/diff", h.DiffHelmRelease)
+		r.Get("/api/v1/helm/releases/{namespace}/{name}/revisions/{revision}/{section}", h.GetHelmRevisionSection)
+		// Helm writes (v1.1)
+		r.Post("/api/v1/helm/releases/{namespace}/{name}/rollback", h.RollbackHelmRelease)
+		r.Put("/api/v1/helm/releases/{namespace}/{name}/values", h.UpgradeHelmValues)
+		r.Delete("/api/v1/helm/releases/{namespace}/{name}", h.UninstallHelmRelease)
+		// Keep the {section} catch-all last so chi resolves literal
+		// segments ('history', 'resources', …) before the wildcard.
+		r.Get("/api/v1/helm/releases/{namespace}/{name}/{section}", h.GetHelmReleaseSection)
+
 		// WebSocket multiplexer (real-time watch)
 		r.Get("/api/v1/ws", wsMux.HandleWebSocket)
 		r.Get("/api/v1/wsMultiplexer", wsMux.HandleWebSocket)

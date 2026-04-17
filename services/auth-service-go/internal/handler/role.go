@@ -155,6 +155,7 @@ func allPermissions() []map[string]interface{} {
 			{"menu.cluster", "클러스터"},
 			{"menu.gateway", "게이트웨이"},
 			{"menu.gpu", "GPU"},
+			{"menu.helm", "Helm"},
 			{"menu.configuration", "설정"},
 			{"menu.admin", "관리자"},
 		}},
@@ -182,9 +183,18 @@ func allPermissions() []map[string]interface{} {
 		{"category": "Secret", "permissions": []perm{
 			{"resource.secret.reveal", "Secret 복호화"},
 		}},
+		{"category": "Helm", "permissions": []perm{
+			{"resource.helm.*", "Helm 전체"},
+			{"resource.helm.read", "Release 조회"},
+			{"resource.helm.rollback", "Release 롤백"},
+			{"resource.helm.upgrade", "Release 업그레이드 (values 수정)"},
+			{"resource.helm.uninstall", "Release 언인스톨"},
+			{"resource.helm.test", "Release 테스트 실행"},
+		}},
 		{"category": "AI 도구", "permissions": []perm{
 			{"ai.tool.*", "모든 AI 도구"},
 			{"ai.tool.k8s_execute_command", "K8s 명령어 실행"},
+			{"ai.tool.helm_execute", "AI가 Helm 명령 실행 (쓰기 포함)"},
 		}},
 		{"category": "관리자", "permissions": []perm{
 			{"admin.*", "모든 관리자 기능"},
