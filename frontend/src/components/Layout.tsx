@@ -19,6 +19,7 @@ import {
   LogOut,
   MessageSquare,
   Network,
+  Package,
   Search,
   Server,
   Shield,
@@ -246,6 +247,14 @@ export default function Layout() {
       items: [
         { name: t('nav.configMaps'), href: '/configuration/configmaps', icon: FileCode },
         { name: t('nav.secrets'), href: '/configuration/secrets', icon: Key },
+      ],
+    },
+    {
+      id: 'helm',
+      label: t('nav.helm'),
+      requiredPermission: 'menu.helm',
+      items: [
+        { name: t('nav.helmReleases'), href: '/helm/releases', icon: Package },
       ],
     },
     {
