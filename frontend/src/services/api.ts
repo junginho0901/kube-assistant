@@ -3120,6 +3120,17 @@ export const api = {
       )
       return data as HelmRollbackResponse
     },
+    upgradeValues: async (
+      namespace: string,
+      name: string,
+      payload: { values: string; dryRun: boolean },
+    ): Promise<HelmUpgradeResponse> => {
+      const { data } = await client.put(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/values`,
+        payload,
+      )
+      return data as HelmUpgradeResponse
+    },
   },
 }
 
@@ -3185,6 +3196,15 @@ export interface HelmRollbackResponse {
   newRevision?: number
   status?: string
   diff?: string
+}
+
+export interface HelmUpgradeResponse {
+  dryRun: boolean
+  fromRevision: number
+  newRevision?: number
+  status?: string
+  diff?: string
+  chartVersion: string
 }
 
 let metricsDisabled = false
