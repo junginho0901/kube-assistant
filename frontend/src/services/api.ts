@@ -3069,6 +3069,23 @@ export const api = {
       )
       return data as HelmSectionResponse
     },
+    getHistory: async (namespace: string, name: string): Promise<HelmHistoryEntry[]> => {
+      const { data } = await client.get(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/history`,
+      )
+      return Array.isArray(data?.items) ? data.items : []
+    },
+    getRevisionSection: async (
+      namespace: string,
+      name: string,
+      revision: number,
+      section: HelmSection,
+    ): Promise<HelmRevisionSectionResponse> => {
+      const { data } = await client.get(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/revisions/${revision}/${section}`,
+      )
+      return data as HelmRevisionSectionResponse
+    },
   },
 }
 
