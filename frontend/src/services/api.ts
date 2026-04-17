@@ -3098,6 +3098,17 @@ export const api = {
       )
       return Array.isArray(data?.items) ? data.items : []
     },
+    diff: async (
+      namespace: string,
+      name: string,
+      payload: { from: number; to: number; section: HelmSection },
+    ): Promise<HelmDiffResponse> => {
+      const { data } = await client.post(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/diff`,
+        payload,
+      )
+      return data as HelmDiffResponse
+    },
   },
 }
 
