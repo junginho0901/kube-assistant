@@ -9,6 +9,7 @@
     "security": "Security",
     "configuration": "Configuration",
     "customResources": "Custom Resources",
+    "helm": "Helm",
     "admin": "Admin",
     "dashboard": "Dashboard",
     "clusterView": "Cluster View",
@@ -76,7 +77,8 @@
     "aiModels": "AI Models",
     "nodeShell": "Node Shell",
     "auditLogs": "Audit Logs",
-    "organizations": "HQ / Team"
+    "organizations": "HQ / Team",
+    "helmReleases": "Releases"
   },
   "layout": {
     "accountTitle": "Settings",

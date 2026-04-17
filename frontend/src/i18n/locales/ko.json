@@ -9,6 +9,7 @@
     "security": "Security",
     "configuration": "Configuration",
     "customResources": "Custom Resources",
+    "helm": "Helm",
     "admin": "Admin",
     "dashboard": "대시보드",
     "clusterView": "클러스터 뷰",
@@ -76,7 +77,8 @@
     "aiModels": "AI 모델 설정",
     "nodeShell": "노드 셸",
     "auditLogs": "감사 로그",
-    "organizations": "본부 / 팀"
+    "organizations": "본부 / 팀",
+    "helmReleases": "Releases"
   },
   "layout": {
     "accountTitle": "설정",
