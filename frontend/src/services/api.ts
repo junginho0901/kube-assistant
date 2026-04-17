@@ -3050,6 +3050,61 @@ export const api = {
   },
 }
 
+// ===== Helm types =====
+export type HelmSection = 'manifest' | 'values' | 'notes' | 'hooks'
+
+export interface HelmReleaseSummary {
+  name: string
+  namespace: string
+  revision: number
+  status: string
+  chart: string
+  chartVersion: string
+  appVersion: string
+  updated: string
+}
+
+export interface HelmReleaseDetail extends HelmReleaseSummary {
+  description: string
+  values?: Record<string, unknown>
+  notes?: string
+  manifest?: string
+}
+
+export interface HelmHistoryEntry {
+  revision: number
+  status: string
+  chartVersion: string
+  appVersion: string
+  updated: string
+  description: string
+}
+
+export interface HelmReleaseResource {
+  kind: string
+  apiVersion: string
+  name: string
+  namespace?: string
+}
+
+export interface HelmSectionResponse {
+  section: HelmSection
+  content: string
+}
+
+export interface HelmRevisionSectionResponse {
+  revision: number
+  section: HelmSection
+  content: string
+}
+
+export interface HelmDiffResponse {
+  from: number
+  to: number
+  section: HelmSection
+  diff: string
+}
+
 let metricsDisabled = false
 
 export const disableMetrics = (): void => {
