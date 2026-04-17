@@ -3048,6 +3048,14 @@ export const api = {
     const { data } = await client.get(`/cluster/namespaces/${namespace}/resource-graph`)
     return data
   },
+
+  // ===== Helm =====
+  helm: {
+    listReleases: async (params?: { namespace?: string; status?: string }): Promise<HelmReleaseSummary[]> => {
+      const { data } = await client.get('/helm/releases', { params })
+      return Array.isArray(data?.items) ? data.items : []
+    },
+  },
 }
 
 // ===== Helm types =====
