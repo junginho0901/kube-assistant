@@ -3086,6 +3086,18 @@ export const api = {
       )
       return data as HelmRevisionSectionResponse
     },
+    getResources: async (namespace: string, name: string): Promise<HelmReleaseResource[]> => {
+      const { data } = await client.get(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/resources`,
+      )
+      return Array.isArray(data?.items) ? data.items : []
+    },
+    getImages: async (namespace: string, name: string): Promise<string[]> => {
+      const { data } = await client.get(
+        `/helm/releases/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/images`,
+      )
+      return Array.isArray(data?.items) ? data.items : []
+    },
   },
 }
 
