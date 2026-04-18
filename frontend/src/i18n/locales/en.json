@@ -2637,7 +2637,9 @@
     "matchCount": "{{count}} release(s) match.",
     "empty": {
       "title": "No Helm releases",
-      "description": "Releases installed with Helm show up here. If your cluster has existing releases, check your kubeconfig and permissions."
+      "description": "Releases installed with Helm show up here. If your cluster has existing releases, check your kubeconfig and permissions.",
+      "docs": "Helm docs",
+      "installGuide": "Chart install guide"
     },
     "table": {
       "name": "Name",
