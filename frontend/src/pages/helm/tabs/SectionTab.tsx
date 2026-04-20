@@ -28,6 +28,16 @@ export default function SectionTab({
   }
 
   const content = q.data?.content ?? ''
+  // notes can be markdown-ish with special chars and rarely needs
+  // folding; keep the simple <pre> path for that section.
+  if (section === 'notes') {
+    return (
+      <pre className="max-h-[70vh] overflow-auto rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-xs text-slate-200 whitespace-pre-wrap">
+        {content || '—'}
+      </pre>
+    )
+  }
+
   return (
     <pre className="max-h-[70vh] overflow-auto rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-xs text-slate-200 whitespace-pre">
       {content || '—'}
