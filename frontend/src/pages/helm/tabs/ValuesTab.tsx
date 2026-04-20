@@ -117,7 +117,7 @@ export default function ValuesTab({ namespace, name }: { namespace: string; name
         </div>
         <div className="rounded-lg bg-slate-950 border border-slate-700 overflow-hidden">
           <Editor
-            height="50vh"
+            height="60vh"
             defaultLanguage="yaml"
             value={draft}
             theme="vs-dark"
