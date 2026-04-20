@@ -44,8 +44,23 @@ export default function SectionTab({
   }
 
   return (
-    <pre className="max-h-[70vh] overflow-auto rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 text-xs text-slate-200 whitespace-pre">
-      {content || '—'}
-    </pre>
+    <div className="rounded-lg bg-slate-900 border border-slate-700 overflow-hidden">
+      <Editor
+        height="70vh"
+        defaultLanguage="yaml"
+        value={content || ''}
+        theme="vs-dark"
+        options={{
+          readOnly: true,
+          minimap: { enabled: true },
+          fontSize: 12,
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          scrollBeyondLastLine: false,
+          folding: true,
+          foldingStrategy: 'indentation',
+        }}
+      />
+    </div>
   )
 }
