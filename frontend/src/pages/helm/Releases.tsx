@@ -160,12 +160,13 @@ export default function HelmReleasesPage() {
             </div>
           )}
         </div>
-        {filtered.length > 0 && (
-          <span className="text-xs text-slate-400">
-            {t('helmReleases.matchCount', { count: filtered.length })}
-          </span>
-        )}
       </div>
+
+      {filtered.length > 0 && (
+        <div className="text-xs text-slate-400">
+          {t('helmReleases.matchCount', { count: filtered.length })}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-slate-400">
