@@ -208,16 +208,16 @@ export default function HelmReleasesPage() {
   }, [sorted, currentPage, rowsPerPage])
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-white">{t('helmReleases.title')}</h1>
-          <p className="text-slate-400 text-sm mt-1">{t('helmReleases.subtitle')}</p>
+          <p className="mt-2 text-slate-400">{t('helmReleases.subtitle')}</p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center gap-2 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-3 py-1.5 text-sm text-white"
+          className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           {t('helmReleases.refresh')}
@@ -314,10 +314,13 @@ export default function HelmReleasesPage() {
           <Loader2 className="w-5 h-5 animate-spin" />
         </div>
       ) : sorted.length === 0 ? (
-        <EmptyState />
+        <div className="flex-1 min-h-0 flex items-start">
+          <EmptyState />
+        </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-700">
-          <table className="w-full text-sm">
+        <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
+          <div className="overflow-x-auto flex-1 min-h-0">
+          <table className="w-full text-sm min-w-[1000px] table-fixed">
             <thead className="bg-slate-800 text-slate-300 text-left">
               <tr>
                 <th className="px-3 py-2 cursor-pointer" onClick={() => handleSort('name')}>
@@ -397,8 +400,9 @@ export default function HelmReleasesPage() {
               })}
             </tbody>
           </table>
+          </div>
           {sorted.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700 shrink-0">
               <div className="text-xs text-slate-400">
                 {t('common.paginationRange', {
                   start: (currentPage - 1) * rowsPerPage + 1,
