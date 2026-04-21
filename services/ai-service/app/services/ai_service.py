@@ -3703,7 +3703,10 @@ Draft (rules-based, keep numbers unchanged):
             tools = self._get_tools_definition()
             # YAML/WIDE 요청 시 legacy JSON-only 도구는 제외
             tools = self._filter_tools_for_output_preference(tools, message)
-            
+            # 확장점: 호출자가 넘긴 tool filter (ex. READONLY 화이트리스트)
+            if tool_filter is not None:
+                tools = tool_filter(tools)
+
             # 모델 정보를 스트림 첫 이벤트로 전송 (브라우저 콘솔에서 확인용)
             yield f"data: {json.dumps({'model_info': {'provider': self.provider, 'model': self.model, 'role': self.user_role}}, ensure_ascii=False)}\n\n"
 
