@@ -30,6 +30,8 @@ function statusBadge(status: string): string {
   return 'bg-slate-500/15 text-slate-300 border border-slate-500/30'
 }
 
+type SummaryCard = [label: string, value: number, boxClass: string, labelClass: string]
+
 export default function HelmReleasesPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -69,6 +71,36 @@ export default function HelmReleasesPage() {
         r.chart.toLowerCase().includes(needle),
     )
   }, [items, q])
+
+  // Stats count across *unfiltered* items so the header numbers stay
+  // stable while the user narrows the table with the search box.
+  const stats = useMemo(() => {
+    let total = 0
+    let deployed = 0
+    let failed = 0
+    let pending = 0
+    let superseded = 0
+    for (const r of items) {
+      total += 1
+      const s = r.status.toLowerCase()
+      if (s === 'deployed') deployed += 1
+      else if (s === 'failed') failed += 1
+      else if (s.startsWith('pending')) pending += 1
+      else if (s === 'superseded') superseded += 1
+    }
+    return { total, deployed, failed, pending, superseded }
+  }, [items])
+
+  const summaryCards = useMemo<SummaryCard[]>(
+    () => [
+      [t('helmReleases.stats.total'), stats.total, 'border-slate-700 bg-slate-900/50', 'text-slate-400'],
+      [t('helmReleases.stats.deployed'), stats.deployed, 'border-emerald-700/40 bg-emerald-900/10', 'text-emerald-300'],
+      [t('helmReleases.stats.failed'), stats.failed, 'border-rose-700/40 bg-rose-900/10', 'text-rose-300'],
+      [t('helmReleases.stats.pending'), stats.pending, 'border-amber-700/40 bg-amber-900/10', 'text-amber-300'],
+      [t('helmReleases.stats.superseded'), stats.superseded, 'border-slate-700 bg-slate-900/50', 'text-slate-400'],
+    ],
+    [stats, t],
+  )
 
   // Derive namespace dropdown from the release list itself — no need
   // for a separate /namespaces call, and it keeps the selector in sync
@@ -168,6 +200,18 @@ export default function HelmReleasesPage() {
           {t('helmReleases.matchCount', { count: filtered.length })}
         </div>
       )}
+
+      {/* Stats — counted from full items (not filtered), so the
+          numbers stay stable while the user narrows the table via
+          the search box. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {summaryCards.map(([label, value, boxClass, labelColor]) => (
+          <div key={label} className={`rounded-lg border px-3 py-2.5 ${boxClass}`}>
+            <div className={`text-[11px] sm:text-xs leading-4 whitespace-nowrap ${labelColor}`}>{label}</div>
+            <div className="mt-1 text-lg font-semibold text-white">{value}</div>
+          </div>
+        ))}
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-slate-400">
