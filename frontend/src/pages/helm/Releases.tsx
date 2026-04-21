@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { api, type HelmReleaseSummary } from '@/services/api'
+import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
 
 // Release mutations are rare (install/upgrade minutes apart) so we
 // refetch on a relaxed cadence rather than subscribing to a watch
@@ -52,7 +53,9 @@ export default function HelmReleasesPage() {
   const [nsOpen, setNsOpen] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
   const nsRef = useRef<HTMLDivElement>(null)
+  const tableContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!nsOpen) return
@@ -183,6 +186,26 @@ export default function HelmReleasesPage() {
     })
     return list
   }, [filtered, sortKey, sortDir])
+
+  const rowsPerPage = useAdaptiveRowsPerPage(tableContainerRef, {
+    recalculationKey: sorted.length,
+  })
+  const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage))
+
+  // Reset to page 1 when filters change so the user isn't stranded on
+  // an out-of-range page after the result set shrinks.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [q, namespace])
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages)
+  }, [currentPage, totalPages])
+
+  const paged = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage
+    return sorted.slice(start, start + rowsPerPage)
+  }, [sorted, currentPage, rowsPerPage])
 
   return (
     <div className="space-y-4">
@@ -340,7 +363,7 @@ export default function HelmReleasesPage() {
               </tr>
             </thead>
             <tbody className="bg-slate-900/40 divide-y divide-slate-800">
-              {sorted.map((r) => {
+              {paged.map((r) => {
                 const to = `/helm/releases/${encodeURIComponent(r.namespace)}/${encodeURIComponent(r.name)}`
                 return (
                 <tr
