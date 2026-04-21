@@ -1,9 +1,12 @@
 """
 AI Service API 라우터
 """
+from typing import Optional
+
 from fastapi import APIRouter, Header, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse
 from app.models.ai import ChatRequest
+from app.models.floating_ai import FloatingChatRequest
 from app.security import require_auth
 
 router = APIRouter()
@@ -105,6 +108,45 @@ async def session_chat(session_id: str, message: str, authorization: str = Heade
     try:
         return StreamingResponse(
             ai_service.session_chat_stream(session_id, message),
+            media_type="text/event-stream",
+            headers={
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "no-cache, no-transform",
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sessions/{session_id}/floating-chat")
+async def floating_session_chat(
+    session_id: str,
+    body: FloatingChatRequest,
+    authorization: str = Header(..., alias="Authorization"),
+    x_cluster_name: Optional[str] = Header(None, alias="X-Cluster-Name"),
+):
+    """플로팅 AI 위젯 전용 세션 채팅.
+
+    기존 ``/sessions/{id}/chat`` 과 분리된 JSON body 방식 엔드포인트:
+
+    - 세션 자체(생성/목록/히스토리) 는 session-service `/api/v1/sessions` 공유
+    - message + 화면 스냅샷(page_context) 을 JSON body 로 전달
+    - AIService 확장점으로 플로팅 전용 시스템 프롬프트 / READONLY tool / page_context
+      / 세션 제목 prefix 를 주입, 나머지 동작은 AIService 가 그대로 수행
+    """
+    from app.services.floating_ai_service import FloatingAIService
+
+    ai_service = await _build_ai_service(authorization)
+    floating_service = FloatingAIService(ai_service=ai_service)
+
+    try:
+        return StreamingResponse(
+            floating_service.session_chat_stream(
+                session_id=session_id,
+                message=body.message,
+                page_context=body.page_context,
+                cluster_name=x_cluster_name,
+            ),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",

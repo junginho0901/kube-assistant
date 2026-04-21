@@ -2,7 +2,7 @@
 AI 트러블슈팅 서비스
 """
 from openai import AsyncOpenAI
-from typing import List, Dict, Optional
+from typing import Callable, List, Dict, Optional
 import httpx
 import re
 import json
@@ -3615,8 +3615,25 @@ Draft (rules-based, keep numbers unchanged):
         
         return suggestions[:5]  # 최대 5개
     
-    async def session_chat_stream(self, session_id: str, message: str):
-        """세션 기반 AI 챗봇 (스트리밍 + 세션 관리 + Tool Context)"""
+    async def session_chat_stream(
+        self,
+        session_id: str,
+        message: str,
+        *,
+        system_prompt_override: Optional[str] = None,
+        tool_filter: Optional[Callable[[list], list]] = None,
+        extra_context_block: Optional[str] = None,
+        title_prefix: Optional[str] = None,
+    ):
+        """세션 기반 AI 챗봇 (스트리밍 + 세션 관리 + Tool Context).
+
+        확장점 4개(모두 선택적, 기본 None 은 기존 동작):
+        - system_prompt_override: 시스템 프롬프트를 대체 (ex. 플로팅 어시스턴트)
+        - tool_filter: tool 목록에 추가 필터 적용 (ex. READONLY 화이트리스트)
+        - extra_context_block: language directive 뒤에 추가 system 메시지 주입
+          (ex. 플로팅 위젯의 page_context 스냅샷)
+        - title_prefix: 자동 세션 제목 생성 시 앞에 붙이는 prefix (ex. "[플로팅] ")
+        """
         from app.database import get_db_service
         
         try:
@@ -3643,7 +3660,10 @@ Draft (rules-based, keep numbers unchanged):
             ]
             recent_history = history_for_model[-MAX_HISTORY_MESSAGES:]
 
-            messages = [{"role": "system", "content": self._get_system_message()}]
+            messages = [{
+                "role": "system",
+                "content": system_prompt_override or self._get_system_message(),
+            }]
             for msg in recent_history:
                 messages.append({
                     "role": msg.role,
@@ -3655,7 +3675,14 @@ Draft (rules-based, keep numbers unchanged):
                 "role": "system",
                 "content": self._build_language_directive(message),
             })
-            
+
+            # 확장점: 호출자가 넘긴 추가 system 블록 (ex. 플로팅 page_context)
+            if extra_context_block:
+                messages.append({
+                    "role": "system",
+                    "content": extra_context_block,
+                })
+
             # Tool Context 가져오기 또는 생성
             if session_id not in self.tool_contexts:
                 self.tool_contexts[session_id] = ToolContext(session_id)
@@ -3676,7 +3703,10 @@ Draft (rules-based, keep numbers unchanged):
             tools = self._get_tools_definition()
             # YAML/WIDE 요청 시 legacy JSON-only 도구는 제외
             tools = self._filter_tools_for_output_preference(tools, message)
-            
+            # 확장점: 호출자가 넘긴 tool filter (ex. READONLY 화이트리스트)
+            if tool_filter is not None:
+                tools = tool_filter(tools)
+
             # 모델 정보를 스트림 첫 이벤트로 전송 (브라우저 콘솔에서 확인용)
             yield f"data: {json.dumps({'model_info': {'provider': self.provider, 'model': self.model, 'role': self.user_role}}, ensure_ascii=False)}\n\n"
 
@@ -3994,6 +4024,8 @@ Draft (rules-based, keep numbers unchanged):
             # 세션 제목 자동 생성 (첫 메시지인 경우)
             if len(messages_history) <= 1:  # 시스템 메시지 + 첫 사용자 메시지
                 title = message[:50] + "..." if len(message) > 50 else message
+                if title_prefix:
+                    title = title_prefix + title
                 await db.update_session_title(session_id, title)
             
             yield "data: [DONE]\n\n"
