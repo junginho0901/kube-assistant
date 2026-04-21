@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, ChevronDown, ExternalLink, Loader2, Package, RefreshCw, Search } from 'lucide-react'
@@ -32,6 +32,7 @@ function statusBadge(status: string): string {
 
 export default function HelmReleasesPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [namespace, setNamespace] = useState<string>('')
   const [q, setQ] = useState<string>('')
   const [nsOpen, setNsOpen] = useState(false)
@@ -190,13 +191,19 @@ export default function HelmReleasesPage() {
               </tr>
             </thead>
             <tbody className="bg-slate-900/40 divide-y divide-slate-800">
-              {filtered.map((r) => (
-                <tr key={`${r.namespace}/${r.name}`} className="hover:bg-slate-800/60">
+              {filtered.map((r) => {
+                const to = `/helm/releases/${encodeURIComponent(r.namespace)}/${encodeURIComponent(r.name)}`
+                return (
+                <tr
+                  key={`${r.namespace}/${r.name}`}
+                  className="hover:bg-slate-800/60 cursor-pointer"
+                  onClick={() => navigate(to)}
+                >
                   <td className="px-3 py-2 text-white font-medium">
-                    <Link
-                      to={`/helm/releases/${encodeURIComponent(r.namespace)}/${encodeURIComponent(r.name)}`}
-                      className="hover:text-primary-400"
-                    >
+                    {/* Link kept on the name so cmd/middle-click
+                        still opens the detail in a new tab; the row
+                        onClick covers left-click anywhere else. */}
+                    <Link to={to} className="hover:text-primary-400" onClick={(e) => e.stopPropagation()}>
                       {r.name}
                     </Link>
                   </td>
@@ -214,7 +221,8 @@ export default function HelmReleasesPage() {
                   <td className="px-3 py-2 text-slate-300">{r.appVersion || '-'}</td>
                   <td className="px-3 py-2 text-slate-400">{formatUpdated(r.updated)}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
