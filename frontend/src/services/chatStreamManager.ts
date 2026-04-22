@@ -70,10 +70,28 @@ Executing...
 `
 }
 
-class ChatStreamManager {
+export interface ChatStreamManagerOptions {
+  /**
+   * 요청 URL 템플릿. `{sessionId}` 플레이스홀더가 있으면 인코딩된 sessionId 로 치환된다.
+   * 기본: `/api/v1/ai/sessions/{sessionId}/chat` (기존 싱글톤 동작).
+   */
+  endpoint?: string
+  /**
+   * `true` 면 message 를 JSON body 로 전송 (`POST /floating-chat` 같은 신규 엔드포인트).
+   * `false` (기본) 면 기존 방식대로 `?message=...` 쿼리 파라미터로 전송.
+   */
+  bodyJson?: boolean
+  /**
+   * 요청마다 동적으로 추가할 헤더 (예: 멀티클러스터 PR 에서 `X-Cluster-Name`).
+   */
+  extraHeaders?: () => Record<string, string>
+}
+
+export class ChatStreamManager {
   private state: ChatStreamState = initialState
   private listeners = new Set<Listener>()
   private abortController: AbortController | null = null
+  private readonly options: ChatStreamManagerOptions
 
   // 타자기 효과: 도착한 텍스트를 큐에 넣고 RAF로 적응형 배치 드레인
   private _charQueue: string[] = []
@@ -81,6 +99,10 @@ class ChatStreamManager {
   private _streamDone = false          // SSE [DONE] 수신 여부
   private _pendingDonePatch: Partial<ChatStreamState> | null = null
   private static readonly TICK_MS = 30 // 드레인 간격 (ms)
+
+  constructor(options: ChatStreamManagerOptions = {}) {
+    this.options = options
+  }
 
   getState = () => this.state
 
@@ -188,7 +210,11 @@ class ChatStreamManager {
     }
   }
 
-  startSessionChat = async (sessionId: string, userMessage: string) => {
+  startSessionChat = async (
+    sessionId: string,
+    userMessage: string,
+    extraBody?: Record<string, unknown>,
+  ) => {
     if (this.state.isStreaming) {
       throw new Error('이미 답변 생성 중입니다. 먼저 중단해 주세요.')
     }
@@ -211,14 +237,34 @@ class ChatStreamManager {
     })
 
     try {
-      const response = await fetch(
-        `/api/v1/ai/sessions/${sessionId}/chat?message=${encodeURIComponent(userMessage)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          signal: this.abortController.signal,
-        }
+      const endpointTemplate =
+        this.options.endpoint ?? '/api/v1/ai/sessions/{sessionId}/chat'
+      const endpoint = endpointTemplate.replace(
+        '{sessionId}',
+        encodeURIComponent(sessionId),
       )
+      const useBodyJson = this.options.bodyJson === true
+      const extraHeaders = this.options.extraHeaders?.() ?? {}
+
+      const url = useBodyJson
+        ? endpoint
+        : `${endpoint}?message=${encodeURIComponent(userMessage)}`
+
+      const init: RequestInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+          ...extraHeaders,
+        },
+        signal: this.abortController.signal,
+      }
+
+      if (useBodyJson) {
+        init.body = JSON.stringify({ message: userMessage, ...(extraBody ?? {}) })
+      }
+
+      const response = await fetch(url, init)
 
       if (response.status === 401) {
         handleUnauthorized()
