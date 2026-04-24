@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'namespace' | 'hostnames' | 'parents' | 'rules' | 'backends' | 'status' | 'age'
@@ -340,6 +343,37 @@ export default function GRPCRoutes() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedGRPCRoutes.slice(start, start + rowsPerPage)
   }, [sortedGRPCRoutes, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(grpcRoutes) || grpcRoutes.length === 0) return null
+    const nsLabel = selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace
+    const total = grpcRoutes.length
+    const unresolved = grpcRoutes.filter((r) => r.resolved_refs === false).length
+    const prefix = unresolved > 0 ? '⚠️ ' : ''
+    return {
+      source: 'base' as const,
+      summary: `${prefix}${nsLabel} GRPCRoute ${total}개${unresolved ? ` (참조 해결 실패 ${unresolved})` : ''}`,
+      data: {
+        filters: { namespace: selectedNamespace, search: searchQuery || undefined },
+        stats: { total, unresolved_refs: unresolved },
+        ...summarizeList(pagedGRPCRoutes as unknown as Record<string, unknown>[], {
+          total: sortedGRPCRoutes.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'hostnames', 'parent_refs_count', 'rule_count', 'backend_refs_count', 'accepted', 'resolved_refs', 'status'],
+          filterProblematic: (r) => (r as unknown as GRPCRouteInfo).resolved_refs === false,
+          linkBuilder: (r) => {
+            const gr = r as unknown as GRPCRouteInfo
+            return buildResourceLink('GRPCRoute', gr.namespace, gr.name)
+          },
+        }),
+      },
+    }
+  }, [grpcRoutes, pagedGRPCRoutes, sortedGRPCRoutes.length, currentPage, rowsPerPage, selectedNamespace, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return
