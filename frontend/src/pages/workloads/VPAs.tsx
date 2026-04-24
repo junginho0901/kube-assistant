@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'target' | 'updateMode' | 'cpu' | 'memory' | 'provided' | 'age'
@@ -264,6 +267,34 @@ export default function VPAs() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedVPAs.slice(start, start + rowsPerPage)
   }, [sortedVPAs, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(vpas) || vpas.length === 0) return null
+    const nsLabel = selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace
+    const total = vpas.length
+    return {
+      source: 'base' as const,
+      summary: `${nsLabel} VPA ${total}개`,
+      data: {
+        filters: { namespace: selectedNamespace, search: searchQuery || undefined },
+        stats: { total },
+        ...summarizeList(pagedVPAs as unknown as Record<string, unknown>[], {
+          total: sortedVPAs.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'target_ref_kind', 'target_ref_name', 'update_mode', 'cpu_target', 'memory_target', 'provided'],
+          linkBuilder: (v) => {
+            const vpa = v as unknown as VPAInfo
+            return buildResourceLink('VerticalPodAutoscaler', vpa.namespace, vpa.name)
+          },
+        }),
+      },
+    }
+  }, [vpas, pagedVPAs, sortedVPAs.length, currentPage, rowsPerPage, selectedNamespace, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return

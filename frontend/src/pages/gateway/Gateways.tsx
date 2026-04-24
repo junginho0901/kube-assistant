@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'namespace' | 'class' | 'status' | 'listeners' | 'routes' | 'addresses' | 'age'
@@ -317,6 +320,37 @@ export default function Gateways() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedGateways.slice(start, start + rowsPerPage)
   }, [sortedGateways, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(gateways) || gateways.length === 0) return null
+    const nsLabel = selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace
+    const total = gateways.length
+    const notProgrammed = gateways.filter((g) => g.programmed === false).length
+    const prefix = notProgrammed > 0 ? '⚠️ ' : ''
+    return {
+      source: 'base' as const,
+      summary: `${prefix}${nsLabel} Gateway ${total}개${notProgrammed ? ` (Not Programmed ${notProgrammed})` : ''}`,
+      data: {
+        filters: { namespace: selectedNamespace, search: searchQuery || undefined },
+        stats: { total, not_programmed: notProgrammed },
+        ...summarizeList(pagedGateways as unknown as Record<string, unknown>[], {
+          total: sortedGateways.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'gateway_class_name', 'listeners_count', 'attached_routes', 'addresses_count', 'programmed', 'accepted', 'status'],
+          filterProblematic: (g) => (g as unknown as GatewayInfo).programmed === false,
+          linkBuilder: (g) => {
+            const gw = g as unknown as GatewayInfo
+            return buildResourceLink('Gateway', gw.namespace, gw.name)
+          },
+        }),
+      },
+    }
+  }, [gateways, pagedGateways, sortedGateways.length, currentPage, rowsPerPage, selectedNamespace, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return

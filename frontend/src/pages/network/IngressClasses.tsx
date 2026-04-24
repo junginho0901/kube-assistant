@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'controller' | 'default' | 'parameters' | 'age'
@@ -271,6 +274,34 @@ export default function IngressClasses() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedIngressClasses.slice(start, start + rowsPerPage)
   }, [sortedIngressClasses, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷 (cluster-scoped)
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(ingressClasses) || ingressClasses.length === 0) return null
+    const total = ingressClasses.length
+    const defaults = ingressClasses.filter((c) => c.is_default).length
+    return {
+      source: 'base' as const,
+      summary: `IngressClass ${total}개 (기본 ${defaults}개)`,
+      data: {
+        filters: { search: searchQuery || undefined },
+        stats: { total, defaults },
+        ...summarizeList(pagedIngressClasses as unknown as Record<string, unknown>[], {
+          total: sortedIngressClasses.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'controller', 'is_default'],
+          linkBuilder: (c) => {
+            const ic = c as unknown as IngressClassInfo
+            return buildResourceLink('IngressClass', undefined, ic.name)
+          },
+        }),
+      },
+    }
+  }, [ingressClasses, pagedIngressClasses, sortedIngressClasses.length, currentPage, rowsPerPage, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return

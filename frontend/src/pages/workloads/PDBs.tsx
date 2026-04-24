@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'minAvailable' | 'maxUnavailable' | 'allowedDisruptions' | 'currentHealthy' | 'desiredHealthy' | 'age'
@@ -251,6 +254,40 @@ export default function PDBs() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedPDBs.slice(start, start + rowsPerPage)
   }, [sortedPDBs, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(pdbs) || pdbs.length === 0) return null
+    const nsLabel = selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace
+    const total = pdbs.length
+    const unhealthy = pdbs.filter((p) => p.current_healthy < p.desired_healthy).length
+    const prefix = unhealthy > 0 ? '⚠️ ' : ''
+    return {
+      source: 'base' as const,
+      summary: `${prefix}${nsLabel} PDB ${total}개${unhealthy ? ` (미달 ${unhealthy})` : ''}`,
+      data: {
+        filters: { namespace: selectedNamespace, search: searchQuery || undefined },
+        stats: { total, unhealthy },
+        ...summarizeList(pagedPDBs as unknown as Record<string, unknown>[], {
+          total: sortedPDBs.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'min_available', 'max_unavailable', 'current_healthy', 'desired_healthy', 'disruptions_allowed', 'expected_pods'],
+          filterProblematic: (p) => {
+            const pdb = p as unknown as PDBInfo
+            return pdb.current_healthy < pdb.desired_healthy
+          },
+          linkBuilder: (p) => {
+            const pdb = p as unknown as PDBInfo
+            return buildResourceLink('PodDisruptionBudget', pdb.namespace, pdb.name)
+          },
+        }),
+      },
+    }
+  }, [pdbs, pagedPDBs, sortedPDBs.length, currentPage, rowsPerPage, selectedNamespace, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return

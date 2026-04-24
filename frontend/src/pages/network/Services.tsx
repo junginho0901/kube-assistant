@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, CheckCircle, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey =
@@ -334,6 +337,38 @@ export default function Services() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedServices.slice(start, start + rowsPerPage)
   }, [sortedServices, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(services) || services.length === 0) return null
+    const nsLabel = selectedNamespace === 'all' ? '전체 네임스페이스' : selectedNamespace
+    const total = services.length
+    const byType: Record<string, number> = {}
+    for (const s of services) {
+      byType[s.type] = (byType[s.type] ?? 0) + 1
+    }
+    return {
+      source: 'base' as const,
+      summary: `${nsLabel} Service ${total}개`,
+      data: {
+        filters: { namespace: selectedNamespace, search: searchQuery || undefined },
+        stats: { total, by_type: byType },
+        ...summarizeList(pagedServices as unknown as Record<string, unknown>[], {
+          total: sortedServices.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'type', 'cluster_ip', 'external_ip', 'ports'],
+          linkBuilder: (s) => {
+            const svc = s as unknown as ServiceInfo
+            return buildResourceLink('Service', svc.namespace, svc.name)
+          },
+        }),
+      },
+    }
+  }, [services, pagedServices, sortedServices.length, currentPage, rowsPerPage, selectedNamespace, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return
