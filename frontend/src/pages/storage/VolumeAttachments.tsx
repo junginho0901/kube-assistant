@@ -6,7 +6,10 @@ import { useKubeWatchList } from '@/services/useKubeWatchList'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ResourceYamlCreateDialog from '@/components/ResourceYamlCreateDialog'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
 import { usePermission } from '@/hooks/usePermission'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { Loader2, ChevronDown, ChevronUp, Plus, RefreshCw, Search } from 'lucide-react'
 
 type SortKey = null | 'name' | 'attacher' | 'pv' | 'node' | 'attached' | 'error' | 'age'
@@ -311,6 +314,39 @@ export default function VolumeAttachments() {
     const start = (currentPage - 1) * rowsPerPage
     return sortedVolumeAttachments.slice(start, start + rowsPerPage)
   }, [sortedVolumeAttachments, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷 (cluster-scoped)
+  const aiSnapshot = useMemo(() => {
+    if (!Array.isArray(volumeAttachments) || volumeAttachments.length === 0) return null
+    const total = volumeAttachments.length
+    const withError = volumeAttachments.filter((v) => !!(v.attach_error || v.detach_error)).length
+    const prefix = withError > 0 ? '⚠️ ' : ''
+    return {
+      source: 'base' as const,
+      summary: `${prefix}VolumeAttachment ${total}개${withError ? `, 오류 ${withError}` : ''}`,
+      data: {
+        filters: { search: searchQuery || undefined },
+        stats: { total, with_error: withError },
+        ...summarizeList(pagedVolumeAttachments as unknown as Record<string, unknown>[], {
+          total: sortedVolumeAttachments.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'attacher', 'persistent_volume_name', 'node_name', 'attached', 'attach_error', 'detach_error'],
+          filterProblematic: (v) => {
+            const va = v as unknown as VolumeAttachmentInfo
+            return !!(va.attach_error || va.detach_error)
+          },
+          linkBuilder: (v) => {
+            const va = v as unknown as VolumeAttachmentInfo
+            return buildResourceLink('VolumeAttachment', undefined, va.name)
+          },
+        }),
+      },
+    }
+  }, [volumeAttachments, pagedVolumeAttachments, sortedVolumeAttachments.length, currentPage, rowsPerPage, searchQuery])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const handleRefresh = async () => {
     if (isRefreshing) return
