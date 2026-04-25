@@ -14,6 +14,8 @@ import {
 } from 'lucide-react'
 import { api, type HelmReleaseSummary } from '@/services/api'
 import { useAdaptiveRowsPerPage } from '@/hooks/useAdaptiveRowsPerPage'
+import { useAIContext } from '@/hooks/useAIContext'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
 
 // Release mutations are rare (install/upgrade minutes apart) so we
 // refetch on a relaxed cadence rather than subscribing to a watch
@@ -206,6 +208,35 @@ export default function HelmReleasesPage() {
     const start = (currentPage - 1) * rowsPerPage
     return sorted.slice(start, start + rowsPerPage)
   }, [sorted, currentPage, rowsPerPage])
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (items.length === 0) return null
+    const total = items.length
+    const failed = items.filter((r) => /fail|error/i.test(String(r.status))).length
+    const pending = items.filter((r) => /pending/i.test(String(r.status))).length
+    const deployed = items.filter((r) => /deployed/i.test(String(r.status))).length
+    const prefix = failed > 0 ? '⚠️ ' : ''
+    const nsLabel = namespace || '전체 네임스페이스'
+    return {
+      source: 'base' as const,
+      summary: `${prefix}${nsLabel} Helm Release ${total}개 (deployed ${deployed}, pending ${pending}, failed ${failed})`,
+      data: {
+        filters: { namespace: namespace || undefined, search: q || undefined },
+        stats: { total, deployed, pending, failed },
+        ...summarizeList(paged as unknown as Record<string, unknown>[], {
+          total: sorted.length,
+          currentPage,
+          pageSize: rowsPerPage,
+          topN: rowsPerPage,
+          pickFields: ['name', 'namespace', 'revision', 'status', 'chart', 'chart_version', 'app_version', 'updated'],
+          filterProblematic: (r) => /fail|error/i.test(String((r as unknown as HelmReleaseSummary).status)),
+        }),
+      },
+    }
+  }, [items, paged, sorted.length, currentPage, rowsPerPage, namespace, q])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
