@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type EndpointInfo, type IngressDetail, type NetworkPolicyInfo, type PodInfo, type ServiceInfo } from '@/services/api'
+import { useAIContext } from '@/hooks/useAIContext'
 import { AlertTriangle, Network, RefreshCw, Search, Server, Shield, Waypoints } from 'lucide-react'
 
 function buildLabelSelector(selector: Record<string, string> | undefined | null): string | undefined {
@@ -236,6 +237,34 @@ export default function NetworkPage() {
     queryKey: ['network', 'ingressclasses'],
     queryFn: () => api.getIngressClasses(),
   })
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!namespace) return null
+    const svcCount = services?.length ?? 0
+    const ingCount = ingresses?.length ?? 0
+    const epCount = endpoints?.length ?? 0
+    const epsCount = endpointSlices?.length ?? 0
+    const npCount = networkPolicies?.length ?? 0
+    return {
+      source: 'base' as const,
+      summary: `네트워크 · ${namespace} · Service ${svcCount}, Ingress ${ingCount}, Endpoints ${epCount}, NetworkPolicy ${npCount}`,
+      data: {
+        namespace,
+        filters: { search: searchQuery || undefined, selected_service: selectedServiceName || undefined },
+        stats: {
+          services: svcCount,
+          ingresses: ingCount,
+          endpoints: epCount,
+          endpoint_slices: epsCount,
+          network_policies: npCount,
+          ingress_classes: ingressClasses?.length ?? 0,
+        },
+      },
+    }
+  }, [namespace, services, ingresses, endpoints, endpointSlices, networkPolicies, ingressClasses, searchQuery, selectedServiceName])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   const selectedService: ServiceInfo | null = useMemo(() => {
     if (!services || !selectedServiceName) return null
