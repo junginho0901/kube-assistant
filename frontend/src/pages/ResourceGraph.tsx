@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { api, ResourceGraphNode, ResourceGraphEdge, ResourceGraphEdgeType } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
+import { useAIContext } from '@/hooks/useAIContext'
 
 // ────────────────────────────────────────────
 // Constants
@@ -387,6 +388,34 @@ export default function ResourceGraph() {
     queryFn: () => api.getResourceGraph(nsArray),
     enabled: hasSelection,
   })
+
+  // 플로팅 AI 위젯용 스냅샷
+  const aiSnapshot = useMemo(() => {
+    if (!graphData) return null
+    const totalNodes = graphData.nodes?.length ?? 0
+    const totalEdges = graphData.edges?.length ?? 0
+    const byKind: Record<string, number> = {}
+    for (const n of graphData.nodes ?? []) {
+      byKind[n.kind] = (byKind[n.kind] ?? 0) + 1
+    }
+    return {
+      source: 'base' as const,
+      summary: `리소스 그래프 · ${nsArray?.join(', ') ?? '선택 없음'} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개`,
+      data: {
+        filters: {
+          namespaces: nsArray,
+          kind_filters: Array.from(kindFilters),
+          edge_type_filters: Array.from(edgeTypeFilters),
+          search: searchQuery || undefined,
+          group_by: groupBy,
+          status_filter: statusFilter,
+        },
+        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind },
+      },
+    }
+  }, [graphData, nsArray, kindFilters, edgeTypeFilters, searchQuery, groupBy, statusFilter])
+
+  useAIContext(aiSnapshot, [aiSnapshot])
 
   // Close dropdown on outside click
   useEffect(() => {
