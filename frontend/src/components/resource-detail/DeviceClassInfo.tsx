@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { InfoSection, InfoRow, KeyValueTags, fmtRel, fmtTs } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -29,6 +30,8 @@ export default function DeviceClassInfo({ name, rawJson }: Props) {
     enabled: !!name,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'DeviceClass', name, describe })
 
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
 
