@@ -12,6 +12,7 @@ import {
   fmtRel,
   fmtTs,
 } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -154,6 +155,9 @@ export default function CustomResourceInstanceInfo({ name, namespace, rawJson }:
     enabled: !!crdName,
     retry: false,
   })
+
+  const crKind = (describe?.kind as string | undefined) || (crdDescribe?.kind as string | undefined) || 'CustomResource'
+  useResourceDetailOverlay({ kind: crKind, name, namespace, describe })
 
   // Extract printer columns from the CRD's storage version
   const printerColumns = useMemo(() => {

@@ -4,6 +4,7 @@ import { api } from '@/services/api'
 import { ConditionsTable, EventsTable, InfoSection, InfoRow, KeyValueTags, SummaryBadge, fmtRel, fmtTs } from './DetailCommon'
 import { usePrometheusQueries } from '@/hooks/usePrometheusQuery'
 import { PrometheusSection, MetricCard } from './PrometheusMetrics'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -99,6 +100,8 @@ export default function ServiceInfo({ name, namespace, rawJson }: Props) {
     enabled,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'Service', name, namespace, describe })
 
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
   const spec = (rawJson?.spec ?? {}) as Record<string, unknown>

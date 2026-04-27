@@ -321,29 +321,34 @@ export default function ResourceDetailDrawer() {
     }
     if (tab === 'yaml') {
       const yamlText = typeof yamlData?.yaml === 'string' ? yamlData.yaml : ''
-      const truncated = yamlText.length > 2048 ? yamlText.slice(0, 2048) + '\n... (truncated) ...' : yamlText
+      const truncated = yamlText.length > 4096 ? yamlText.slice(0, 4096) + '\n... (truncated) ...' : yamlText
       return {
         source: 'ResourceDetailDrawer' as const,
         summary: `${kind} ${name}${ns ? ` (${ns})` : ''} 상세 — YAML 탭`,
         data: { ...base, yaml: truncated },
       }
     }
-    // info tab — effectiveRawJson 의 metadata / status 요약만 포함
+    // info tab — effectiveRawJson 전체를 sanitize 후 통째로 포함.
+    // managedFields / annotations 본문 등 대용량/잡음 필드는 제거.
+    // 8KB 토큰 한도는 useAIContext 의 enforceTokenBudget 가 자동 적용.
     const rj = effectiveRawJson as Record<string, unknown> | undefined
     const meta = (rj?.metadata as Record<string, unknown> | undefined) ?? {}
-    const status = rj?.status
+    const sanitizedMeta = meta
+      ? {
+          ...meta,
+          managedFields: undefined,
+          annotations: meta.annotations
+            ? Object.keys(meta.annotations as Record<string, unknown>)
+            : undefined,
+        }
+      : meta
+    const sanitizedRaw = rj ? { ...rj, metadata: sanitizedMeta } : undefined
     return {
       source: 'ResourceDetailDrawer' as const,
       summary: `${kind} ${name}${ns ? ` (${ns})` : ''} 상세 — Info 탭`,
       data: {
         ...base,
-        labels: meta.labels,
-        annotations_keys: meta.annotations
-          ? Object.keys(meta.annotations as Record<string, unknown>)
-          : undefined,
-        creation_timestamp: meta.creationTimestamp,
-        owner_references: meta.ownerReferences,
-        status: status && typeof status === 'object' ? status : undefined,
+        raw: sanitizedRaw,
       },
     }
   }, [target, tab, kind, name, ns, yamlData, effectiveRawJson])

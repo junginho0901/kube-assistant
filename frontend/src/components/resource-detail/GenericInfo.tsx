@@ -1,4 +1,5 @@
 import { InfoSection, InfoRow, KeyValueTags, ConditionsTable, fmtRel, fmtTs } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -13,6 +14,8 @@ export default function GenericInfo({ name, namespace, kind, rawJson }: Props) {
   const status = (rawJson?.status ?? {}) as Record<string, unknown>
   const labels = (meta.labels ?? {}) as Record<string, string>
   const annotations = (meta.annotations ?? {}) as Record<string, string>
+
+  useResourceDetailOverlay({ kind, name, namespace, extras: { spec, status } })
 
   return (
     <>

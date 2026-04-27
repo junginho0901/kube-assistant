@@ -1,5 +1,6 @@
 import { InfoSection, InfoRow, KeyValueTags, fmtRel, fmtTs } from './DetailCommon'
 import { ResourceLink } from './ResourceLink'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -21,6 +22,13 @@ function renderConditionBadge(label: string, value: unknown) {
 }
 
 export default function NetworkInfo({ name, namespace, kind, rawJson }: Props) {
+  // rawJson 의 spec/status 를 extras 로 추가 — base 에는 sanitize 된 raw 가 이미 있지만
+  // network 리소스는 spec/status 가 핵심이라 명시적으로 다시 노출.
+  const extras = rawJson
+    ? { spec: rawJson.spec, status: rawJson.status }
+    : undefined
+  useResourceDetailOverlay({ kind, name, namespace, extras })
+
   if (kind === 'Service') return <ServiceDetail name={name} namespace={namespace} rawJson={rawJson} />
   if (kind === 'Ingress') return <IngressDetail name={name} namespace={namespace} rawJson={rawJson} />
   if (kind === 'IngressClass') return <IngressClassDetail name={name} rawJson={rawJson} />

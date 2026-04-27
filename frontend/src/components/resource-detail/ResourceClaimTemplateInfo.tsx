@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { InfoSection, InfoRow, KeyValueTags, fmtRel, fmtTs } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -31,6 +32,8 @@ export default function ResourceClaimTemplateInfo({ name, namespace, rawJson }: 
     enabled,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'ResourceClaimTemplate', name, namespace, describe })
 
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
 

@@ -9,6 +9,7 @@ import {
   fmtTs,
 } from './DetailCommon'
 import { ResourceLink } from './ResourceLink'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -25,6 +26,8 @@ export default function ClusterRoleBindingInfo({ name, rawJson }: Props) {
     enabled: !!name,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'ClusterRoleBinding', name, describe })
 
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
   const labels = (describe?.labels as Record<string, string> | undefined) ?? (meta.labels as Record<string, string> | undefined) ?? {}
