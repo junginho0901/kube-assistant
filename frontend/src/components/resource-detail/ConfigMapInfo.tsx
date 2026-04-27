@@ -10,6 +10,7 @@ import {
   fmtRel,
   fmtTs,
 } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -28,6 +29,8 @@ export default function ConfigMapInfo({ name, namespace, rawJson }: Props) {
     enabled: !!namespace && !!name,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'ConfigMap', name, namespace, describe })
 
   const meta = (rawJson?.metadata ?? {}) as Record<string, unknown>
   const labels = (describe?.labels as Record<string, string> | undefined) ?? (meta.labels as Record<string, string> | undefined) ?? {}

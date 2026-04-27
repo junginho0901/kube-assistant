@@ -10,6 +10,7 @@ import {
   fmtRel,
   fmtTs,
 } from './DetailCommon'
+import { useResourceDetailOverlay } from '@/hooks/useResourceDetailOverlay'
 
 interface Props {
   name: string
@@ -39,6 +40,8 @@ export default function CRDInfo({ name, rawJson }: Props) {
     enabled: !!name,
     retry: false,
   })
+
+  useResourceDetailOverlay({ kind: 'CustomResourceDefinition', name, describe })
 
   // Fetch CR instances for this CRD
   const group = describe?.group as string || ''
