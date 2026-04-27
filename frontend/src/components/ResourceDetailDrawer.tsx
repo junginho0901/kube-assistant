@@ -321,7 +321,7 @@ export default function ResourceDetailDrawer() {
     }
     if (tab === 'yaml') {
       const yamlText = typeof yamlData?.yaml === 'string' ? yamlData.yaml : ''
-      const truncated = yamlText.length > 2048 ? yamlText.slice(0, 2048) + '\n... (truncated) ...' : yamlText
+      const truncated = yamlText.length > 4096 ? yamlText.slice(0, 4096) + '\n... (truncated) ...' : yamlText
       return {
         source: 'ResourceDetailDrawer' as const,
         summary: `${kind} ${name}${ns ? ` (${ns})` : ''} 상세 — YAML 탭`,
