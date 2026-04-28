@@ -6,6 +6,7 @@ import { X, Info, FileCode, Trash2, ArrowLeft, ArrowUpRight, Package } from 'luc
 import { useResourceDetail } from './ResourceDetailContext'
 import { usePermission } from '@/hooks/usePermission'
 import { useAIContext } from '@/hooks/useAIContext'
+import { useModalStackEntry } from '@/hooks/useModalStack'
 import { buildResourceLink } from '@/utils/resourceLink'
 import { api } from '@/services/api'
 import YamlEditor from './YamlEditor'
@@ -257,6 +258,7 @@ export default function ResourceDetailDrawer() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { target, close, goBack, canGoBack } = useResourceDetail()
+  const isTopModal = useModalStackEntry(!!target)
   const [tab, setTab] = useState<TabId>('info')
   const [yamlRefreshNonce, setYamlRefreshNonce] = useState(0)
   const [isYamlDirty, setIsYamlDirty] = useState(false)
@@ -559,13 +561,15 @@ export default function ResourceDetailDrawer() {
     if (!target) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // 위에 중첩된 모달(예: Delete 확인)이 떠 있으면 그 모달이 처리해야 한다.
+        if (!isTopModal()) return
         e.stopPropagation()
         handleClose()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [target, isYamlDirty])
+  }, [target, isYamlDirty, isTopModal])
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
