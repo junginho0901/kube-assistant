@@ -8,6 +8,7 @@ import type {
   ChatStreamState,
 } from '@/services/chatStreamManager'
 import { api } from '@/services/api'
+import { getAuthHeaders, handleUnauthorized } from '@/services/auth'
 import type { PageContextSnapshot } from '@/components/PageContextProvider'
 import { serializeSnapshotForBackend } from '@/utils/aiContext/serializeSnapshot'
 
@@ -114,8 +115,50 @@ export function ChatPanel({
     }
   }
 
-  const handleStop = () => {
-    void floatingChatStreamManager.stop()
+  const handleStop = async () => {
+    // AIChat 페이지와 같은 partial-save 패턴 — abort 후 그때까지 받은
+    // assistant content + tool calls 를 별도 API 로 저장한다.
+    // (백엔드 session_chat_stream 은 stream 끝까지 도달해야 add_message 하므로
+    //  중단 시점에서는 user 메시지만 DB 에 있고 assistant 는 사라진다.)
+    const snapshot = floatingChatStreamManager.getState()
+    if (!snapshot.sessionId || !snapshot.isStreaming) {
+      void floatingChatStreamManager.stop()
+      return
+    }
+
+    await floatingChatStreamManager.stop()
+
+    const assistantContent = snapshot.functionCallsContent + snapshot.assistantContent
+    if (!assistantContent) return
+
+    try {
+      const response = await fetch(`/api/v1/sessions/${snapshot.sessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'assistant',
+              content: assistantContent,
+              tool_calls: snapshot.toolCalls && snapshot.toolCalls.length > 0
+                ? snapshot.toolCalls
+                : undefined,
+            },
+          ],
+        }),
+      })
+      if (response.status === 401) {
+        handleUnauthorized()
+        return
+      }
+      if (response.ok) {
+        await queryClient.invalidateQueries({
+          queryKey: ['floating-session-detail', snapshot.sessionId],
+        })
+      }
+    } catch {
+      // 저장 실패 시 사용자 화면에는 stream 멈춘 그대로 표시되므로 무해
+    }
   }
 
   const messages: DisplayMessage[] = useMemo(() => {
