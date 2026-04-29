@@ -8,12 +8,19 @@ import (
 
 // FromHTTPRequest extracts the HTTP context (IP, user-agent, request-id, path)
 // into a new Record. Callers fill in Service, Action, Actor, Target, etc.
+//
+// IP resolution order: X-Forwarded-For (first hop) → X-Real-IP → RemoteAddr.
+// Gateway nginx is configured to populate the first two — see k8s/nginx.conf.
 func FromHTTPRequest(r *http.Request) Record {
 	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
+	if ip != "" {
+		if i := strings.IndexByte(ip, ','); i > 0 {
+			ip = ip[:i]
+		}
+	} else if real := r.Header.Get("X-Real-IP"); real != "" {
+		ip = real
+	} else {
 		ip = r.RemoteAddr
-	} else if i := strings.IndexByte(ip, ','); i > 0 {
-		ip = ip[:i]
 	}
 	return Record{
 		RequestIP: strings.TrimSpace(ip),
