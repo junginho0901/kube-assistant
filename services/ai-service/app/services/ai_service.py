@@ -3655,7 +3655,25 @@ Draft (rules-based, keep numbers unchanged):
             
             # 사용자 메시지 저장
             await db.add_message(session_id, "user", message)
-            
+
+            # audit: ai.chat.send (본문 저장 안 함 — 메시지는 messages 테이블에 별도 보관)
+            if audit_actor:
+                await write_audit(
+                    action='ai.chat.send',
+                    actor_user_id=audit_actor.get('user_id'),
+                    actor_email=audit_actor.get('email'),
+                    target_type='session',
+                    target_id=session_id,
+                    after={
+                        'session_id': session_id,
+                        'message_length': len(message or ''),
+                    },
+                    request_ip=(audit_http or {}).get('ip'),
+                    user_agent=(audit_http or {}).get('user_agent'),
+                    request_id=(audit_http or {}).get('request_id'),
+                    path=(audit_http or {}).get('path'),
+                )
+
             # 대화 히스토리 가져오기
             messages_history = await db.get_messages(session_id)
 
