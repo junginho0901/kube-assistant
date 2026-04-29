@@ -3,11 +3,36 @@ AI Service API 라우터
 """
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Depends, Query
+from fastapi import APIRouter, Header, HTTPException, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from app.models.ai import ChatRequest
 from app.models.floating_ai import FloatingChatRequest
-from app.security import require_auth
+from app.security import require_auth, decode_access_token
+
+
+def _extract_audit_meta(request: Request, authorization: str) -> tuple[dict, dict]:
+    """authorization 토큰 + 요청 헤더에서 audit actor/http 메타 추출.
+
+    실패해도 빈 dict 반환 — audit 는 best-effort.
+    """
+    actor: dict = {}
+    try:
+        token = authorization.split(" ", 1)[1] if " " in authorization else authorization
+        payload = decode_access_token(token)
+        actor = {"user_id": payload.user_id, "email": payload.email}
+    except Exception:
+        pass
+
+    headers = request.headers
+    fwd = headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")
+    http = {
+        "ip": ip,
+        "user_agent": headers.get("user-agent", ""),
+        "request_id": headers.get("x-request-id", ""),
+        "path": str(request.url.path),
+    }
+    return actor, http
 
 router = APIRouter()
 
@@ -97,17 +122,28 @@ async def chat_stream(request: ChatRequest, authorization: str = Header(..., ali
 
 
 @router.post("/sessions/{session_id}/chat")
-async def session_chat(session_id: str, message: str, authorization: str = Header(..., alias="Authorization")):
+async def session_chat(
+    session_id: str,
+    message: str,
+    request: Request,
+    authorization: str = Header(..., alias="Authorization"),
+):
     """
     세션 기반 AI 챗봇 (스트리밍)
     """
     from app.database import get_db_service
 
     ai_service = await _build_ai_service(authorization)
+    audit_actor, audit_http = _extract_audit_meta(request, authorization)
 
     try:
         return StreamingResponse(
-            ai_service.session_chat_stream(session_id, message),
+            ai_service.session_chat_stream(
+                session_id,
+                message,
+                audit_actor=audit_actor,
+                audit_http=audit_http,
+            ),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",
@@ -122,6 +158,7 @@ async def session_chat(session_id: str, message: str, authorization: str = Heade
 async def floating_session_chat(
     session_id: str,
     body: FloatingChatRequest,
+    request: Request,
     authorization: str = Header(..., alias="Authorization"),
     x_cluster_name: Optional[str] = Header(None, alias="X-Cluster-Name"),
 ):
@@ -138,6 +175,7 @@ async def floating_session_chat(
 
     ai_service = await _build_ai_service(authorization)
     floating_service = FloatingAIService(ai_service=ai_service)
+    audit_actor, audit_http = _extract_audit_meta(request, authorization)
 
     try:
         return StreamingResponse(
@@ -146,6 +184,8 @@ async def floating_session_chat(
                 message=body.message,
                 page_context=body.page_context,
                 cluster_name=x_cluster_name,
+                audit_actor=audit_actor,
+                audit_http=audit_http,
             ),
             media_type="text/event-stream",
             headers={

@@ -3624,6 +3624,8 @@ Draft (rules-based, keep numbers unchanged):
         tool_filter: Optional[Callable[[list], list]] = None,
         extra_context_block: Optional[str] = None,
         title_prefix: Optional[str] = None,
+        audit_actor: Optional[dict] = None,
+        audit_http: Optional[dict] = None,
     ):
         """세션 기반 AI 챗봇 (스트리밍 + 세션 관리 + Tool Context).
 
@@ -3633,9 +3635,15 @@ Draft (rules-based, keep numbers unchanged):
         - extra_context_block: language directive 뒤에 추가 system 메시지 주입
           (ex. 플로팅 위젯의 page_context 스냅샷)
         - title_prefix: 자동 세션 제목 생성 시 앞에 붙이는 prefix (ex. "[플로팅] ")
+
+        audit (선택):
+        - audit_actor: { "user_id": str, "email": str } — 누가 요청했는지
+        - audit_http: { "ip": str, "user_agent": str, "request_id": str, "path": str }
+          → ai.chat.send / ai.tool.call 메타데이터 audit 기록
         """
         from app.database import get_db_service
-        
+        from app.services.audit_writer import write_audit
+
         try:
             db = await get_db_service()
             
@@ -3647,7 +3655,25 @@ Draft (rules-based, keep numbers unchanged):
             
             # 사용자 메시지 저장
             await db.add_message(session_id, "user", message)
-            
+
+            # audit: ai.chat.send (본문 저장 안 함 — 메시지는 messages 테이블에 별도 보관)
+            if audit_actor:
+                await write_audit(
+                    action='ai.chat.send',
+                    actor_user_id=audit_actor.get('user_id'),
+                    actor_email=audit_actor.get('email'),
+                    target_type='session',
+                    target_id=session_id,
+                    after={
+                        'session_id': session_id,
+                        'message_length': len(message or ''),
+                    },
+                    request_ip=(audit_http or {}).get('ip'),
+                    user_agent=(audit_http or {}).get('user_agent'),
+                    request_id=(audit_http or {}).get('request_id'),
+                    path=(audit_http or {}).get('path'),
+                )
+
             # 대화 히스토리 가져오기
             messages_history = await db.get_messages(session_id)
 
@@ -3885,6 +3911,33 @@ Draft (rules-based, keep numbers unchanged):
                             'display': display_result,
                             'display_format': "kubectl" if display_result is not None else None,
                         })
+
+                        # audit: ai.tool.call (메타데이터만 — args/result 본문은 저장하지 않음)
+                        if audit_actor:
+                            ns_arg = function_args.get('namespace') if isinstance(function_args, dict) else None
+                            target_id_arg = (
+                                function_args.get('resource_name')
+                                or function_args.get('name')
+                                or function_args.get('pod_name')
+                            ) if isinstance(function_args, dict) else None
+                            target_type_arg = function_args.get('resource_type') if isinstance(function_args, dict) else None
+                            await write_audit(
+                                action='ai.tool.call',
+                                actor_user_id=audit_actor.get('user_id'),
+                                actor_email=audit_actor.get('email'),
+                                target_type=target_type_arg or 'tool',
+                                target_id=target_id_arg or function_name,
+                                namespace=ns_arg,
+                                after={
+                                    'session_id': session_id,
+                                    'tool': function_name,
+                                    'iteration': iteration,
+                                },
+                                request_ip=(audit_http or {}).get('ip'),
+                                user_agent=(audit_http or {}).get('user_agent'),
+                                request_id=(audit_http or {}).get('request_id'),
+                                path=(audit_http or {}).get('path'),
+                            )
 
                         tool_message_content = self._truncate_tool_result_for_llm(formatted_result)
                         messages.append({
