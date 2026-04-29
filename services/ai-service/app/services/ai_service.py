@@ -3624,6 +3624,8 @@ Draft (rules-based, keep numbers unchanged):
         tool_filter: Optional[Callable[[list], list]] = None,
         extra_context_block: Optional[str] = None,
         title_prefix: Optional[str] = None,
+        audit_actor: Optional[dict] = None,
+        audit_http: Optional[dict] = None,
     ):
         """세션 기반 AI 챗봇 (스트리밍 + 세션 관리 + Tool Context).
 
@@ -3633,9 +3635,15 @@ Draft (rules-based, keep numbers unchanged):
         - extra_context_block: language directive 뒤에 추가 system 메시지 주입
           (ex. 플로팅 위젯의 page_context 스냅샷)
         - title_prefix: 자동 세션 제목 생성 시 앞에 붙이는 prefix (ex. "[플로팅] ")
+
+        audit (선택):
+        - audit_actor: { "user_id": str, "email": str } — 누가 요청했는지
+        - audit_http: { "ip": str, "user_agent": str, "request_id": str, "path": str }
+          → ai.chat.send / ai.tool.call 메타데이터 audit 기록
         """
         from app.database import get_db_service
-        
+        from app.services.audit_writer import write_audit
+
         try:
             db = await get_db_service()
             
