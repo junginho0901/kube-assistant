@@ -122,17 +122,28 @@ async def chat_stream(request: ChatRequest, authorization: str = Header(..., ali
 
 
 @router.post("/sessions/{session_id}/chat")
-async def session_chat(session_id: str, message: str, authorization: str = Header(..., alias="Authorization")):
+async def session_chat(
+    session_id: str,
+    message: str,
+    request: Request,
+    authorization: str = Header(..., alias="Authorization"),
+):
     """
     세션 기반 AI 챗봇 (스트리밍)
     """
     from app.database import get_db_service
 
     ai_service = await _build_ai_service(authorization)
+    audit_actor, audit_http = _extract_audit_meta(request, authorization)
 
     try:
         return StreamingResponse(
-            ai_service.session_chat_stream(session_id, message),
+            ai_service.session_chat_stream(
+                session_id,
+                message,
+                audit_actor=audit_actor,
+                audit_http=audit_http,
+            ),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",
