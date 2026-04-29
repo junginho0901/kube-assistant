@@ -3912,6 +3912,33 @@ Draft (rules-based, keep numbers unchanged):
                             'display_format': "kubectl" if display_result is not None else None,
                         })
 
+                        # audit: ai.tool.call (메타데이터만 — args/result 본문은 저장하지 않음)
+                        if audit_actor:
+                            ns_arg = function_args.get('namespace') if isinstance(function_args, dict) else None
+                            target_id_arg = (
+                                function_args.get('resource_name')
+                                or function_args.get('name')
+                                or function_args.get('pod_name')
+                            ) if isinstance(function_args, dict) else None
+                            target_type_arg = function_args.get('resource_type') if isinstance(function_args, dict) else None
+                            await write_audit(
+                                action='ai.tool.call',
+                                actor_user_id=audit_actor.get('user_id'),
+                                actor_email=audit_actor.get('email'),
+                                target_type=target_type_arg or 'tool',
+                                target_id=target_id_arg or function_name,
+                                namespace=ns_arg,
+                                after={
+                                    'session_id': session_id,
+                                    'tool': function_name,
+                                    'iteration': iteration,
+                                },
+                                request_ip=(audit_http or {}).get('ip'),
+                                user_agent=(audit_http or {}).get('user_agent'),
+                                request_id=(audit_http or {}).get('request_id'),
+                                path=(audit_http or {}).get('path'),
+                            )
+
                         tool_message_content = self._truncate_tool_result_for_llm(formatted_result)
                         messages.append({
                             "tool_call_id": tc_dict["id"],
