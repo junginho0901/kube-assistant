@@ -17,6 +17,7 @@ _jwk_client = jwt.PyJWKClient(AUTH_JWKS_URL)
 class TokenPayload:
     user_id: str
     role: str
+    email: str = ""
     permissions: tuple = ()  # frozen dataclass needs immutable type
 
     def has_permission(self, perm: str) -> bool:
@@ -40,11 +41,17 @@ def decode_access_token(token: str) -> TokenPayload:
         )
         user_id = str(payload.get("sub") or "").strip()
         role = str(payload.get("role") or "").strip().lower()
+        email = str(payload.get("email") or "").strip()
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
         raw_perms = payload.get("permissions") or []
         permissions = tuple(str(p) for p in raw_perms if isinstance(p, str))
-        return TokenPayload(user_id=user_id, role=role or "read", permissions=permissions)
+        return TokenPayload(
+            user_id=user_id,
+            role=role or "read",
+            email=email,
+            permissions=permissions,
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except HTTPException:
