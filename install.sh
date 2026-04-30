@@ -68,25 +68,35 @@ command -v helm >/dev/null 2>&1 || fail "helm not found. Install it first: https
 kubectl cluster-info --request-timeout=5s >/dev/null 2>&1 || fail "Cannot connect to Kubernetes cluster. Check your kubeconfig."
 ok "Kubernetes cluster reachable"
 
-# ─── Download chart ───
-info "Downloading Kubest Helm chart..."
+# ─── Locate chart ───
+# 스크립트가 clone 된 repo 안에서 실행되면 로컬 차트를 사용하고,
+# `curl | bash` 처럼 단독 실행되면 원격에서 다운로드한다.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || pwd)"
+LOCAL_CHART="$SCRIPT_DIR/helm/kubeast"
 
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
-
-if command -v git >/dev/null 2>&1; then
-  git clone --depth 1 --branch "v${CHART_VERSION}" "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
-  git clone --depth 1 "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
-  fail "Failed to download chart. Check your internet connection."
+if [ -f "$LOCAL_CHART/Chart.yaml" ]; then
+  CHART_PATH="$LOCAL_CHART"
+  ok "Using local chart at $LOCAL_CHART"
 else
-  curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$TMPDIR/kubeast.tar.gz" || fail "Failed to download chart."
-  tar -xzf "$TMPDIR/kubeast.tar.gz" -C "$TMPDIR"
-  mv "$TMPDIR"/kubeast-main "$TMPDIR/kubeast" 2>/dev/null || mv "$TMPDIR"/AgentForCMP-main "$TMPDIR/kubeast" 2>/dev/null || true
-fi
+  info "Downloading Kubest Helm chart..."
 
-CHART_PATH="$TMPDIR/kubeast/helm/kubeast"
-[ -f "$CHART_PATH/Chart.yaml" ] || fail "Chart not found in downloaded files."
-ok "Chart downloaded"
+  TMPDIR=$(mktemp -d)
+  trap "rm -rf $TMPDIR" EXIT
+
+  if command -v git >/dev/null 2>&1; then
+    git clone --depth 1 --branch "v${CHART_VERSION}" "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
+    git clone --depth 1 "$REPO_URL.git" "$TMPDIR/kubeast" 2>/dev/null || \
+    fail "Failed to download chart. Check your internet connection."
+  else
+    curl -sSL "$REPO_URL/archive/refs/heads/main.tar.gz" -o "$TMPDIR/kubeast.tar.gz" || fail "Failed to download chart."
+    tar -xzf "$TMPDIR/kubeast.tar.gz" -C "$TMPDIR"
+    mv "$TMPDIR"/kubeast-main "$TMPDIR/kubeast" 2>/dev/null || mv "$TMPDIR"/AgentForCMP-main "$TMPDIR/kubeast" 2>/dev/null || true
+  fi
+
+  CHART_PATH="$TMPDIR/kubeast/helm/kubeast"
+  [ -f "$CHART_PATH/Chart.yaml" ] || fail "Chart not found in downloaded files."
+  ok "Chart downloaded"
+fi
 
 # ─── Install ───
 echo ""
