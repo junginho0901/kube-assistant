@@ -35,8 +35,8 @@ curl -sSL .../install.sh | bash -s -- --namespace my-ns
 ### 옵션 2. Helm 직접 사용
 
 ```bash
-git clone https://github.com/JeongInho/kubeast.git
-cd kubeast
+git clone https://github.com/junginho0901/Kubeast.git
+cd Kubeast
 
 helm install kubeast ./helm/kubeast \
   --namespace kubeast --create-namespace \
