@@ -43,6 +43,23 @@ helm install kubeast ./helm/kubeast \
   --set ai.openaiApiKey=$OPENAI_API_KEY
 ```
 
+### 옵션 3. Docker Compose (단일 호스트)
+
+Kubernetes 클러스터 없이 로컬/단일 서버에서 바로 띄울 때:
+
+```bash
+git clone https://github.com/junginho0901/Kubeast.git
+cd Kubeast
+
+./install-docker.sh
+# 옵션:
+#   --kubeconfig /path/to/kubeconfig.yaml   # 관리할 외부 클러스터 kubeconfig
+#   --port 9000                             # Gateway 포트 (기본 8000)
+#   --uninstall                             # 컨테이너 + 볼륨 모두 제거
+```
+
+설치 후 `http://localhost:8000` 으로 접속. admin 비번은 `.env` 의 `DEFAULT_ADMIN_PASSWORD` 에 자동 생성됩니다.
+
 ### 접속
 
 ```bash
