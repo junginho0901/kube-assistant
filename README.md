@@ -22,8 +22,8 @@ curl -sSL https://raw.githubusercontent.com/junginho0901/Kubeast/main/install.sh
 옵션 예시:
 
 ```bash
-# NodePort 변경
-curl -sSL .../install.sh | bash -s -- --node-port 30080
+# NodePort 변경 (기본 30333)
+curl -sSL .../install.sh | bash -s -- --node-port 30333
 
 # LoadBalancer 사용 (클라우드 환경)
 curl -sSL .../install.sh | bash -s -- --load-balancer
