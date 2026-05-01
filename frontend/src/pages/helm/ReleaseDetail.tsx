@@ -36,6 +36,11 @@ export default function HelmReleaseDetailPage() {
     queryFn: () => api.helm.getSection(namespace, name, tab as 'values' | 'manifest' | 'notes'),
     enabled: !!namespace && !!name && (tab === 'values' || tab === 'manifest' || tab === 'notes'),
   })
+  const historyQuery = useQuery({
+    queryKey: ['helm-history', namespace, name],
+    queryFn: () => api.helm.getHistory(namespace, name),
+    enabled: !!namespace && !!name && tab === 'history',
+  })
 
   // 플로팅 AI 위젯용 스냅샷 (현재 활성 탭 기준)
   const aiSnapshot = useMemo(() => {
