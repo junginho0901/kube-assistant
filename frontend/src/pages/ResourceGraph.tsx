@@ -28,6 +28,7 @@ import {
 import { api, ResourceGraphNode, ResourceGraphEdge, ResourceGraphEdgeType } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAIContext } from '@/hooks/useAIContext'
+import { buildResourceLink } from '@/utils/resourceLink'
 
 // ────────────────────────────────────────────
 // Constants
