@@ -164,7 +164,8 @@ export default function DependencyGraph() {
           edge_type_filters: Array.from(edgeTypeFilters),
           search: searchQuery || undefined,
         },
-        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind },
+        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind, filtered_total: filteredNodes.length, problematic: problematicCount },
+        visible_items: visibleItems,
       },
     }
   }, [graphData, selectedNamespace, kindFilters, edgeTypeFilters, searchQuery])
