@@ -41,6 +41,11 @@ export default function HelmReleaseDetailPage() {
     queryFn: () => api.helm.getHistory(namespace, name),
     enabled: !!namespace && !!name && tab === 'history',
   })
+  const resourcesQuery = useQuery({
+    queryKey: ['helm-resources', namespace, name],
+    queryFn: () => api.helm.getResources(namespace, name),
+    enabled: !!namespace && !!name && tab === 'resources',
+  })
 
   // 플로팅 AI 위젯용 스냅샷 (현재 활성 탭 기준)
   const aiSnapshot = useMemo(() => {
