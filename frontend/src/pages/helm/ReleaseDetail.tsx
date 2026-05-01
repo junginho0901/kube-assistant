@@ -64,6 +64,36 @@ export default function HelmReleaseDetailPage() {
       return s.length > TAB_CAP ? s.slice(0, TAB_CAP) + '\n... (truncated)' : s
     }
 
+    let tabContent: Record<string, unknown> | undefined
+    if (tab === 'values' || tab === 'manifest' || tab === 'notes') {
+      const text = (sectionQuery.data as any)?.content
+      const yaml = truncate(text)
+      if (yaml) tabContent = { [`${tab}_text`]: yaml }
+    } else if (tab === 'history') {
+      const items = Array.isArray(historyQuery.data) ? historyQuery.data : []
+      tabContent = {
+        history: items.slice(0, 20).map((h: any) => ({
+          revision: h.revision,
+          updated: h.updated,
+          status: h.status,
+          chart: h.chart,
+          app_version: h.app_version,
+          description: h.description,
+        })),
+      }
+    } else if (tab === 'resources') {
+      const items = Array.isArray(resourcesQuery.data) ? resourcesQuery.data : []
+      tabContent = {
+        resources: items.slice(0, 30).map((r) => ({
+          kind: r.kind,
+          api_version: r.apiVersion,
+          name: r.name,
+          namespace: r.namespace,
+        })),
+        resources_total: items.length,
+      }
+    }
+
     return {
       source: 'base' as const,
       summary: `${prefix}Helm Release ${rel.name} (${rel.namespace}) · rev ${rel.revision} · ${status} · 탭: ${tab}`,
