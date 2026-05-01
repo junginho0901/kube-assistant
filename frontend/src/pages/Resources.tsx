@@ -135,7 +135,12 @@ export default function Resources() {
     }
     const cfg = tabConfig[activeTab]
     const allItems = Array.isArray(cfg.data) ? cfg.data : []
-    const total = allItems.length
+    // 검색 필터를 적용한 결과만 LLM 에 노출 (화면 일치성)
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = q
+      ? allItems.filter((it: any) => typeof it?.name === 'string' && it.name.toLowerCase().includes(q))
+      : allItems
+    const total = filtered.length
     return {
       source: 'base' as const,
       summary: `리소스 · ${namespace} · ${activeTab} ${total}개`,
