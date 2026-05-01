@@ -20,6 +20,7 @@ import { ChevronDown, CheckCircle, Search, Filter, Info } from 'lucide-react'
 import { api } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAIContext } from '@/hooks/useAIContext'
+import { buildResourceLink } from '@/utils/resourceLink'
 
 // Kind → emoji icon (matching ResourceDetailDrawer)
 const kindIcon: Record<string, string> = {
