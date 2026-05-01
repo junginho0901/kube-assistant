@@ -31,12 +31,69 @@ export default function HelmReleaseDetailPage() {
     enabled: !!namespace && !!name,
   })
 
+  // 활성 탭 별로 상세 데이터를 함께 fetch — TanStack Query 가 자식 탭 컴포넌트와
+  // 같은 queryKey 를 공유하므로 중복 호출 없음. LLM overlay 에 넘기는 용도.
+  const sectionQuery = useQuery({
+    queryKey: ['helm-section', namespace, name, tab as 'values' | 'manifest' | 'notes'],
+    queryFn: () => api.helm.getSection(namespace, name, tab as 'values' | 'manifest' | 'notes'),
+    enabled: !!namespace && !!name && (tab === 'values' || tab === 'manifest' || tab === 'notes'),
+  })
+  const historyQuery = useQuery({
+    queryKey: ['helm-history', namespace, name],
+    queryFn: () => api.helm.getHistory(namespace, name),
+    enabled: !!namespace && !!name && tab === 'history',
+  })
+  const resourcesQuery = useQuery({
+    queryKey: ['helm-resources', namespace, name],
+    queryFn: () => api.helm.getResources(namespace, name),
+    enabled: !!namespace && !!name && tab === 'resources',
+  })
+
   // 플로팅 AI 위젯용 스냅샷 (현재 활성 탭 기준)
+  // active_tab 에 따라 추가 데이터 (manifest/values/notes/history/resources) 를
+  // 8KB cap 으로 자른 뒤 함께 전달.
   const aiSnapshot = useMemo(() => {
     const rel = detailQuery.data
     if (!rel) return null
     const status = String(rel.status ?? '')
     const prefix = /fail|error/i.test(status) ? '⚠️ ' : ''
+
+    const TAB_CAP = 8 * 1024
+    const truncate = (s: unknown): string | undefined => {
+      if (typeof s !== 'string' || !s) return undefined
+      return s.length > TAB_CAP ? s.slice(0, TAB_CAP) + '\n... (truncated)' : s
+    }
+
+    let tabContent: Record<string, unknown> | undefined
+    if (tab === 'values' || tab === 'manifest' || tab === 'notes') {
+      const text = (sectionQuery.data as any)?.content
+      const yaml = truncate(text)
+      if (yaml) tabContent = { [`${tab}_text`]: yaml }
+    } else if (tab === 'history') {
+      const items = Array.isArray(historyQuery.data) ? historyQuery.data : []
+      tabContent = {
+        history: items.slice(0, 20).map((h: any) => ({
+          revision: h.revision,
+          updated: h.updated,
+          status: h.status,
+          chart: h.chart,
+          app_version: h.app_version,
+          description: h.description,
+        })),
+      }
+    } else if (tab === 'resources') {
+      const items = Array.isArray(resourcesQuery.data) ? resourcesQuery.data : []
+      tabContent = {
+        resources: items.slice(0, 30).map((r) => ({
+          kind: r.kind,
+          api_version: r.apiVersion,
+          name: r.name,
+          namespace: r.namespace,
+        })),
+        resources_total: items.length,
+      }
+    }
+
     return {
       source: 'base' as const,
       summary: `${prefix}Helm Release ${rel.name} (${rel.namespace}) · rev ${rel.revision} · ${status} · 탭: ${tab}`,
@@ -50,9 +107,10 @@ export default function HelmReleaseDetailPage() {
         chart_version: rel.chartVersion,
         app_version: rel.appVersion,
         active_tab: tab,
+        ...(tabContent ?? {}),
       },
     }
-  }, [detailQuery.data, tab])
+  }, [detailQuery.data, tab, sectionQuery.data, historyQuery.data, resourcesQuery.data])
 
   useAIContext(aiSnapshot, [aiSnapshot])
 

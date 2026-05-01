@@ -20,6 +20,7 @@ import { ChevronDown, CheckCircle, Search, Filter, Info } from 'lucide-react'
 import { api } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAIContext } from '@/hooks/useAIContext'
+import { buildResourceLink } from '@/utils/resourceLink'
 
 // Kind → emoji icon (matching ResourceDetailDrawer)
 const kindIcon: Record<string, string> = {
@@ -127,9 +128,35 @@ export default function DependencyGraph() {
     for (const n of graphData.nodes ?? []) {
       byKind[n.kind] = (byKind[n.kind] ?? 0) + 1
     }
+
+    // 화면 필터(kind / search) 통과 + 문제 있는 노드 우선 → 상위 30개
+    const allNodes = graphData.nodes ?? []
+    const q = (searchQuery || '').trim().toLowerCase()
+    const filteredNodes = allNodes.filter((n: any) => {
+      if (kindFilters.size > 0 && !kindFilters.has(n.kind)) return false
+      if (q && !(n.name?.toLowerCase().includes(q) || (n.namespace || '').toLowerCase().includes(q))) return false
+      return true
+    })
+    const isProblem = (n: { status?: string }) => {
+      const s = (n.status || '').toLowerCase()
+      return s !== '' && s !== 'running' && s !== 'ready' && s !== 'active' && s !== 'bound' && s !== 'succeeded'
+    }
+    const sorted = [...filteredNodes].sort((a: any, b: any) =>
+      (isProblem(a) ? 0 : 1) - (isProblem(b) ? 0 : 1),
+    )
+    const TOP_N = 30
+    const visibleItems = sorted.slice(0, TOP_N).map((n: any) => ({
+      kind: n.kind,
+      name: n.name,
+      namespace: n.namespace || undefined,
+      status: n.status,
+      _link: buildResourceLink(n.kind, n.namespace || selectedNamespace, n.name),
+    }))
+    const problematicCount = filteredNodes.filter(isProblem).length
+
     return {
       source: 'base' as const,
-      summary: `의존성 그래프 · ${selectedNamespace} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개`,
+      summary: `의존성 그래프 · ${selectedNamespace} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개${problematicCount > 0 ? `, 문제 ${problematicCount}` : ''}`,
       data: {
         filters: {
           namespace: selectedNamespace,
@@ -137,7 +164,8 @@ export default function DependencyGraph() {
           edge_type_filters: Array.from(edgeTypeFilters),
           search: searchQuery || undefined,
         },
-        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind },
+        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind, filtered_total: filteredNodes.length, problematic: problematicCount },
+        visible_items: visibleItems,
       },
     }
   }, [graphData, selectedNamespace, kindFilters, edgeTypeFilters, searchQuery])

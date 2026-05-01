@@ -28,6 +28,7 @@ import {
 import { api, ResourceGraphNode, ResourceGraphEdge, ResourceGraphEdgeType } from '@/services/api'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAIContext } from '@/hooks/useAIContext'
+import { buildResourceLink } from '@/utils/resourceLink'
 
 // ────────────────────────────────────────────
 // Constants
@@ -390,6 +391,8 @@ export default function ResourceGraph() {
   })
 
   // 플로팅 AI 위젯용 스냅샷
+  // visible_items: 화면에 그려진 노드 중 (1) 검색·필터 통과 + (2) 문제 있는 것 우선,
+  // 토큰 한도 안에서 30 개 cap. 사용자가 그래프에 보이는 박스에 대해 묻기 위함.
   const aiSnapshot = useMemo(() => {
     if (!graphData) return null
     const totalNodes = graphData.nodes?.length ?? 0
@@ -398,9 +401,44 @@ export default function ResourceGraph() {
     for (const n of graphData.nodes ?? []) {
       byKind[n.kind] = (byKind[n.kind] ?? 0) + 1
     }
+
+    // 사용자가 화면에서 적용 중인 필터를 그대로 LLM 컨텍스트에도 반영
+    const allNodes = graphData.nodes ?? []
+    const q = (searchQuery || '').trim().toLowerCase()
+    const filteredNodes = allNodes.filter((n) => {
+      if (kindFilters.size > 0 && !kindFilters.has(n.kind)) return false
+      if (q && !(n.name?.toLowerCase().includes(q) || n.namespace?.toLowerCase().includes(q))) return false
+      if (statusFilter === 'issues') {
+        const s = (n.status || '').toLowerCase()
+        if (s === '' || s === 'running' || s === 'ready' || s === 'active' || s === 'bound' || s === 'succeeded') return false
+      }
+      return true
+    })
+
+    // 문제 있는 노드를 앞쪽으로 정렬 → 상위 30개
+    const isProblem = (n: { status?: string }) => {
+      const s = (n.status || '').toLowerCase()
+      return s !== '' && s !== 'running' && s !== 'ready' && s !== 'active' && s !== 'bound' && s !== 'succeeded'
+    }
+    const sorted = [...filteredNodes].sort((a, b) => {
+      const ap = isProblem(a) ? 0 : 1
+      const bp = isProblem(b) ? 0 : 1
+      return ap - bp
+    })
+    const TOP_N = 30
+    const visibleItems = sorted.slice(0, TOP_N).map((n) => ({
+      kind: n.kind,
+      name: n.name,
+      namespace: n.namespace || undefined,
+      status: n.status,
+      ready: n.ready,
+      _link: buildResourceLink(n.kind, n.namespace, n.name),
+    }))
+    const problematicCount = filteredNodes.filter(isProblem).length
+
     return {
       source: 'base' as const,
-      summary: `리소스 그래프 · ${nsArray?.join(', ') ?? '선택 없음'} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개`,
+      summary: `리소스 그래프 · ${nsArray?.join(', ') ?? '선택 없음'} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개${problematicCount > 0 ? `, 문제 ${problematicCount}` : ''}`,
       data: {
         filters: {
           namespaces: nsArray,
@@ -410,7 +448,8 @@ export default function ResourceGraph() {
           group_by: groupBy,
           status_filter: statusFilter,
         },
-        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind },
+        stats: { total_nodes: totalNodes, total_edges: totalEdges, by_kind: byKind, filtered_total: filteredNodes.length, problematic: problematicCount },
+        visible_items: visibleItems,
       },
     }
   }, [graphData, nsArray, kindFilters, edgeTypeFilters, searchQuery, groupBy, statusFilter])

@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useAIContext } from '@/hooks/useAIContext'
+import { summarizeList } from '@/utils/aiContext/summarizeList'
+import { buildResourceLink } from '@/utils/resourceLink'
 import { 
   Server, 
   Box, 
@@ -76,27 +78,94 @@ export default function Resources() {
   })
 
   // 플로팅 AI 위젯용 스냅샷 — 활성 탭 기준 단일 리스트 요약
+  // 화면에서 검색 필터링이 적용된 결과의 상위 N 개를 visible_items 로 노출.
+  // (Resources 페이지는 페이지네이션 없음 → currentPage=1, pageSize=topN)
   const aiSnapshot = useMemo(() => {
     if (!namespace) return null
-    const tabData: Record<ResourceType, unknown[] | undefined> = {
-      services: services as unknown[] | undefined,
-      deployments: deployments as unknown[] | undefined,
-      replicasets: replicasets as unknown[] | undefined,
-      hpas: hpas as unknown[] | undefined,
-      pdbs: pdbs as unknown[] | undefined,
-      pods: pods as unknown[] | undefined,
-      pvcs: pvcs as unknown[] | undefined,
+    type TabConfig = {
+      data: any[] | undefined
+      kind: string
+      pick: string[]
+      problematic?: (it: any) => boolean
     }
-    const items = tabData[activeTab] ?? []
-    const total = items.length
+    const tabConfig: Record<ResourceType, TabConfig> = {
+      services: {
+        data: services as any[] | undefined,
+        kind: 'Service',
+        pick: ['name', 'namespace', 'type', 'cluster_ip', 'ports'],
+      },
+      deployments: {
+        data: deployments as any[] | undefined,
+        kind: 'Deployment',
+        pick: ['name', 'namespace', 'replicas', 'ready_replicas', 'available_replicas', 'status'],
+        problematic: (d) => (d?.ready_replicas ?? 0) < (d?.replicas ?? 0),
+      },
+      replicasets: {
+        data: replicasets as any[] | undefined,
+        kind: 'ReplicaSet',
+        pick: ['name', 'namespace', 'replicas', 'ready_replicas', 'desired'],
+      },
+      hpas: {
+        data: hpas as any[] | undefined,
+        kind: 'HorizontalPodAutoscaler',
+        pick: ['name', 'namespace', 'min_replicas', 'max_replicas', 'current_replicas', 'target'],
+      },
+      pdbs: {
+        data: pdbs as any[] | undefined,
+        kind: 'PodDisruptionBudget',
+        pick: ['name', 'namespace', 'min_available', 'max_unavailable', 'current_healthy', 'desired_healthy'],
+      },
+      pods: {
+        data: pods as any[] | undefined,
+        kind: 'Pod',
+        pick: ['name', 'namespace', 'phase', 'status', 'restart_count', 'node_name'],
+        problematic: (p) => {
+          const ph = p?.phase || p?.status || ''
+          if (ph !== 'Running' && ph !== 'Succeeded') return true
+          if ((p?.restart_count ?? 0) > 5) return true
+          return /error|crashloop|oomkilled|errimagepull|backoff/i.test(String(p?.status ?? ''))
+        },
+      },
+      pvcs: {
+        data: pvcs as any[] | undefined,
+        kind: 'PersistentVolumeClaim',
+        pick: ['name', 'namespace', 'status', 'capacity', 'storage_class', 'access_modes'],
+        problematic: (p) => p?.status && p.status !== 'Bound',
+      },
+    }
+    const cfg = tabConfig[activeTab]
+    const allItems = Array.isArray(cfg.data) ? cfg.data : []
+    // 검색 필터를 적용한 결과만 LLM 에 노출 (화면 일치성)
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = q
+      ? allItems.filter((it: any) => typeof it?.name === 'string' && it.name.toLowerCase().includes(q))
+      : allItems
+    const total = filtered.length
+    const TOP_N = 15
+    const summarized = summarizeList(filtered as Record<string, unknown>[], {
+      total,
+      currentPage: 1,
+      pageSize: TOP_N,
+      topN: TOP_N,
+      pickFields: cfg.pick as any,
+      filterProblematic: cfg.problematic as ((item: Record<string, unknown>) => boolean) | undefined,
+    })
+    // _link 추가 (드로어 자동 오픈용)
+    const visibleItemsWithLinks = (summarized.visible_items as any[]).map((it) => ({
+      ...it,
+      _link: it?.name ? buildResourceLink(cfg.kind, it?.namespace ?? namespace, it.name) : undefined,
+    }))
+
     return {
       source: 'base' as const,
-      summary: `리소스 · ${namespace} · ${activeTab} ${total}개`,
+      summary: `리소스 · ${namespace} · ${activeTab} ${total}개${q ? ` (검색: "${q}")` : ''}`,
       data: {
         namespace,
         active_tab: activeTab,
         filters: { search: searchQuery || undefined, pod_label_selector: podLabelSelector || undefined },
         stats: { total },
+        ...summarized,
+        visible_items: visibleItemsWithLinks,
       },
     }
   }, [namespace, activeTab, services, deployments, replicasets, hpas, pdbs, pods, pvcs, searchQuery, podLabelSelector])
