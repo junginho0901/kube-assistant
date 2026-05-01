@@ -438,7 +438,7 @@ export default function ResourceGraph() {
 
     return {
       source: 'base' as const,
-      summary: `리소스 그래프 · ${nsArray?.join(', ') ?? '선택 없음'} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개`,
+      summary: `리소스 그래프 · ${nsArray?.join(', ') ?? '선택 없음'} · 노드 ${totalNodes}개, 엣지 ${totalEdges}개${problematicCount > 0 ? `, 문제 ${problematicCount}` : ''}`,
       data: {
         filters: {
           namespaces: nsArray,
