@@ -341,7 +341,7 @@ export default function HelmReleasesPage() {
       ) : (
         <div ref={tableContainerRef} className="card flex-1 min-h-0 flex flex-col">
           <div className="overflow-x-auto flex-1 min-h-0">
-            <table className="w-full text-sm min-w-[1000px] table-fixed">
+            <table className="w-full text-sm table-fixed">
               <thead className="text-slate-400">
                 <tr>
                   <th className="text-left py-3 px-4 w-[200px] cursor-pointer" onClick={() => handleSort('name')}>
