@@ -191,6 +191,8 @@ export default function HelmReleasesPage() {
 
   const rowsPerPage = useAdaptiveRowsPerPage(tableContainerRef, {
     recalculationKey: sorted.length,
+    rowHeight: 50,
+    footerHeight: 100,
   })
   const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage))
 
