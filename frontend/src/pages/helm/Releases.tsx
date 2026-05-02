@@ -318,12 +318,6 @@ export default function HelmReleasesPage() {
         </div>
       </div>
 
-      {sorted.length > 0 && (
-        <p className="text-xs text-slate-400 shrink-0">
-          {t('helmReleases.matchCount', { count: sorted.length })}
-        </p>
-      )}
-
       {/* Stats row — counts come from full items, not filtered, so the
           header numbers stay stable when the search input narrows the
           table. */}
