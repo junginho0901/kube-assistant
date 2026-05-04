@@ -12,7 +12,6 @@ import {
   CheckCircle,
   XCircle,
   Search,
-  Info,
   ChevronDown,
   Copy,
   StopCircle
@@ -27,252 +26,21 @@ import { ModalOverlay } from '@/components/ModalOverlay'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { DashboardSkeleton } from './dashboard/DashboardSkeleton'
+import { DashboardHeader } from './dashboard/DashboardHeader'
+import { DashboardQuickActions } from './dashboard/DashboardQuickActions'
+import { DashboardTopResources } from './dashboard/DashboardTopResources'
+import { DashboardPodNodeStatus } from './dashboard/DashboardPodNodeStatus'
+import { DashboardNodeList } from './dashboard/DashboardNodeList'
+import { IssuesModal } from './dashboard/modals/IssuesModal'
+import type { ResourceType, IssueSeverity, IssueKind, IssueItem } from './dashboard/types'
+import {
+  unwrapOuterMarkdownFence,
+  makeStreamingMarkdownRenderFriendly,
+  parseReady,
+  formatAge,
+} from './dashboard/utils'
 
-type ResourceType = 'namespaces' | 'pods' | 'services' | 'deployments' | 'pvcs' | 'nodes'
-
-interface Iso3DChartColors {
-  front: [string, string]
-  side: string
-  top: string
-  accent: string
-}
-
-function Iso3DChart({
-  data,
-  chartHeight = 340,
-  colors,
-  uid,
-  onBarClick,
-}: {
-  data: { name: string; value: number }[]
-  chartHeight?: number
-  colors: Iso3DChartColors
-  uid: string
-  onBarClick?: (name: string) => void
-}) {
-  const [hovered, setHovered] = useState<number | null>(null)
-
-  const VW = 540, VH = 340
-  const M = { t: 30, r: 55, b: 40, l: 48 }
-  const CW = VW - M.l - M.r
-  const CH = VH - M.t - M.b
-
-  const DX = 22, DY = -11
-  const BDX = 16, BDY = -8
-
-  const maxVal = Math.max(...data.map(d => d.value), 1)
-  const niceMax = Math.ceil(maxVal / 10) * 10 || 10
-
-  const n = data.length
-  const groupW = CW / n
-  const barW = Math.min(groupW * 0.48, 52)
-
-  const baseY = M.t + CH
-  const yTicks = 5
-  const ticks = Array.from({ length: yTicks + 1 }, (_, i) =>
-    Math.round(niceMax * i / yTicks)
-  )
-
-  const gF = `iso-f-${uid}`
-  const gW = `iso-w-${uid}`
-
-  return (
-    <div style={{ width: '100%' }}>
-      <style>{`
-        @keyframes iso-grow-${uid} {
-          from { transform: scaleY(0); }
-          to   { transform: scaleY(1); }
-        }
-      `}</style>
-      <svg
-        width="100%"
-        height={chartHeight}
-        viewBox={`0 0 ${VW} ${VH}`}
-        preserveAspectRatio="xMidYMid meet"
-      >
-        <defs>
-          <linearGradient id={gF} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={colors.front[0]} />
-            <stop offset="100%" stopColor={colors.front[1]} />
-          </linearGradient>
-          <linearGradient id={`${gF}-floor`} x1="0" y1="0" x2="0.3" y2="1">
-            <stop offset="0%" stopColor={colors.accent} stopOpacity={0.07} />
-            <stop offset="100%" stopColor={colors.accent} stopOpacity={0.02} />
-          </linearGradient>
-          <linearGradient id={gW} x1="1" y1="0" x2="0" y2="0">
-            <stop offset="0%" stopColor={colors.accent} stopOpacity={0.05} />
-            <stop offset="100%" stopColor={colors.accent} stopOpacity={0.01} />
-          </linearGradient>
-        </defs>
-
-        {/* ═══ LEFT WALL ═══ */}
-        <polygon
-          points={`${M.l},${baseY} ${M.l + DX},${baseY + DY} ${M.l + DX},${M.t + DY} ${M.l},${M.t}`}
-          fill={`url(#${gW})`}
-        />
-        {ticks.map(tick => {
-          if (tick === 0) return null
-          const y = baseY - (tick / niceMax) * CH
-          return (
-            <line key={`lw-${tick}`}
-              x1={M.l} y1={y} x2={M.l + DX} y2={y + DY}
-              stroke={colors.accent} strokeWidth={0.5} opacity={0.1}
-            />
-          )
-        })}
-        <line x1={M.l} y1={M.t} x2={M.l} y2={baseY}
-          stroke={colors.accent} strokeWidth={0.6} opacity={0.12} />
-
-        {/* ═══ BACK WALL (no dashed lines, just subtle fill) ═══ */}
-        <polygon
-          points={`${M.l + DX},${baseY + DY} ${M.l + CW + DX},${baseY + DY} ${M.l + CW + DX},${M.t + DY} ${M.l + DX},${M.t + DY}`}
-          fill={`url(#${gW})`}
-        />
-
-        {/* ═══ FLOOR PLANE ═══ */}
-        <polygon
-          points={`${M.l},${baseY} ${M.l + CW},${baseY} ${M.l + CW + DX},${baseY + DY} ${M.l + DX},${baseY + DY}`}
-          fill={`url(#${gF}-floor)`}
-        />
-        {data.map((_, i) => {
-          const x = M.l + i * groupW + groupW / 2
-          return (
-            <line key={`fd-${i}`}
-              x1={x} y1={baseY} x2={x + DX} y2={baseY + DY}
-              stroke={colors.accent} strokeWidth={0.4} opacity={0.08}
-            />
-          )
-        })}
-        {[0.5, 1].map(t => (
-          <line key={`fc-${t}`}
-            x1={M.l + DX * t} y1={baseY + DY * t}
-            x2={M.l + CW + DX * t} y2={baseY + DY * t}
-            stroke={colors.accent} strokeWidth={0.3} opacity={0.06}
-          />
-        ))}
-
-        {/* Floor edges */}
-        <line x1={M.l} y1={baseY} x2={M.l + CW} y2={baseY}
-          stroke={colors.accent} strokeWidth={1.2} opacity={0.2} />
-        <line x1={M.l + CW} y1={baseY} x2={M.l + CW + DX} y2={baseY + DY}
-          stroke={colors.accent} strokeWidth={0.6} opacity={0.12} />
-        <line x1={M.l} y1={baseY} x2={M.l + DX} y2={baseY + DY}
-          stroke={colors.accent} strokeWidth={0.5} opacity={0.08} />
-
-        {/* ═══ Y AXIS LABELS + subtle front lines ═══ */}
-        {ticks.map(tick => {
-          const y = baseY - (tick / niceMax) * CH
-          return (
-            <g key={`yt-${tick}`}>
-              {tick > 0 && (
-                <line x1={M.l} y1={y} x2={M.l + CW} y2={y}
-                  stroke={colors.accent} strokeWidth={0.25} opacity={0.05} />
-              )}
-              <text x={M.l - 10} y={y + 3.5}
-                textAnchor="end" fill="#64748b" fontSize={10}
-              >
-                {tick}
-              </text>
-            </g>
-          )
-        })}
-
-        {/* ═══ 3D BARS (animated) ═══ */}
-        {data.map((d, i) => {
-          const rawH = (d.value / niceMax) * CH
-          const barH = Math.max(rawH, d.value > 0 ? 5 : 0)
-          if (barH <= 0) return null
-
-          const bx = M.l + i * groupW + (groupW - barW) / 2
-          const by = baseY - barH
-          const isHov = hovered === i
-          const delay = i * 0.08
-
-          return (
-            <g key={d.name}
-              style={{
-                cursor: 'pointer',
-                transition: 'opacity 0.2s',
-                transformOrigin: `${bx + barW / 2}px ${baseY}px`,
-                animation: `iso-grow-${uid} 0.7s cubic-bezier(0.34,1.56,0.64,1) ${delay}s both`,
-              }}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={() => onBarClick?.(d.name)}
-              opacity={hovered !== null && !isHov ? 0.5 : 1}
-            >
-              {/* Floor shadow */}
-              <polygon
-                points={`${bx + 2},${baseY} ${bx + barW + 2},${baseY} ${bx + barW + BDX + 2},${baseY + BDY} ${bx + BDX + 2},${baseY + BDY}`}
-                fill="#000" opacity={0.08}
-              />
-
-              {/* FRONT FACE */}
-              <rect x={bx} y={by} width={barW} height={barH}
-                fill={`url(#${gF})`}
-                stroke={isHov ? colors.front[0] : 'transparent'}
-                strokeWidth={isHov ? 1.2 : 0}
-              />
-
-              {/* RIGHT SIDE FACE */}
-              <polygon
-                points={`${bx + barW},${by} ${bx + barW + BDX},${by + BDY} ${bx + barW + BDX},${baseY + BDY} ${bx + barW},${baseY}`}
-                fill={colors.side}
-              />
-
-              {/* TOP FACE */}
-              <polygon
-                points={`${bx},${by} ${bx + BDX},${by + BDY} ${bx + barW + BDX},${by + BDY} ${bx + barW},${by}`}
-                fill={colors.top}
-              />
-
-              {/* Top face front edge */}
-              <line x1={bx} y1={by} x2={bx + barW} y2={by}
-                stroke="#fff" strokeWidth={0.5} opacity={0.1} />
-
-              {/* Hover tooltip */}
-              {isHov && d.value > 0 && (
-                <g>
-                  <rect
-                    x={bx + barW / 2 + BDX / 2 - 22}
-                    y={by + BDY - 28}
-                    width={44} height={22} rx={6}
-                    fill="rgba(15,23,42,0.92)"
-                    stroke={colors.accent} strokeWidth={1} strokeOpacity={0.4}
-                  />
-                  <text
-                    x={bx + barW / 2 + BDX / 2}
-                    y={by + BDY - 13}
-                    textAnchor="middle" fill="#f1f5f9"
-                    fontSize={11} fontWeight={600}
-                  >
-                    {d.value}
-                  </text>
-                </g>
-              )}
-            </g>
-          )
-        })}
-
-        {/* ═══ X AXIS LABELS ═══ */}
-        {data.map((d, i) => {
-          const x = M.l + i * groupW + groupW / 2
-          return (
-            <text key={`xl-${i}`}
-              x={x} y={baseY + 20}
-              textAnchor="middle" fill="#94a3b8"
-              fontSize={10.5} fontWeight={500}
-              style={{ cursor: 'pointer' }}
-              onClick={() => onBarClick?.(d.name)}
-            >
-              {d.name}
-            </text>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
 
 export default function Dashboard() {
   const queryClient = useQueryClient()
@@ -766,50 +534,6 @@ export default function Dashboard() {
     setOptimizationStreamError('')
   }
 
-  const unwrapOuterMarkdownFence = (text: string) => {
-    const trimmed = text.trim()
-    const match = trimmed.match(/^```(?:markdown|md)?\n([\s\S]*)\n```$/i)
-    return match ? match[1] : text
-  }
-
-  const makeStreamingMarkdownRenderFriendly = (markdown: string) => {
-    if (!markdown) return markdown
-
-    const lines = markdown.split('\n')
-    let inFence = false
-    let doubleAsteriskCount = 0
-    let backtickCount = 0
-
-    for (const line of lines) {
-      const trimmedStart = line.trimStart()
-      if (trimmedStart.startsWith('```')) {
-        inFence = !inFence
-        continue
-      }
-
-      if (inFence) continue
-
-      let idx = 0
-      for (;;) {
-        const next = line.indexOf('**', idx)
-        if (next === -1) break
-        doubleAsteriskCount += 1
-        idx = next + 2
-      }
-
-      for (let i = 0; i < line.length; i++) {
-        if (line[i] === '`') backtickCount += 1
-      }
-    }
-
-    let out = markdown
-    if (inFence) out += '\n```'
-    if (doubleAsteriskCount % 2 === 1) out += '**'
-    if (backtickCount % 2 === 1) out += '`'
-    if (out.endsWith('*') && !out.endsWith('**')) out += '*'
-    return out
-  }
-
   const stopOptimizationTypewriter = () => {
     if (optimizationTypewriterRef.current !== null) {
       clearInterval(optimizationTypewriterRef.current)
@@ -1141,262 +865,8 @@ export default function Dashboard() {
 
   const filteredResources = getFilteredResources()
 
-  /* ── skeleton stat definitions (static text + icon, only value pulses) ── */
-  const skeletonStats = [
-    { label: tr('dashboard.stats.namespaces', 'Namespaces'), icon: Server, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: tr('dashboard.stats.pods', 'Pods'), icon: Box, color: 'text-green-400', bg: 'bg-green-500/10' },
-    { label: tr('dashboard.stats.services', 'Services'), icon: Database, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: tr('dashboard.stats.deployments', 'Deployments'), icon: TrendingUp, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-    { label: tr('dashboard.stats.pvcs', 'PVCs'), icon: HardDrive, color: 'text-pink-400', bg: 'bg-pink-500/10' },
-    { label: tr('dashboard.stats.nodes', 'Nodes'), icon: Server, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  ]
-
   if (isLoading) {
-    return (
-      <div className="space-y-8">
-        {/* Header — identical to real, version line is a pulse placeholder */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">{tr('dashboard.title', 'Cluster Dashboard')}</h1>
-            <p className="mt-2 text-slate-400">
-              {tr('dashboard.subtitle', 'Get a quick overview of your Kubernetes cluster.')}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              {tr('dashboard.clusterVersion', 'Cluster version: {{version}}', { version: '' })}
-              <span className="inline-block h-3.5 w-20 align-middle ml-0.5 rounded bg-slate-700/60 animate-pulse" />
-            </p>
-          </div>
-          <button disabled className="btn btn-secondary flex items-center gap-2 opacity-50 cursor-not-allowed">
-            <RefreshCw className="w-4 h-4" />
-            {tr('dashboard.refresh', 'Refresh')}
-          </button>
-        </div>
-
-        {/* Stats grid — exact same card markup, value replaced with pulse */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {skeletonStats.map((s) => (
-            <div key={s.label} className="card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-400">{s.label}</p>
-                  {/* same as: <p className="mt-2 text-3xl font-bold text-white">12</p> */}
-                  <p className="mt-2 text-3xl font-bold leading-none">
-                    <span className="inline-block h-[1em] w-[1.6em] rounded bg-slate-700 animate-pulse align-baseline" />
-                  </p>
-                </div>
-                <div className={`p-3 rounded-lg ${s.bg}`}>
-                  <s.icon className={`w-6 h-6 ${s.color}`} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Charts — 3D skeleton */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {[
-            { title: tr('dashboard.podStatus.title', 'Pod status'), sub: tr('dashboard.podStatus.subtitle', 'Click to view pods in each status'), accent: '#38bdf8' },
-            { title: tr('dashboard.nodeStatus.title', 'Node status'), sub: tr('dashboard.nodeStatus.subtitle', 'Click to view nodes in each status'), accent: '#22d3ee' },
-          ].map((chart, ci) => {
-            const skelBars = ci === 0 ? [50, 85, 12, 40, 6] : [75, 20]
-            const dx = 16, dy = -8
-            return (
-              <div key={chart.title} className="card relative overflow-hidden">
-                <h2 className="text-xl font-bold text-white mb-4">{chart.title}</h2>
-                <p className="text-sm text-slate-400 mb-4">{chart.sub}</p>
-                <svg width="100%" height={300} viewBox="0 0 540 300" preserveAspectRatio="xMidYMid meet">
-                  <defs>
-                    <linearGradient id={`skel-g-${ci}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={chart.accent} stopOpacity={0.12} />
-                      <stop offset="100%" stopColor={chart.accent} stopOpacity={0.04} />
-                    </linearGradient>
-                  </defs>
-                  {/* floor */}
-                  <polygon points={`48,260 490,260 ${490 + dx},${260 + dy} ${48 + dx},${260 + dy}`}
-                    fill={chart.accent} opacity={0.04} />
-                  <line x1={48} y1={260} x2={490} y2={260}
-                    stroke={chart.accent} strokeWidth={1} opacity={0.12} />
-                  {/* left wall */}
-                  <polygon points={`48,260 ${48 + dx},${260 + dy} ${48 + dx},${30 + dy} 48,30`}
-                    fill={chart.accent} opacity={0.03} />
-                  <line x1={48} y1={30} x2={48} y2={260}
-                    stroke={chart.accent} strokeWidth={0.5} opacity={0.08} />
-                  {/* bars */}
-                  {skelBars.map((pct, j) => {
-                    const groupW = 442 / skelBars.length
-                    const bw = groupW * 0.48
-                    const bx = 48 + j * groupW + (groupW - bw) / 2
-                    const barH = (pct / 100) * 230
-                    const by = 260 - barH
-                    return (
-                      <g key={j} className="animate-pulse" style={{ animationDelay: `${j * 0.15}s` }}>
-                        <rect x={bx} y={by} width={bw} height={barH}
-                          fill={`url(#skel-g-${ci})`} />
-                        <polygon
-                          points={`${bx + bw},${by} ${bx + bw + dx},${by + dy} ${bx + bw + dx},${260 + dy} ${bx + bw},${260}`}
-                          fill={chart.accent} opacity={0.05} />
-                        <polygon
-                          points={`${bx},${by} ${bx + dx},${by + dy} ${bx + bw + dx},${by + dy} ${bx + bw},${by}`}
-                          fill={chart.accent} opacity={0.08} />
-                      </g>
-                    )
-                  })}
-                </svg>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Top resources — exact same card headers */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">
-                {tr('dashboard.topPods.title', 'Top 5 pods by resource usage')}
-              </h2>
-              <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
-            </div>
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="p-4 bg-slate-700 rounded-lg">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500/20">
-                      <span className="text-primary-400 font-bold text-sm">#{i + 1}</span>
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="h-4 bg-slate-600/50 rounded w-3/4 animate-pulse" />
-                      <div className="h-3.5 bg-slate-600/30 rounded w-1/2 animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-6 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}:</span>
-                      <span className="inline-block h-3.5 w-12 rounded bg-slate-600/40 animate-pulse" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}:</span>
-                      <span className="inline-block h-3.5 w-14 rounded bg-slate-600/40 animate-pulse" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">
-                {tr('dashboard.topNodes.title', 'Top 3 nodes by resource usage')}
-              </h2>
-              <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
-            </div>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-cyan-500/20">
-                      <span className="text-cyan-400 font-bold text-sm">#{i + 1}</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-slate-600/50 rounded w-1/2 animate-pulse mb-1.5" />
-                      <div className="flex items-center gap-4 text-sm text-slate-400">
-                        <span>{tr('dashboard.cpu', 'CPU')}: <span className="inline-block h-3 w-12 align-middle rounded bg-slate-600/40 animate-pulse" /></span>
-                        <span>{tr('dashboard.memory', 'Memory')}: <span className="inline-block h-3 w-14 align-middle rounded bg-slate-600/40 animate-pulse" /></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1 pl-11">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}</span>
-                      <span className="inline-block h-3 w-10 rounded bg-slate-600/30 animate-pulse" />
-                    </div>
-                    <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-slate-600/30 animate-pulse w-1/2" />
-                    </div>
-                  </div>
-                  <div className="space-y-1 pl-11">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}</span>
-                      <span className="inline-block h-3 w-10 rounded bg-slate-600/30 animate-pulse" />
-                    </div>
-                    <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-slate-600/30 animate-pulse w-1/3" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Nodes — real title, card shape matches real layout */}
-        <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.nodes.title', 'Nodes')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-3 bg-slate-700 rounded-lg">
-                <div className="flex items-start gap-2 mb-2">
-                  <div className="w-4 h-4 rounded-full bg-slate-600/50 mt-0.5 animate-pulse" />
-                  <div className="flex-1 min-w-0">
-                    <div className="h-4 bg-slate-600/50 rounded w-2/3 animate-pulse" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-400">
-                    <span className="font-medium">{tr('dashboard.nodeCard.versionLabel', 'Version')}:</span>{' '}
-                    <span className="inline-block h-3 w-16 align-middle rounded bg-slate-600/30 animate-pulse" />
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    <span className="font-medium">{tr('dashboard.nodeCard.rolesLabel', 'Roles')}:</span>{' '}
-                    <span className="inline-block h-3 w-20 align-middle rounded bg-slate-600/30 animate-pulse" />
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    <span className="font-medium">{tr('dashboard.nodeCard.ipLabel', 'IP')}:</span>{' '}
-                    <span className="inline-block h-3 w-24 align-middle rounded bg-slate-600/30 animate-pulse" />
-                  </p>
-                </div>
-                <div className="mt-2">
-                  <span className="inline-block h-5 w-14 rounded bg-slate-600/30 animate-pulse" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick actions — real text & icons, just disabled */}
-        <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.quickActions.title', 'Quick actions')}</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="btn btn-secondary text-left opacity-50 pointer-events-none">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-400" />
-                <div>
-                  <div className="font-medium">{tr('dashboard.quickActions.issues.title', 'Check issues')}</div>
-                  <div className="text-xs text-slate-400">{tr('dashboard.quickActions.issues.subtitle', 'Find resources with problems')}</div>
-                </div>
-              </div>
-            </div>
-            <div className="btn btn-secondary text-left opacity-50 pointer-events-none">
-              <div className="flex items-center gap-3">
-                <TrendingUp className="w-5 h-5 text-green-400" />
-                <div>
-                  <div className="font-medium">{tr('dashboard.quickActions.optimization.title', 'Optimization suggestions')}</div>
-                  <div className="text-xs text-slate-400">{tr('dashboard.quickActions.optimization.subtitle', 'AI-powered resource optimization')}</div>
-                </div>
-              </div>
-            </div>
-            <div className="btn btn-secondary text-left opacity-50 pointer-events-none">
-              <div className="flex items-center gap-3">
-                <Database className="w-5 h-5 text-blue-400" />
-                <div>
-                  <div className="font-medium">{tr('dashboard.quickActions.storage.title', 'Storage analysis')}</div>
-                  <div className="text-xs text-slate-400">{tr('dashboard.quickActions.storage.subtitle', 'PV/PVC usage status')}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   // Pod/Node 상태는 Kubernetes 스펙상 가능한 값이 제한적이므로
@@ -1478,39 +948,6 @@ export default function Dashboard() {
       value: nodeStatusData[status] ?? 0,
     }))
     : []
-
-  type IssueSeverity = 'critical' | 'warning' | 'info'
-  type IssueKind = 'Pod' | 'Node' | 'Deployment' | 'PVC' | 'Metrics'
-  type IssueItem = {
-    id: string
-    kind: IssueKind
-    severity: IssueSeverity
-    title: string
-    subtitle?: string
-    namespace?: string
-    name?: string
-  }
-
-  const parseReady = (ready: unknown): { ready: number; total: number } | null => {
-    if (typeof ready !== 'string') return null
-    const match = ready.match(/^(\d+)\/(\d+)$/)
-    if (!match) return null
-    const readyCount = Number(match[1])
-    const totalCount = Number(match[2])
-    if (!Number.isFinite(readyCount) || !Number.isFinite(totalCount)) return null
-    return { ready: readyCount, total: totalCount }
-  }
-
-  const formatAge = (ms: number) => {
-    const seconds = Math.max(0, Math.floor(ms / 1000))
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-    const days = Math.floor(hours / 24)
-    if (days > 0) return `${days}d ago`
-    if (hours > 0) return `${hours}h ago`
-    if (minutes > 0) return `${minutes}m ago`
-    return `${seconds}s ago`
-  }
 
   const allPodsArray = Array.isArray(allPods) ? allPods : []
   const allNodesArray = Array.isArray(nodes) ? nodes : []
@@ -1786,20 +1223,6 @@ export default function Dashboard() {
     { total: 0, critical: 0, warning: 0, info: 0 } as { total: number; critical: number; warning: number; info: number }
   )
 
-  const issueKindLabels: Record<IssueKind, string> = {
-    Node: tr('dashboard.issues.kind.node', 'Node'),
-    Deployment: tr('dashboard.issues.kind.deployment', 'Deployment'),
-    PVC: tr('dashboard.issues.kind.pvc', 'PVC'),
-    Pod: tr('dashboard.issues.kind.pod', 'Pod'),
-    Metrics: tr('dashboard.issues.kind.metrics', 'Metrics'),
-  }
-
-  const issueSeverityLabels: Record<IssueSeverity, string> = {
-    critical: tr('dashboard.issues.severity.critical', 'CRITICAL'),
-    warning: tr('dashboard.issues.severity.warning', 'WARNING'),
-    info: tr('dashboard.issues.severity.info', 'INFO'),
-  }
-
   const isIssuesLoading =
     isIssuesModalOpen &&
     (isLoadingPods || isLoadingPVCs || isLoadingAllNamespaces || isLoadingDeployments)
@@ -1903,29 +1326,11 @@ export default function Dashboard() {
   const optimizationMarkdown = `${optimizationObservedContent}${unwrapOuterMarkdownFence(optimizationAnswerContent)}`.trim()
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">{tr('dashboard.title', 'Cluster Dashboard')}</h1>
-          <p className="mt-2 text-slate-400">
-            {tr('dashboard.subtitle', 'Get a quick overview of your Kubernetes cluster.')}
-          </p>
-          {overview?.cluster_version && (
-            <p className="mt-1 text-sm text-slate-500">
-              {tr('dashboard.clusterVersion', 'Cluster version: {{version}}', { version: overview.cluster_version })}
-            </p>
-          )}
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          title={tr('dashboard.refreshTitle', 'Force refresh')}
-          className="btn btn-secondary flex items-center gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {tr('dashboard.refresh', 'Refresh')}
-        </button>
-      </div>
+      <DashboardHeader
+        clusterVersion={overview?.cluster_version}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1952,52 +1357,12 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Pod Status Chart */}
-        {podStatusData.length > 0 && (
-          <div className="card relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-blue-500/5 pointer-events-none" />
-            <h2 className="text-xl font-bold text-white mb-4 relative">{tr('dashboard.podStatus.title', 'Pod status')}</h2>
-            <p className="text-sm text-slate-400 mb-4 relative">
-              {tr('dashboard.podStatus.subtitle', 'Click to view pods in each status')}
-            </p>
-            <Iso3DChart
-              data={podStatusData}
-              uid="pod"
-              colors={{
-                front: ['#38bdf8', '#0369a1'],
-                side: '#0c4a6e',
-                top: '#7dd3fc',
-                accent: '#38bdf8',
-              }}
-              onBarClick={handlePodStatusClick}
-            />
-          </div>
-        )}
-
-        {/* Node Status Chart */}
-        {nodeStatusChartData.length > 0 && (
-          <div className="card relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-teal-500/5 pointer-events-none" />
-            <h2 className="text-xl font-bold text-white mb-4 relative">{tr('dashboard.nodeStatus.title', 'Node status')}</h2>
-            <p className="text-sm text-slate-400 mb-4 relative">
-              {tr('dashboard.nodeStatus.subtitle', 'Click to view nodes in each status')}
-            </p>
-            <Iso3DChart
-              data={nodeStatusChartData}
-              uid="node"
-              colors={{
-                front: ['#22d3ee', '#0e7490'],
-                side: '#164e63',
-                top: '#a5f3fc',
-                accent: '#22d3ee',
-              }}
-              onBarClick={handleNodeStatusClick}
-            />
-          </div>
-        )}
-      </div>
+      <DashboardPodNodeStatus
+        podStatusData={podStatusData}
+        nodeStatusChartData={nodeStatusChartData}
+        onPodStatusClick={handlePodStatusClick}
+        onNodeStatusClick={handleNodeStatusClick}
+      />
 
       {/* Prometheus Cluster Metrics */}
       {promCluster.available && (
@@ -2063,343 +1428,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Top 리소스 사용 Pod/Node */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Top 파드 */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">
-              {tr('dashboard.topPods.title', 'Top 5 pods by resource usage')}
-            </h2>
-            <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
-          </div>
-          {isLoadingTopResources && !topResources ? (
-            // 초기 로딩: 스켈레톤 표시
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="p-4 bg-slate-700 rounded-lg animate-pulse">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-600" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-slate-600 rounded w-3/4" />
-                      <div className="h-3 bg-slate-600 rounded w-1/2" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-6 mt-2">
-                    <div className="h-3 bg-slate-600 rounded w-16" />
-                    <div className="h-3 bg-slate-600 rounded w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : metricsUnavailable ? (
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-slate-400" />
-                <p className="text-slate-400">{tr('dashboard.metrics.unavailable', 'Metrics server not available for this cluster')}</p>
-              </div>
-            </div>
-          ) : isTopResourcesError && !topResources?.top_pods ? (
-            // 에러 상태: 이전 데이터가 없을 때만 에러 표시
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-red-400" />
-                <p className="text-slate-400">{tr('dashboard.topResources.error', 'Failed to fetch data')}</p>
-              </div>
-            </div>
-          ) : topResources?.top_pods && topResources.top_pods.length > 0 ? (
-            // 데이터가 있을 때: 데이터 표시 (백그라운드 갱신 중에도 이전 데이터 유지)
-            <div className="space-y-3">
-              {topResources.top_pods.map((pod, index) => (
-                <button
-                  type="button"
-                  key={`${pod.namespace}-${pod.name}`}
-                  onClick={() => openDetail({ kind: 'Pod', name: pod.name, namespace: pod.namespace })}
-                  className="w-full text-left p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500/20">
-                      <span className="text-primary-400 font-bold text-sm">#{index + 1}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-white truncate" title={pod.name}>
-                        {pod.name}
-                      </h3>
-                      <p className="text-sm text-slate-400">{pod.namespace}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-6 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}:</span>
-                      <span className="text-green-400 font-mono font-medium">{pod.cpu}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}:</span>
-                      <span className="text-blue-400 font-mono font-medium">{pod.memory}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : topResources?.pod_error ? (
-            // 메트릭 수집 실패 (Node 메트릭은 있을 수 있음)
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-yellow-400" />
-                <p className="text-slate-400">{tr('dashboard.topPods.metricsError', 'Failed to fetch pod metrics')}</p>
-                <p className="text-xs text-slate-500">{tr('dashboard.metricsServerHint', 'Check metrics-server status')}</p>
-              </div>
-            </div>
-          ) : (
-            // 데이터가 없을 때
-            <div className="text-center py-12">
-              <p className="text-slate-400">{tr('dashboard.topResources.empty', 'No resource usage data')}</p>
-            </div>
-          )}
-        </div>
+      <DashboardTopResources
+        topResources={topResources}
+        isLoading={isLoadingTopResources}
+        isError={isTopResourcesError}
+        metricsUnavailable={metricsUnavailable}
+      />
 
-        {/* Top Node */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">
-              {tr('dashboard.topNodes.title', 'Top 3 nodes by resource usage')}
-            </h2>
-            <p className="text-xs text-slate-400">{tr('dashboard.autoRefresh', 'Auto refresh every 5 seconds')}</p>
-          </div>
-          {isLoadingTopResources && !topResources ? (
-            // 초기 로딩: 스켈레톤 표시
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-3 p-3 bg-slate-700 rounded-lg animate-pulse">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-600" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-slate-600 rounded w-1/2" />
-                      <div className="h-3 bg-slate-600 rounded w-1/3" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 pl-11">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="h-3 bg-slate-600 rounded w-10" />
-                      <div className="h-3 bg-slate-600 rounded w-12" />
-                    </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-600 w-1/2" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 pl-11">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="h-3 bg-slate-600 rounded w-12" />
-                      <div className="h-3 bg-slate-600 rounded w-10" />
-                    </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-600 w-1/3" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : metricsUnavailable ? (
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-slate-400" />
-                <p className="text-slate-400">{tr('dashboard.metrics.unavailable', 'Metrics server not available for this cluster')}</p>
-              </div>
-            </div>
-          ) : isTopResourcesError && !topResources?.top_nodes ? (
-            // 에러 상태: 이전 데이터가 없을 때만 에러 표시
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-red-400" />
-                <p className="text-slate-400">{tr('dashboard.topResources.error', 'Failed to fetch data')}</p>
-              </div>
-            </div>
-          ) : topResources?.top_nodes && topResources.top_nodes.length > 0 ? (
-            // 데이터가 있을 때: 데이터 표시 (백그라운드 갱신 중에도 이전 데이터 유지)
-            <div className="space-y-4">
-              {topResources.top_nodes.map((node, index) => {
-                const cpuPercent = parseFloat(node.cpu_percent)
-                const memoryPercent = parseFloat(node.memory_percent)
+      <DashboardNodeList
+        nodes={nodes ?? []}
+        onNodeClick={handleNodeClick}
+      />
 
-                return (
-                  <button
-                    type="button"
-                    key={node.name}
-                    onClick={() => openDetail({ kind: 'Node', name: node.name })}
-                    className="w-full text-left space-y-3 p-2 -m-2 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-cyan-500/20">
-                        <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-white">{node.name}</h3>
-                        <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                          <span>{tr('dashboard.cpu', 'CPU')}: {node.cpu}</span>
-                          <span>{tr('dashboard.memory', 'Memory')}: {node.memory}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CPU 사용량 막대 */}
-                    <div className="space-y-1 pl-11">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{tr('dashboard.cpu', 'CPU')}</span>
-                        <span className={`font-medium ${cpuPercent >= 80 ? 'text-red-400' :
-                            cpuPercent >= 60 ? 'text-yellow-400' :
-                              'text-green-400'
-                          }`}>
-                          {node.cpu_percent}
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-[width] duration-700 ease-out ${cpuPercent >= 80
-                              ? 'bg-red-500'
-                              : cpuPercent >= 60
-                                ? 'bg-amber-500'
-                                : 'bg-emerald-500'
-                            }`}
-                          style={{ width: `${Math.min(cpuPercent, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Memory 사용량 막대 */}
-                    <div className="space-y-1 pl-11">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{tr('dashboard.memory', 'Memory')}</span>
-                        <span className={`font-medium ${memoryPercent >= 80 ? 'text-red-400' :
-                            memoryPercent >= 60 ? 'text-yellow-400' :
-                              'text-blue-400'
-                          }`}>
-                          {node.memory_percent}
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-[width] duration-700 ease-out ${memoryPercent >= 80
-                              ? 'bg-red-500'
-                              : memoryPercent >= 60
-                                ? 'bg-amber-500'
-                                : 'bg-blue-500'
-                            }`}
-                          style={{ width: `${Math.min(memoryPercent, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          ) : topResources?.node_error ? (
-            // 메트릭 수집 실패 (파드 메트릭은 있을 수 있음)
-            <div className="text-center py-12">
-              <div className="flex flex-col items-center gap-2">
-                <AlertCircle className="w-8 h-8 text-yellow-400" />
-                <p className="text-slate-400">{tr('dashboard.topNodes.metricsError', 'Failed to fetch node metrics')}</p>
-                <p className="text-xs text-slate-500">{tr('dashboard.metricsServerHint', 'Check metrics-server status')}</p>
-              </div>
-            </div>
-          ) : (
-            // 데이터가 없을 때
-            <div className="text-center py-12">
-              <p className="text-slate-400">{tr('dashboard.topResources.empty', 'No resource usage data')}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Node 상세 정보 - 별도 카드 */}
-      {nodes && Array.isArray(nodes) && nodes.length > 0 && (
-        <div className="card">
-          <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.nodes.title', 'Nodes')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto">
-            {nodes.map((node) => (
-              <button
-                key={node.name}
-                onClick={() => handleNodeClick(node)}
-                className="p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors text-left cursor-pointer"
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  {node.status === 'Ready' ? (
-                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate" title={node.name}>
-                      {node.name}
-                    </p>
-                  </div>
-                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-400">
-                    <span className="font-medium">{tr('dashboard.nodeCard.versionLabel', 'Version')}:</span> {node.version || na}
-                  </p>
-                  {node.roles && node.roles.length > 0 && (
-                    <p className="text-xs text-slate-400">
-                      <span className="font-medium">{tr('dashboard.nodeCard.rolesLabel', 'Roles')}:</span> {node.roles.join(', ')}
-                    </p>
-                  )}
-                  {node.internal_ip && (
-                    <p className="text-xs text-slate-400">
-                      <span className="font-medium">{tr('dashboard.nodeCard.ipLabel', 'IP')}:</span> {node.internal_ip}
-                    </p>
-                  )}
-                </div>
-                <div className="mt-2">
-                  <span className={`badge text-xs ${node.status === 'Ready' ? 'badge-success' : 'badge-error'
-                    }`}>
-                    {node.status}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="card">
-        <h2 className="text-xl font-bold text-white mb-4">{tr('dashboard.quickActions.title', 'Quick actions')}</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <button className="btn btn-secondary text-left" onClick={handleOpenIssuesModal}>
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-400" />
-              <div>
-                <div className="font-medium">{tr('dashboard.quickActions.issues.title', 'Check issues')}</div>
-                <div className="text-xs text-slate-400">
-                  {tr('dashboard.quickActions.issues.subtitle', 'Find resources with problems')}
-                </div>
-              </div>
-            </div>
-          </button>
-          <button className="btn btn-secondary text-left" onClick={handleOpenOptimizationModal}>
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-green-400" />
-              <div>
-                <div className="font-medium">{tr('dashboard.quickActions.optimization.title', 'Optimization suggestions')}</div>
-                <div className="text-xs text-slate-400">
-                  {tr('dashboard.quickActions.optimization.subtitle', 'AI-powered resource optimization')}
-                </div>
-              </div>
-            </div>
-          </button>
-          <button className="btn btn-secondary text-left" onClick={handleOpenStorageModal}>
-            <div className="flex items-center gap-3">
-              <Database className="w-5 h-5 text-blue-400" />
-              <div>
-                <div className="font-medium">{tr('dashboard.quickActions.storage.title', 'Storage analysis')}</div>
-                <div className="text-xs text-slate-400">
-                  {tr('dashboard.quickActions.storage.subtitle', 'PV/PVC usage status')}
-                </div>
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
+      <DashboardQuickActions
+        onOpenIssues={handleOpenIssuesModal}
+        onOpenOptimization={handleOpenOptimizationModal}
+        onOpenStorage={handleOpenStorageModal}
+      />
 
       {/* 최적화 제안 모달 */}
       {isOptimizationModalOpen && (
@@ -2627,151 +1672,18 @@ export default function Dashboard() {
         </ModalOverlay>
       )}
 
-      {/* 이슈 확인 모달 */}
-      {isIssuesModalOpen && (
-        <ModalOverlay onClose={handleCloseIssuesModal}>
-          <div
-            className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white">{tr('dashboard.issues.title', 'Issues')}</h2>
-                  <p className="text-sm text-slate-400">
-                    {tr(
-                      'dashboard.issues.subtitle',
-                      'Aggregates problematic resources based on Pod/Node/Deployment/PVC status.',
-                    )}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCloseIssuesModal}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="text-xs text-slate-400">{tr('dashboard.issues.totalLabel', 'Total')}</span>
-                <span className="badge badge-info">{tr('dashboard.issues.totalCount', '{{count}}', { count: issuesSummary.total })}</span>
-                <span className="badge badge-error">{tr('dashboard.issues.criticalLabel', 'Critical')} {issuesSummary.critical}</span>
-                <span className="badge badge-warning">{tr('dashboard.issues.warningLabel', 'Warning')} {issuesSummary.warning}</span>
-                <span className="badge badge-info">{tr('dashboard.issues.infoLabel', 'Info')} {issuesSummary.info}</span>
-              </div>
-
-              <label className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg border border-slate-700 bg-slate-900/20">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-200">
-                    {tr('dashboard.issues.includeRestarts', 'Include restart history')}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {tr(
-                      'dashboard.issues.includeRestartsHint',
-                      'Include past restarts for currently healthy (Running/Ready) pods as Info.',
-                    )}
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={includeRestartHistory}
-                  onChange={(e) => setIncludeRestartHistory(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
-                />
-              </label>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={tr('dashboard.issues.searchPlaceholder', 'Search issues (name/namespace/message)...')}
-                  value={issuesSearchQuery}
-                  onChange={(e) => setIssuesSearchQuery(e.target.value)}
-                  className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
-                />
-                {issuesSearchQuery && (
-                  <button
-                    onClick={() => setIssuesSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-600 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-slate-400" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              {isIssuesLoading ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
-                  <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">{tr('dashboard.issues.loading', 'Collecting issues...')}</p>
-                </div>
-              ) : sortedIssues.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
-                  <CheckCircle className="w-9 h-9 text-green-400 mb-3" />
-                  <p className="text-slate-300 font-medium">{tr('dashboard.issues.none', 'No issues detected')}</p>
-                  <p className="text-sm text-slate-400 mt-1">
-                    {tr('dashboard.issues.noneHint', 'Check your filters/search terms')}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {(['Node', 'Deployment', 'PVC', 'Pod', 'Metrics'] as IssueKind[]).map((kind) => {
-                    const items = issuesByKind[kind] ?? []
-                    if (items.length === 0) return null
-                    return (
-                      <div key={kind} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-slate-200">{issueKindLabels[kind] || kind}</h3>
-                          <span className="text-xs text-slate-400">
-                            {tr('dashboard.issues.count', '{{count}}', { count: items.length })}
-                          </span>
-                        </div>
-                        <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
-                          {items.map((issue) => (
-                            <div key={issue.id} className="p-3 bg-slate-900/20">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span
-                                      className={`badge ${issue.severity === 'critical'
-                                          ? 'badge-error'
-                                          : issue.severity === 'warning'
-                                            ? 'badge-warning'
-                                            : 'badge-info'
-                                        }`}
-                                    >
-                                      {issueSeverityLabels[issue.severity] || issue.severity.toUpperCase()}
-                                    </span>
-                                    <p className="text-sm font-medium text-white truncate">
-                                      {issue.title}
-                                    </p>
-                                  </div>
-                                  <div className="mt-1 space-y-0.5">
-                                    {issue.namespace && (
-                                      <p className="text-xs text-slate-400">
-                                        <span className="font-medium">{tr('dashboard.labels.namespaceShort', 'ns:')}</span> {issue.namespace}
-                                      </p>
-                                    )}
-                                    {issue.subtitle && (
-                                      <p className="text-xs text-slate-400">{issue.subtitle}</p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
+      <IssuesModal
+        open={isIssuesModalOpen}
+        onClose={handleCloseIssuesModal}
+        includeRestartHistory={includeRestartHistory}
+        setIncludeRestartHistory={setIncludeRestartHistory}
+        searchQuery={issuesSearchQuery}
+        setSearchQuery={setIssuesSearchQuery}
+        isLoading={isIssuesLoading}
+        sortedIssues={sortedIssues}
+        issuesByKind={issuesByKind}
+        issuesSummary={issuesSummary}
+      />
 
       {/* 스토리지 분석 모달 */}
       {isStorageModalOpen && (
