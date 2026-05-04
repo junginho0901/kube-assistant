@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import { useKubeWatchList } from '@/services/useKubeWatchList'
-import { Loader2, ChevronDown, ChevronUp, RefreshCw, Search, Boxes, Plus } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, RefreshCw, Search, Plus } from 'lucide-react'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
 import { useAdaptiveTable } from '@/hooks/useAdaptiveTable'
@@ -373,10 +373,7 @@ export default function Namespaces() {
                     onClick={() => openDetail({ kind: 'Namespace', name: ns.name })}
                   >
                     <td className="py-3 px-4 font-medium text-white">
-                      <div className="flex items-center gap-2">
-                        <Boxes className="w-4 h-4 text-primary-400 flex-shrink-0" />
-                        <span className="block truncate">{ns.name}</span>
-                      </div>
+                      <span className="block truncate">{ns.name}</span>
                     </td>
                     <td className="py-3 px-4">
                       <span className={`badge ${getStatusColor(ns.status)}`}>{ns.status}</span>
