@@ -6,15 +6,6 @@ import {
   Database,
   HardDrive,
   TrendingUp,
-  AlertCircle,
-  RefreshCw,
-  X,
-  CheckCircle,
-  XCircle,
-  Search,
-  ChevronDown,
-  Copy,
-  StopCircle
 } from 'lucide-react'
 // recharts unused for status charts – kept for potential future use
 // import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Customized } from 'recharts'
@@ -22,10 +13,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePrometheusQueries } from '@/hooks/usePrometheusQuery'
 import { useAIContext } from '@/hooks/useAIContext'
-import { ModalOverlay } from '@/components/ModalOverlay'
 import { useResourceDetail } from '@/components/ResourceDetailContext'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { DashboardSkeleton } from './dashboard/DashboardSkeleton'
 import { DashboardHeader } from './dashboard/DashboardHeader'
 import { DashboardQuickActions } from './dashboard/DashboardQuickActions'
@@ -33,6 +21,9 @@ import { DashboardTopResources } from './dashboard/DashboardTopResources'
 import { DashboardPodNodeStatus } from './dashboard/DashboardPodNodeStatus'
 import { DashboardNodeList } from './dashboard/DashboardNodeList'
 import { IssuesModal } from './dashboard/modals/IssuesModal'
+import { OptimizationModal } from './dashboard/modals/OptimizationModal'
+import { ResourceModal } from './dashboard/modals/ResourceModal'
+import { StorageModal } from './dashboard/modals/StorageModal'
 import type { ResourceType, IssueSeverity, IssueKind, IssueItem } from './dashboard/types'
 import {
   unwrapOuterMarkdownFence,
@@ -47,8 +38,6 @@ export default function Dashboard() {
   const { t } = useTranslation()
   const { open: openDetail } = useResourceDetail()
   const tr = (key: string, fallback: string, options?: Record<string, any>) => t(key, { defaultValue: fallback, ...options })
-  const na = tr('common.notAvailable', 'N/A')
-  const none = tr('common.none', 'None')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedResourceType, setSelectedResourceType] = useState<ResourceType | null>(null)
   const [modalSearchQuery, setModalSearchQuery] = useState<string>('')
@@ -60,7 +49,6 @@ export default function Dashboard() {
   const [storageSearchQuery, setStorageSearchQuery] = useState<string>('')
   const [storageNamespaceFilter, setStorageNamespaceFilter] = useState<string>('all')
   const [isStorageNamespaceDropdownOpen, setIsStorageNamespaceDropdownOpen] = useState(false)
-  const storageNamespaceDropdownRef = useRef<HTMLDivElement>(null)
   const [isOptimizationModalOpen, setIsOptimizationModalOpen] = useState(false)
   const [optimizationNamespace, setOptimizationNamespace] = useState<string>('default')
   const [isOptimizationNamespaceDropdownOpen, setIsOptimizationNamespaceDropdownOpen] = useState(false)
@@ -665,23 +653,6 @@ export default function Dashboard() {
     optimizationStreamDoneRef.current = false
     setIsOptimizationStreaming(false)
   }
-
-  // 스토리지 네임스페이스 드롭다운 외부 클릭 감지
-  useEffect(() => {
-    if (!isStorageNamespaceDropdownOpen) return
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        storageNamespaceDropdownRef.current &&
-        !storageNamespaceDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsStorageNamespaceDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isStorageNamespaceDropdownOpen])
 
   // 최적화 제안 네임스페이스 드롭다운 외부 클릭 감지
   useEffect(() => {
@@ -1446,231 +1417,29 @@ export default function Dashboard() {
         onOpenStorage={handleOpenStorageModal}
       />
 
-      {/* 최적화 제안 모달 */}
-      {isOptimizationModalOpen && (
-        <ModalOverlay onClose={handleCloseOptimizationModal}>
-            <div
-              className="bg-slate-800 rounded-lg max-w-[98vw] w-full h-[85vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4 border-b border-slate-700">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-white">
-                      {tr('dashboard.optimization.title', 'Optimization suggestions')}
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      {tr(
-                        'dashboard.optimization.subtitle',
-                        'AI suggests optimizations based on Deployment/Pod data in the selected namespace.',
-                      )}
-                    </p>
-                  </div>
-                <button
-                  onClick={handleCloseOptimizationModal}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="relative" ref={optimizationNamespaceDropdownRef}>
-                    <button
-                      onClick={() => setIsOptimizationNamespaceDropdownOpen(!isOptimizationNamespaceDropdownOpen)}
-                      className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[240px] justify-between disabled:opacity-60 disabled:cursor-not-allowed"
-                      title={tr('dashboard.optimization.selectNamespaceTitle', 'Select namespace')}
-                      disabled={isLoadingAllNamespaces}
-                    >
-                      <span className="text-xs font-medium truncate">
-                        {optimizationNamespace || (isLoadingAllNamespaces
-                          ? tr('dashboard.loading', 'Loading...')
-                          : tr('dashboard.optimization.selectNamespace', 'Select namespace'))}
-                      </span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-slate-400 transition-transform ${isOptimizationNamespaceDropdownOpen ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {isOptimizationNamespaceDropdownOpen && (
-                      <div className="absolute top-full left-0 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 max-h-[340px] overflow-y-auto">
-                        {optimizationNamespaces.length === 0 ? (
-                          <div className="px-4 py-3 text-sm text-slate-200">
-                            {tr('dashboard.optimization.noNamespaces', 'No namespaces to display')}
-                          </div>
-                        ) : (
-                          optimizationNamespaces.map((ns) => (
-                            <button
-                              key={ns}
-                              onClick={() => {
-                                setOptimizationNamespace(ns)
-                                setIsOptimizationNamespaceDropdownOpen(false)
-                              }}
-                              className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg last:rounded-b-lg"
-                            >
-                              {optimizationNamespace === ns && (
-                                <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                              )}
-                              <span className={optimizationNamespace === ns ? 'font-medium' : ''}>{ns}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <button
-                        onClick={handleRunOptimizationSuggestions}
-                        disabled={!optimizationNamespace || isOptimizationStreaming}
-                        className="h-9 px-3 rounded-lg text-xs font-medium transition-colors bg-primary-600 hover:bg-primary-500 text-white disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center gap-2"
-                        title={tr('dashboard.optimization.runTitle', 'Generate AI suggestion')}
-                      >
-                      {isOptimizationStreaming && (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      )}
-                      {isOptimizationStreaming
-                        ? tr('dashboard.optimization.running', 'Generating...')
-                        : tr('dashboard.optimization.run', 'Generate')}
-                    </button>
-
-                  {isOptimizationStreaming && (
-                    <button
-                      onClick={handleStopOptimizationSuggestions}
-                      className="h-10 px-4 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center gap-2"
-                      title={tr('dashboard.optimization.stopTitle', 'Stop')}
-                    >
-                      <StopCircle className="w-4 h-4" />
-                      {tr('dashboard.optimization.stop', 'Stop')}
-                    </button>
-                  )}
-
-                    <button
-                      onClick={handleCopyOptimizationSuggestions}
-                      disabled={!optimizationMarkdown}
-                      className="h-9 px-3 rounded-lg text-xs font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                      title={tr('dashboard.optimization.copyTitle', 'Copy result')}
-                    >
-                    <Copy className="w-4 h-4" />
-                    {optimizationCopied
-                      ? tr('dashboard.optimization.copied', 'Copied')
-                      : tr('dashboard.optimization.copy', 'Copy')}
-                  </button>
-                </div>
-              </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="badge badge-info">
-                    {tr('dashboard.optimization.namespaceBadge', 'Namespace {{namespace}}', {
-                      namespace: optimizationNamespace || na,
-                    })}
-                  </span>
-                {!!optimizationUsage && (
-                  <span className="badge badge-info">
-                    {tr('dashboard.optimization.tokensBadge', 'Tokens {{used}}{{max}}', {
-                      used: optimizationUsage.completion_tokens,
-                      max: optimizationMeta?.max_tokens ? `/${optimizationMeta.max_tokens}` : '',
-                    })}
-                  </span>
-                )}
-                {!!optimizationMeta?.finish_reason && optimizationMeta.finish_reason !== 'stop' && (
-                  <span className={`text-xs ${optimizationMeta.finish_reason === 'length' ? 'text-yellow-300' : 'text-yellow-200'}`}>
-                    {tr(
-                      'dashboard.optimization.finishReason',
-                      'The response did not end with stop and may be truncated ({{reason}})',
-                      { reason: optimizationMeta.finish_reason },
-                    )}
-                  </span>
-                )}
-                {!!optimizationStreamError && (
-                  <span className="text-xs text-red-300 break-words">
-                    {tr('dashboard.optimization.streamError', 'Stream error')}: {optimizationStreamError}
-                  </span>
-                )}
-                  <span className="text-[11px] text-slate-500">
-                    {tr('dashboard.optimization.modelLatency', 'Model calls can take up to ~1 minute')}
-                  </span>
-                </div>
-              </div>
-  
-              <div className="flex-1 overflow-y-auto p-4">
-              {isOptimizationStreaming && !optimizationMarkdown ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
-                  <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">
-                    {tr('dashboard.optimization.generating', 'Generating optimization suggestions...')}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {tr('dashboard.optimization.waiting', 'Waiting for OpenAI response')}
-                  </p>
-                </div>
-              ) : optimizationStreamError && !optimizationMarkdown ? (
-                <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-100">
-                        {tr('dashboard.optimization.failed', 'Failed to generate suggestions')}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1 break-words">{optimizationStreamError}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          onClick={handleRunOptimizationSuggestions}
-                          className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-slate-200"
-                        >
-                          {tr('dashboard.optimization.retry', 'Retry')}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : !optimizationMarkdown ? (
-                <div className="text-center py-12">
-                  <p className="text-slate-400">
-                    {tr('dashboard.optimization.selectPrompt', 'Select a namespace then click “Generate”.')}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {tr(
-                      'dashboard.optimization.promptNote',
-                      '(The API summarizes Deployment/Pod lists and asks AI for optimization ideas.)',
-                    )}
-                  </p>
-                </div>
-                ) : (
-                    <div className="space-y-3 text-xs">
-                      {!!optimizationObservedMarkdown && (
-                        <details className="rounded-lg border border-slate-700 bg-slate-900/20 p-3">
-                          <summary className="cursor-pointer select-none text-xs font-medium text-slate-200">
-                            {tr('dashboard.optimization.observedData', 'Observed data (table)')}
-                          </summary>
-                          <div className="mt-2 prose prose-invert prose-sm max-w-none leading-snug overflow-x-auto [&_table]:min-w-full [&_table]:w-max [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_pre]:text-xs">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationObservedMarkdown}</ReactMarkdown>
-                          </div>
-                        </details>
-                      )}
-  
-                      <div className="rounded-lg border border-slate-700 bg-slate-900/20 p-3">
-                        {isOptimizationStreaming ? (
-                          <div className="prose prose-invert prose-sm max-w-none leading-snug overflow-x-auto [&_table]:min-w-full [&_table]:w-max [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_pre]:text-xs">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdownForStreaming}</ReactMarkdown>
-                            {!optimizationAnswerContent && (
-                              <p className="text-[11px] text-slate-500">
-                                {tr('dashboard.optimization.writing', 'AI is drafting suggestions…')}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="prose prose-invert prose-sm max-w-none leading-snug overflow-x-auto [&_table]:min-w-full [&_table]:w-max [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_pre]:text-xs">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{optimizationAnswerMarkdown}</ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
+      <OptimizationModal
+        open={isOptimizationModalOpen}
+        onClose={handleCloseOptimizationModal}
+        namespace={optimizationNamespace}
+        setNamespace={setOptimizationNamespace}
+        namespaces={optimizationNamespaces}
+        isLoadingNamespaces={isLoadingAllNamespaces}
+        isDropdownOpen={isOptimizationNamespaceDropdownOpen}
+        setIsDropdownOpen={setIsOptimizationNamespaceDropdownOpen}
+        isStreaming={isOptimizationStreaming}
+        copied={optimizationCopied}
+        fullMarkdown={optimizationMarkdown}
+        observedMarkdown={optimizationObservedMarkdown}
+        answerMarkdown={optimizationAnswerMarkdown}
+        answerMarkdownForStreaming={optimizationAnswerMarkdownForStreaming}
+        answerContent={optimizationAnswerContent}
+        streamError={optimizationStreamError}
+        usage={optimizationUsage}
+        meta={optimizationMeta}
+        onRun={handleRunOptimizationSuggestions}
+        onStop={handleStopOptimizationSuggestions}
+        onCopy={handleCopyOptimizationSuggestions}
+      />
 
       <IssuesModal
         open={isIssuesModalOpen}
@@ -1685,612 +1454,39 @@ export default function Dashboard() {
         issuesSummary={issuesSummary}
       />
 
-      {/* 스토리지 분석 모달 */}
-      {isStorageModalOpen && (
-        <ModalOverlay onClose={handleCloseStorageModal}>
-          <div
-            className="bg-slate-800 rounded-lg max-w-5xl w-full h-[80vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white">
-                    {tr('dashboard.storage.title', 'Storage analysis')}
-                  </h2>
-                  <p className="text-sm text-slate-400">
-                    {tr('dashboard.storage.subtitle', 'Review PV/PVC status and binding state')}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCloseStorageModal}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
+      <StorageModal
+        open={isStorageModalOpen}
+        onClose={handleCloseStorageModal}
+        sortedPVCs={sortedPVCsForStorage}
+        sortedPVs={sortedPVsForStorage}
+        pvcStatusCounts={pvcStatusCounts}
+        pvStatusCounts={pvStatusCounts}
+        activeTab={storageActiveTab}
+        setActiveTab={setStorageActiveTab}
+        namespaceFilter={storageNamespaceFilter}
+        setNamespaceFilter={setStorageNamespaceFilter}
+        namespaces={storageNamespaces}
+        isDropdownOpen={isStorageNamespaceDropdownOpen}
+        setIsDropdownOpen={setIsStorageNamespaceDropdownOpen}
+        searchQuery={storageSearchQuery}
+        setSearchQuery={setStorageSearchQuery}
+        isLoading={isStorageLoading}
+        storageTopology={storageTopology}
+        isLoadingStorageTopology={isLoadingStorageTopology}
+        isStorageTopologyError={isStorageTopologyError}
+        storageTopologyError={storageTopologyError}
+      />
 
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="badge badge-info">
-                  {tr('dashboard.storage.pvcCount', 'PVC {{count}}', { count: sortedPVCsForStorage.length })}
-                </span>
-                <span className="badge badge-info">
-                  {tr('dashboard.storage.pvCount', 'PV {{count}}', { count: sortedPVsForStorage.length })}
-                </span>
-                {Object.entries(pvcStatusCounts).slice(0, 4).map(([status, count]) => (
-                  <span
-                    key={`pvc-${status}`}
-                    className={`badge ${status === 'Bound' ? 'badge-success' : status === 'Pending' ? 'badge-warning' : status === 'Lost' ? 'badge-error' : 'badge-info'}`}
-                    title={tr('dashboard.storage.pvcStatusTitle', 'PVC Status')}
-                  >
-                    {tr('dashboard.storage.pvcStatusCount', 'PVC {{status}} {{count}}', { status, count })}
-                  </span>
-                ))}
-                {Object.entries(pvStatusCounts).slice(0, 4).map(([status, count]) => (
-                  <span
-                    key={`pv-${status}`}
-                    className={`badge ${status === 'Bound' ? 'badge-success' : status === 'Available' ? 'badge-info' : status === 'Released' ? 'badge-warning' : status === 'Failed' ? 'badge-error' : 'badge-info'}`}
-                    title={tr('dashboard.storage.pvStatusTitle', 'PV Status')}
-                  >
-                    {tr('dashboard.storage.pvStatusCount', 'PV {{status}} {{count}}', { status, count })}
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setStorageActiveTab('pvcs')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'pvcs' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
-                  >
-                    {tr('dashboard.storage.tabs.pvcs', 'PVC')}
-                  </button>
-                  <button
-                    onClick={() => setStorageActiveTab('pvs')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'pvs' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
-                  >
-                    {tr('dashboard.storage.tabs.pvs', 'PV')}
-                  </button>
-                  <button
-                    onClick={() => setStorageActiveTab('topology')}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${storageActiveTab === 'topology' ? 'bg-primary-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
-                  >
-                    {tr('dashboard.storage.tabs.topology', 'Topology')}
-                  </button>
-                </div>
-
-                <div className="relative" ref={storageNamespaceDropdownRef}>
-                  <button
-                    onClick={() => setIsStorageNamespaceDropdownOpen(!isStorageNamespaceDropdownOpen)}
-                    className="h-10 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors flex items-center gap-2 min-w-[200px] justify-between"
-                    title={tr('dashboard.storage.namespaceFilter', 'Namespace filter')}
-                  >
-                    <span className="text-sm font-medium">
-                      {storageNamespaceFilter === 'all'
-                        ? tr('dashboard.storage.allNamespaces', 'All namespaces')
-                        : storageNamespaceFilter}
-                    </span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-slate-400 transition-transform ${isStorageNamespaceDropdownOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-
-                  {isStorageNamespaceDropdownOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 max-h-[340px] overflow-y-auto">
-                      <button
-                        onClick={() => {
-                          setStorageNamespaceFilter('all')
-                          setIsStorageNamespaceDropdownOpen(false)
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 first:rounded-t-lg"
-                      >
-                        {storageNamespaceFilter === 'all' && (
-                          <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                        )}
-                        <span className={storageNamespaceFilter === 'all' ? 'font-medium' : ''}>
-                          {tr('dashboard.storage.allNamespaces', 'All namespaces')}
-                        </span>
-                      </button>
-                      {storageNamespaces.map((ns) => (
-                        <button
-                          key={ns}
-                          onClick={() => {
-                            setStorageNamespaceFilter(ns)
-                            setIsStorageNamespaceDropdownOpen(false)
-                          }}
-                          className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-slate-600 transition-colors flex items-center gap-2 last:rounded-b-lg"
-                        >
-                          {storageNamespaceFilter === ns && (
-                            <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                          )}
-                          <span className={storageNamespaceFilter === ns ? 'font-medium' : ''}>{ns}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="relative mt-3">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={tr('dashboard.storage.searchPlaceholder', 'Search (name/status/StorageClass/Claim)...')}
-                  value={storageSearchQuery}
-                  onChange={(e) => setStorageSearchQuery(e.target.value)}
-                  className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
-                />
-                {storageSearchQuery && (
-                  <button
-                    onClick={() => setStorageSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-600 rounded transition-colors"
-                  >
-                    <X className="w-4 h-4 text-slate-400" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              {isStorageLoading ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
-                  <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                  <p className="text-slate-400">
-                    {tr('dashboard.storage.loading', 'Loading storage data...')}
-                  </p>
-                </div>
-              ) : storageActiveTab === 'pvcs' ? (
-                sortedPVCsForStorage.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-slate-400">{tr('dashboard.storage.noPVC', 'No PVCs to display')}</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
-                    {sortedPVCsForStorage.map((pvc: any) => {
-                      const status = String(pvc?.status ?? 'Unknown')
-                      const badge =
-                        status === 'Bound'
-                          ? 'badge-success'
-                          : status === 'Pending'
-                            ? 'badge-warning'
-                            : status === 'Lost'
-                              ? 'badge-error'
-                              : 'badge-info'
-
-                      return (
-                        <div key={`${pvc.namespace}/${pvc.name}`} className="p-3 bg-slate-900/20">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`badge ${badge}`}>{status}</span>
-                                <p className="text-sm font-medium text-white truncate">{pvc.name}</p>
-                              </div>
-                              <div className="mt-1 space-y-0.5">
-                                <p className="text-xs text-slate-400">
-                                  <span className="font-medium">{tr('dashboard.labels.namespaceShort', 'ns:')}</span> {pvc.namespace}
-                                </p>
-                                <p className="text-xs text-slate-400">
-                                  {pvc.capacity || na} · {pvc.storage_class || na} · {tr('dashboard.storage.pvLabel', 'PV')}: {pvc.volume_name || na}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              ) : storageActiveTab === 'pvs' ? (
-                sortedPVsForStorage.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-slate-400">{tr('dashboard.storage.noPV', 'No PVs to display')}</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
-                    {sortedPVsForStorage.map((pv: any) => {
-                      const status = String(pv?.status ?? 'Unknown')
-                      const badge =
-                        status === 'Bound'
-                          ? 'badge-success'
-                          : status === 'Available'
-                            ? 'badge-info'
-                            : status === 'Released'
-                              ? 'badge-warning'
-                              : status === 'Failed'
-                                ? 'badge-error'
-                                : 'badge-info'
-
-                      const claimNs = pv?.claim_ref?.namespace ? String(pv.claim_ref.namespace) : ''
-                      const claimName = pv?.claim_ref?.name ? String(pv.claim_ref.name) : ''
-                      const claim = claimNs && claimName ? `${claimNs}/${claimName}` : '—'
-
-                      return (
-                        <div key={pv.name} className="p-3 bg-slate-900/20">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`badge ${badge}`}>{status}</span>
-                                <p className="text-sm font-medium text-white truncate">{pv.name}</p>
-                              </div>
-                              <div className="mt-1 space-y-0.5">
-                                <p className="text-xs text-slate-400">
-                                  {pv.capacity || na} · {pv.storage_class || na} · {tr('dashboard.storage.reclaimLabel', 'Reclaim')}: {pv.reclaim_policy || na}
-                                </p>
-                                <p className="text-xs text-slate-400">
-                                  <span className="font-medium">{tr('dashboard.storage.claimLabel', 'Claim')}:</span> {claim}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              ) : (
-                <div className="space-y-4">
-                  {storageTopology ? (
-                    <div className="space-y-3">
-                      <div className="p-4 rounded-lg border border-slate-700 bg-slate-900/20">
-                        <p className="text-sm text-slate-200 font-medium">
-                          {tr('dashboard.storage.topologyTitle', 'Storage Topology')}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {tr('dashboard.storage.topologySummary', 'Nodes: {{nodes}} · Edges: {{edges}}', {
-                            nodes: storageTopology.nodes?.length ?? 0,
-                            edges: storageTopology.edges?.length ?? 0,
-                          })}
-                        </p>
-                      </div>
-                      {Array.isArray(storageTopology.edges) && storageTopology.edges.length > 0 ? (
-                        <div className="divide-y divide-slate-700 rounded-lg border border-slate-700 overflow-hidden">
-                          {storageTopology.edges.slice(0, 50).map((edge: any) => (
-                            <div key={edge.id} className="p-3 bg-slate-900/20">
-                              <p className="text-xs text-slate-300">
-                                {edge.source} → {edge.target}
-                                {edge.label ? ` · ${edge.label}` : ''}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {tr('dashboard.storage.noTopologyEdges', 'No topology edges to display')}
-                          </p>
-                        </div>
-                      )}
-                      {Array.isArray(storageTopology.edges) && storageTopology.edges.length > 50 && (
-                        <p className="text-xs text-slate-500">
-                          {tr('dashboard.storage.topologyLimit', 'Showing up to 50 edges')}
-                        </p>
-                      )}
-                    </div>
-                  ) : isLoadingStorageTopology ? (
-                    <div className="flex flex-col items-center justify-center h-full min-h-[240px]">
-                      <RefreshCw className="w-7 h-7 text-primary-400 animate-spin mb-3" />
-                      <p className="text-slate-400">{tr('dashboard.storage.topologyLoading', 'Loading topology...')}</p>
-                    </div>
-                  ) : isStorageTopologyError ? (
-                    <div className="text-center py-12">
-                      <p className="text-slate-400">{tr('dashboard.storage.topologyError', 'Failed to load topology')}</p>
-                      <p className="text-xs text-slate-500 mt-2">
-                        {(storageTopologyError as any)?.message || tr('dashboard.unknownError', 'Unknown error')}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <p className="text-slate-400">
-                        {tr('dashboard.storage.topologyUnavailable', 'Topology data is unavailable')}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
-
-      {/* 리소스 상세 모달 */}
-      {selectedResourceType && (
-        <ModalOverlay onClose={handleCloseModal}>
-          <div
-            className="bg-slate-800 rounded-lg max-w-4xl w-full h-[80vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 모달 헤더 */}
-            {(() => {
-              const selectedStat = getSelectedStat()
-              const Icon = selectedStat?.icon || Box
-              return (
-                <div className="p-6 border-b border-slate-700">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      {selectedStat && (
-                        <div className={`p-2 rounded-lg ${selectedStat.bgColor || 'bg-slate-700'}`}>
-                          <Icon className={`w-5 h-5 ${selectedStat.color || 'text-white'}`} />
-                        </div>
-                      )}
-                      <div>
-                        <h2 className="text-xl font-bold text-white">
-                          {selectedStat?.name || selectedResourceType}
-                        </h2>
-                        <p className="text-sm text-slate-400">
-                          {isLoadingResource()
-                            ? tr('dashboard.resourceModal.loading', 'Loading...')
-                            : tr('dashboard.resourceModal.total', 'Total {{count}}', { count: getResourceCount() })}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleCloseModal}
-                      className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                    >
-                      <X className="w-5 h-5 text-slate-400" />
-                    </button>
-                  </div>
-                  {/* 검색창 - 헤더 내부 */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder={tr('dashboard.resourceModal.searchPlaceholder', 'Search...')}
-                      value={modalSearchQuery}
-                      onChange={(e) => setModalSearchQuery(e.target.value)}
-                      className="w-full h-10 pl-10 pr-10 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-primary-500 transition-colors"
-                    />
-                    {modalSearchQuery && (
-                      <button
-                        onClick={() => setModalSearchQuery('')}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-600 rounded transition-colors"
-                      >
-                        <X className="w-4 h-4 text-slate-400" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* 모달 내용 */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {isLoadingResource() ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
-                  <RefreshCw className="w-8 h-8 text-primary-400 animate-spin mb-4" />
-                  <p className="text-slate-400">{tr('dashboard.loading', 'Loading data...')}</p>
-                </div>
-              ) : (
-                <>
-                  {selectedResourceType === 'namespaces' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((ns) => (
-                          <div
-                            key={ns.name}
-                            onClick={() => openDetail({ kind: 'Namespace', name: ns.name })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium text-white">{ns.name}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {tr('dashboard.resourceModal.namespaceSummary', 'Pods: {{pods}} | Services: {{services}} | Deployments: {{deployments}}', {
-                                    pods: ns.resource_count?.pods || 0,
-                                    services: ns.resource_count?.services || 0,
-                                    deployments: ns.resource_count?.deployments || 0,
-                                  })}
-                                </p>
-                              </div>
-                              <span className={`badge ${ns.status === 'Active' ? 'badge-success' : 'badge-warning'
-                                }`}>
-                                {ns.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noNamespaces', 'No namespaces')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedResourceType === 'pods' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((pod) => (
-                          <div
-                            key={`${pod.namespace}-${pod.name}`}
-                            onClick={() => openDetail({ kind: 'Pod', name: pod.name, namespace: pod.namespace })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {pod.phase === 'Running' ? (
-                                  <CheckCircle className="w-5 h-5 text-green-400" />
-                                ) : (
-                                  <XCircle className="w-5 h-5 text-red-400" />
-                                )}
-                                <div>
-                                  <h3 className="font-medium text-white">{pod.name}</h3>
-                                  <p className="text-sm text-slate-400">{pod.namespace}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`badge ${pod.phase === 'Running' ? 'badge-success' : 'badge-warning'
-                                  }`}>
-                                  {pod.phase}
-                                </span>
-                                {pod.node_name && (
-                                  <span className="text-xs text-slate-400">{pod.node_name}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noPods', 'No pods')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedResourceType === 'services' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((svc) => (
-                          <div
-                            key={`${svc.namespace}-${svc.name}`}
-                            onClick={() => openDetail({ kind: 'Service', name: svc.name, namespace: svc.namespace })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium text-white">{svc.name}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {svc.namespace} | {tr('dashboard.resourceModal.typeLabel', 'Type')}: {svc.type} | {tr('dashboard.resourceModal.clusterIpLabel', 'Cluster IP')}: {svc.cluster_ip || none}
-                                </p>
-                              </div>
-                              <span className="badge badge-info">{svc.type}</span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noServices', 'No services')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedResourceType === 'deployments' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((deploy) => (
-                          <div
-                            key={`${deploy.namespace}-${deploy.name}`}
-                            onClick={() => openDetail({ kind: 'Deployment', name: deploy.name, namespace: deploy.namespace })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium text-white">{deploy.name}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {deploy.namespace} | {tr('dashboard.resourceModal.replicasLabel', 'Replicas')}: {deploy.ready_replicas}/{deploy.replicas}
-                                </p>
-                              </div>
-                              <span className={`badge ${deploy.ready_replicas === deploy.replicas ? 'badge-success' : 'badge-warning'
-                                }`}>
-                                {deploy.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noDeployments', 'No deployments')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedResourceType === 'pvcs' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((pvc) => (
-                          <div
-                            key={`${pvc.namespace}-${pvc.name}`}
-                            onClick={() => openDetail({ kind: 'PersistentVolumeClaim', name: pvc.name, namespace: pvc.namespace })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium text-white">{pvc.name}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {pvc.namespace} | {pvc.capacity || na} | {pvc.storage_class || na}
-                                </p>
-                              </div>
-                              <span className={`badge ${pvc.status === 'Bound' ? 'badge-success' : 'badge-warning'
-                                }`}>
-                                {pvc.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noPVCs', 'No PVCs')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedResourceType === 'nodes' && (
-                    <div className="space-y-2">
-                      {filteredResources.length > 0 ? (
-                        filteredResources.map((node) => (
-                          <div
-                            key={node.name}
-                            onClick={() => openDetail({ kind: 'Node', name: node.name })}
-                            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="font-medium text-white">{node.name}</h3>
-                                <p className="text-sm text-slate-400 mt-1">
-                                  {tr('dashboard.resourceModal.versionLabel', 'Version')}: {node.version || na} |
-                                  {tr('dashboard.resourceModal.internalIpLabel', 'Internal IP')}: {node.internal_ip || na}
-                                  {node.roles && node.roles.length > 0 && ` | ${tr('dashboard.resourceModal.rolesLabel', 'Roles')}: ${node.roles.join(', ')}`}
-                                </p>
-                              </div>
-                              <span className={`badge ${node.status === 'Ready' ? 'badge-success' : 'badge-error'
-                                }`}>
-                                {node.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <p className="text-slate-400">
-                            {modalSearchQuery
-                              ? tr('dashboard.resourceModal.noSearchResults', 'No results found')
-                              : tr('dashboard.resourceModal.noNodes', 'No nodes')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
-
+      <ResourceModal
+        selectedResourceType={selectedResourceType}
+        onClose={handleCloseModal}
+        selectedStat={getSelectedStat()}
+        isLoading={isLoadingResource()}
+        resourceCount={getResourceCount()}
+        searchQuery={modalSearchQuery}
+        setSearchQuery={setModalSearchQuery}
+        filteredResources={filteredResources}
+      />
     </div>
   )
 }
