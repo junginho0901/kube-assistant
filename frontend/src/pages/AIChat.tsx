@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { InfiniteData } from '@tanstack/react-query'
 import { api, Session } from '@/services/api'
 import { chatStreamManager, ChatStreamState } from '@/services/chatStreamManager'
 import { stripToolDetails } from '@/services/chatTextUtils'
+import { useChatSessions } from './ai-chat/useChatSessions'
 import ParticleWaveLoader from '@/components/ParticleWaveLoader'
 import { Send, Bot, User, Sparkles, Plus, MessageSquare, Trash2, Edit2, Check, X, StopCircle, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -16,7 +17,6 @@ import { useTranslation } from 'react-i18next'
 
 const TOOL_RESULT_DISPLAY_MAX_CHARS = 2000
 const TRUNCATED_MARKER = '... (truncated) ...'
-const SESSIONS_PAGE_SIZE = 50
 
 const hasTruncatedToolCalls = (toolCalls?: any[]) => {
   if (!Array.isArray(toolCalls)) return false
@@ -54,11 +54,6 @@ interface Message {
   streamingPhase?: 'waiting' | 'tools' | 'answer'
 }
 
-type SessionsPageParam = {
-  before_updated_at?: string
-  before_id?: string
-}
-
 export default function AIChat() {
   const queryClient = useQueryClient()
   const { t } = useTranslation()
@@ -93,82 +88,14 @@ export default function AIChat() {
   const isStreaming = streamState.isStreaming
   const isTempSessionId = (id: string | null) => typeof id === 'string' && id.startsWith('temp:')
 
-  // 세션 목록 조회
   const {
-    data: sessionsInfinite,
-    isLoading: sessionsLoading,
-    isFetchingNextPage: sessionsFetchingNextPage,
-    fetchNextPage: fetchNextSessionsPage,
-    hasNextPage: sessionsHasNextPage,
-  } = useInfiniteQuery({
-    queryKey: ['sessions'],
-    queryFn: ({ pageParam }) => api.getSessions({ limit: SESSIONS_PAGE_SIZE, ...(pageParam || {}) }),
-    initialPageParam: {} as SessionsPageParam,
-    getNextPageParam: (lastPage) => {
-      if (!Array.isArray(lastPage)) return undefined
-      if (lastPage.length < SESSIONS_PAGE_SIZE) return undefined
-      const last = lastPage[lastPage.length - 1]
-      if (!last) return undefined
-      return { before_updated_at: last.updated_at, before_id: last.id } as SessionsPageParam
-    },
-  })
-
-  const getFlattenedSessions = (data?: InfiniteData<Session[]>) => {
-    const pages = data?.pages
-    if (!pages || !Array.isArray(pages)) return []
-    const seen = new Set<string>()
-    const result: Session[] = []
-    for (const page of pages) {
-      if (!Array.isArray(page)) continue
-      for (const session of page) {
-        if (!session) continue
-        if (seen.has(session.id)) continue
-        seen.add(session.id)
-        result.push(session)
-      }
-    }
-    return result
-  }
-
-  const buildSessionsInfiniteData = (sessions: Session[]): InfiniteData<Session[]> => {
-    const pages: Session[][] = []
-    for (let i = 0; i < sessions.length; i += SESSIONS_PAGE_SIZE) {
-      pages.push(sessions.slice(i, i + SESSIONS_PAGE_SIZE))
-    }
-
-    const pageParams: Array<SessionsPageParam | undefined> = []
-    let cursor: SessionsPageParam | undefined = {} as SessionsPageParam
-    for (const page of pages) {
-      pageParams.push(cursor)
-      if (page.length > 0) {
-        const last = page[page.length - 1]
-        cursor = last ? { before_updated_at: last.updated_at, before_id: last.id } : cursor
-      }
-    }
-
-    return {
-      pages: pages.length > 0 ? pages : [[]],
-      pageParams,
-    }
-  }
-
-  const upsertSessionAtFront = (session: Session, optimisticId?: string | null) => {
-    queryClient.setQueryData<InfiniteData<Session[]>>(['sessions'], (old) => {
-      const existing = getFlattenedSessions(old)
-      const withoutDuplicates = existing.filter((s) => s.id !== session.id && (!optimisticId || s.id !== optimisticId))
-      return buildSessionsInfiniteData([session, ...withoutDuplicates])
-    })
-  }
-
-  const sessionsList = useMemo(() => {
-    const base = getFlattenedSessions(sessionsInfinite)
-    const baseById = new Map(base.map((s) => [s.id, s] as const))
-    // pinnedSessions는 "temp:" 세션 등 서버 목록에 아직 없는 항목을 잠깐 노출하기 위한 용도.
-    // 서버에서 동일 ID가 내려오면(=실제 세션이 존재) 서버 데이터를 우선한다.
-    const pinnedVisible = Object.values(pinnedSessions).filter((s) => isTempSessionId(s.id) || !baseById.has(s.id))
-    const pinnedIds = new Set(pinnedVisible.map((s) => s.id))
-    return [...pinnedVisible, ...base.filter((s) => !pinnedIds.has(s.id))]
-  }, [pinnedSessions, sessionsInfinite])
+    sessionsList,
+    sessionsLoading,
+    sessionsFetchingNextPage,
+    fetchNextSessionsPage,
+    sessionsHasNextPage,
+    upsertSessionAtFront,
+  } = useChatSessions({ pinnedSessions })
 
   useEffect(() => {
     const el = sessionsScrollRef.current
