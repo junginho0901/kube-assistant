@@ -779,6 +779,14 @@ export default function ClusterView() {
 
               {showLogs && (
                 <PodLogsTab
+                  // pod 가 바뀌면 PodLogsTab 자체를 강제 unmount/remount.
+                  // dep 변경으로 effect 만 재실행하는 흐름은 closure-local
+                  // 변수로 격리해도 dev/StrictMode/HMR 조합에서 'No logs
+                  // available.' 가 stuck 처럼 인식되는 케이스가 남아 있어,
+                  // 가장 robust 한 방법으로 컴포넌트 인스턴스 자체를 새로
+                  // 만든다. 같은 pod 의 컨테이너 전환은 dep 변경으로 처리되어
+                  // remount 안 일어남.
+                  key={`${selectedPod.namespace}/${selectedPod.name}`}
                   pod={selectedPod}
                   selectedContainer={selectedContainer}
                   onSelectContainer={setSelectedContainer}
