@@ -170,7 +170,14 @@ export function PodLogsTab({
       }
       detachAndClose(currentWs)
       currentWs = null
-      setIsStreamingLogs(false)
+      // setIsStreamingLogs(false) 는 의도적으로 호출하지 않음:
+      // - dep 변경으로 cleanup → 새 effect 가 첫 줄에서 setIsStreamingLogs(true)
+      //   를 다시 호출하므로 굳이 false 로 깜빡일 이유 없음.
+      // - StrictMode 의 mount → cleanup → mount 시퀀스에서 false render 가
+      //   commit 단위로 새어나오는 케이스가 있어, 사용자에게 'No logs
+      //   available.' 가 한 번 깜빡 보이고 (다음 commit 의 true 가 적용되기
+      //   전 사용자가 클릭 멈추면) 그대로 stuck 처럼 인식되는 증상의 원인.
+      // - unmount 면 컴포넌트가 사라져서 state 도 같이 사라지므로 무의미.
     }
   }, [pod, selectedContainer, tr])
 
