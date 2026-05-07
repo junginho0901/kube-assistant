@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import type { InfiniteData } from '@tanstack/react-query'
 import { api, Session } from '@/services/api'
 import { chatStreamManager, ChatStreamState } from '@/services/chatStreamManager'
+import { stripToolDetails } from '@/services/chatTextUtils'
 import ParticleWaveLoader from '@/components/ParticleWaveLoader'
 import { Send, Bot, User, Sparkles, Plus, MessageSquare, Trash2, Edit2, Check, X, StopCircle, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -839,7 +840,7 @@ export default function AIChat() {
 
   const handleCopyMessage = async (message: Message, key: string) => {
     try {
-      await navigator.clipboard.writeText(message.content || '')
+      await navigator.clipboard.writeText(stripToolDetails(message.content || ''))
       setCopiedMessageKey(key)
       setTimeout(() => {
         setCopiedMessageKey(curr => (curr === key ? null : curr))
