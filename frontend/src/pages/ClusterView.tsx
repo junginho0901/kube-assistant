@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
@@ -53,7 +53,14 @@ interface PodDetail {
 
 export default function ClusterView() {
   const { t, i18n } = useTranslation()
-  const tr = (key: string, fallback: string, options?: Record<string, any>) => t(key, { defaultValue: fallback, ...options })
+  // tr 을 useCallback 으로 안정화 — 매 render 마다 새 reference 면 자식의
+  // useEffect dep ([..., tr]) 가 매번 trigger 되어 PodLogsTab 의 ws 가 끊임없이
+  // close/재연결되며 받은 로그가 setLogs('') 로 날아갔음.
+  const tr = useCallback(
+    (key: string, fallback: string, options?: Record<string, any>) =>
+      t(key, { defaultValue: fallback, ...options }),
+    [t],
+  )
   const locale = i18n.language === 'ko' ? 'ko-KR' : 'en-US'
   const na = tr('common.notAvailable', 'N/A')
   const emptyValue = tr('common.empty', '-')
