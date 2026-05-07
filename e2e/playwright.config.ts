@@ -44,6 +44,8 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
         storageState: '.auth/user.json',
+        // Copy 버튼 검증 (ai-chat.spec) 을 위해 clipboard 접근 허용
+        permissions: ['clipboard-read', 'clipboard-write'],
       },
       dependencies: ['setup'],
       testIgnore: /auth\.setup\.ts/,
