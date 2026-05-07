@@ -46,13 +46,16 @@ export function PodLogsTab({
 
   // 로그 스트리밍 (WebSocket).
   //
-  // ArgoCD 의 pod-logs-viewer 는 rxjs 의 retryWhen(delay(500)) 으로 끊기면
-  // 자동 재연결. 우리는 native WebSocket 이라 같은 동작을 직접 구현.
+  // 의도: 사용자가 logs 탭에서 떠날 때 ws 가 즉시 끊기고 backend 의 kubelet
+  // logs reader 도 즉시 종료. retry 같은 자동 재연결 로직은 들이지 않음 —
+  // backend 의 StreamPodLogs(Follow=true) 가 kubelet inotify watcher 를
+  // 생성하는데, 자동 재시도로 stream 이 누적되면 host 의 inotify 한도가
+  // 차서 모든 pod 의 fsnotify 의존 앱이 실패. 사용자 원래 설계대로 단순한
+  // 1:1 ws 모델 유지.
   //
-  // 모든 effect-life 상태 (cancelled, currentWs, retryTimer, attempt) 를
-  // closure-local 로 둠 — useRef 로 두면 이전 effect 의 retry callback 이
-  // 새 effect 의 ref 를 덮어쓰며 race 가 발생해서, "한 번 No logs available
-  // 뜨면 다른 pod 도 다 No logs" 같은 stuck 상태가 생겼었음.
+  // 진짜 'No logs available' stuck 의 원인은 backend 의 podToInfo 가 watch
+  // 응답에 containers 필드를 누락해서 selectedContainer 가 빈 값이 되는 것.
+  // 그건 backend 측에서 fix.
   useEffect(() => {
     if (!selectedContainer) {
       setLogs('')
@@ -65,11 +68,6 @@ export function PodLogsTab({
 
     let cancelled = false
     let currentWs: WebSocket | null = null
-    let retryTimer: number | null = null
-    let healthCheckTimer: number | null = null
-    let bufferFlushTimer: number | null = null
-    let pendingChunk = ''
-    let attempt = 0
 
     const detachAndClose = (ws: WebSocket | null) => {
       if (!ws) return
@@ -86,150 +84,61 @@ export function PodLogsTab({
       }
     }
 
-    // bufferTime(100ms) 흉내 — argocd 가 rxjs bufferTime 으로 묶어 setLogs
-    // 폭주를 막는 패턴. burst 받을 때 React 가 매 메시지마다 re-render 하다
-    // 다른 setter 와의 batch 가 꼬여 isStreamingLogs 가 false 로 커밋되는
-    // 케이스를 방지.
-    const flushPending = () => {
-      if (cancelled) return
-      if (pendingChunk.length === 0) return
-      const chunk = pendingChunk
-      pendingChunk = ''
-      setLogs((prev) => prev + chunk)
-    }
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const rawWsBase = (import.meta.env.VITE_WS_URL || '').trim()
+      let wsBase = rawWsBase
+      if (wsBase && wsBase.startsWith('http')) {
+        wsBase = wsBase.replace(/^http/, 'ws')
+      }
+      if (!wsBase) {
+        wsBase = `${protocol}//${window.location.host}`
+      }
+      wsBase = wsBase.replace(/\/$/, '')
+      const wsUrl = `${wsBase}/api/v1/cluster/namespaces/${pod.namespace}/pods/${pod.name}/logs/ws?container=${selectedContainer}&tail_lines=100`
 
-    const queueChunk = (text: string) => {
-      pendingChunk += text
-      if (bufferFlushTimer != null) return
-      bufferFlushTimer = window.setTimeout(() => {
-        bufferFlushTimer = null
-        flushPending()
-      }, 100)
-    }
+      const ws = new WebSocket(wsUrl)
+      currentWs = ws
 
-    const scheduleRetry = () => {
-      if (cancelled) return
-      if (retryTimer != null) return
-      // exponential backoff: 500ms → 1s → 2s → 5s (max).
-      const delay = Math.min(500 * Math.pow(2, attempt), 5000)
-      attempt += 1
-      retryTimer = window.setTimeout(() => {
-        retryTimer = null
+      ws.onmessage = (event) => {
         if (cancelled) return
-        connect()
-      }, delay)
-    }
-
-    const connect = () => {
-      if (cancelled) return
-      try {
-        detachAndClose(currentWs)
-        currentWs = null
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const rawWsBase = (import.meta.env.VITE_WS_URL || '').trim()
-        let wsBase = rawWsBase
-        if (wsBase && wsBase.startsWith('http')) {
-          wsBase = wsBase.replace(/^http/, 'ws')
-        }
-        if (!wsBase) {
-          wsBase = `${protocol}//${window.location.host}`
-        }
-        wsBase = wsBase.replace(/\/$/, '')
-        const wsUrl = `${wsBase}/api/v1/cluster/namespaces/${pod.namespace}/pods/${pod.name}/logs/ws?container=${selectedContainer}&tail_lines=100`
-
-        const ws = new WebSocket(wsUrl)
-        currentWs = ws
-        setIsStreamingLogs(true)
-
-        ws.onopen = () => {
-          if (cancelled) return
-          // 연결 성공 — backoff 리셋해서 다음 끊김 시 다시 빠르게 재시도.
-          attempt = 0
-        }
-
-        ws.onmessage = (event) => {
-          if (cancelled) return
-          if (typeof event.data === 'string') {
-            queueChunk(event.data)
-          } else {
-            const reader = new FileReader()
-            reader.onload = () => {
-              if (cancelled) return
-              const text = reader.result as string
-              queueChunk(text)
-            }
-            reader.readAsText(event.data)
+        if (typeof event.data === 'string') {
+          setLogs((prev) => prev + event.data)
+        } else {
+          const reader = new FileReader()
+          reader.onload = () => {
+            if (cancelled) return
+            const text = reader.result as string
+            setLogs((prev) => prev + text)
           }
+          reader.readAsText(event.data)
         }
-
-        ws.onerror = (error) => {
-          // onerror 는 onclose 가 따라오므로 retry 결정은 거기서. logs 에는
-          // 끼워 넣지 않음 (정상 로그와 섞임).
-          console.warn('Pod logs WS error:', error)
-        }
-
-        ws.onclose = (event) => {
-          if (cancelled) return
-          if (event.code === 1008) {
-            handleUnauthorized()
-            return
-          }
-          // 정상 종료 (1000) 면 retry 안 함 — backend 가 stream 을 일부러
-          // 끝낸 케이스. 누적 chunk flush 후 streaming 상태 해제.
-          if (event.code === 1000) {
-            flushPending()
-            setIsStreamingLogs(false)
-            return
-          }
-          // 그 외 (1006 abnormal, 1011 server error 등) 는 재연결 시도.
-          scheduleRetry()
-        }
-      } catch (error: any) {
-        console.error('Error creating WebSocket:', error)
-        scheduleRetry()
       }
-    }
 
-    // argocd 의 EventSource readyState===CLOSED 폴링 패턴 흉내. WebSocket 이
-    // onclose 이벤트를 silently 빠뜨리는 환경 (특정 proxy/timeout) 에서
-    // ws 가 CLOSED 인데 retry 가 트리거 안 되는 stuck 을 방어.
-    healthCheckTimer = window.setInterval(() => {
-      if (cancelled) return
-      const ws = currentWs
-      if (!ws) return
-      if (ws.readyState === WebSocket.CLOSED && retryTimer == null) {
-        console.warn('Pod logs WS silently CLOSED — forcing retry')
-        scheduleRetry()
+      ws.onerror = (error) => {
+        console.warn('Pod logs WS error:', error)
       }
-    }, 500)
 
-    connect()
+      ws.onclose = (event) => {
+        if (cancelled) return
+        if (event.code === 1008) {
+          handleUnauthorized()
+          return
+        }
+        // 정상/비정상 모두 그대로 끝냄. 사용자가 logs 탭으로 다시 들어오면
+        // PodLogsTab 이 새 effect 를 시작하면서 새 ws 한 번 만듦 (key prop
+        // 으로 pod 변경 시엔 컴포넌트 자체 remount).
+        setIsStreamingLogs(false)
+      }
+    } catch (error: any) {
+      console.error('Error creating WebSocket:', error)
+      setIsStreamingLogs(false)
+    }
 
     return () => {
       cancelled = true
-      if (retryTimer != null) {
-        window.clearTimeout(retryTimer)
-        retryTimer = null
-      }
-      if (healthCheckTimer != null) {
-        window.clearInterval(healthCheckTimer)
-        healthCheckTimer = null
-      }
-      if (bufferFlushTimer != null) {
-        window.clearTimeout(bufferFlushTimer)
-        bufferFlushTimer = null
-      }
       detachAndClose(currentWs)
       currentWs = null
-      // setIsStreamingLogs(false) 는 의도적으로 호출하지 않음:
-      // - dep 변경으로 cleanup → 새 effect 가 첫 줄에서 setIsStreamingLogs(true)
-      //   를 다시 호출하므로 굳이 false 로 깜빡일 이유 없음.
-      // - StrictMode 의 mount → cleanup → mount 시퀀스에서 false render 가
-      //   commit 단위로 새어나오는 케이스가 있어, 사용자에게 'No logs
-      //   available.' 가 한 번 깜빡 보이고 (다음 commit 의 true 가 적용되기
-      //   전 사용자가 클릭 멈추면) 그대로 stuck 처럼 인식되는 증상의 원인.
-      // - unmount 면 컴포넌트가 사라져서 state 도 같이 사라지므로 무의미.
     }
   }, [pod, selectedContainer, tr])
 
