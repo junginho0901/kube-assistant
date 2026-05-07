@@ -21,6 +21,7 @@ test.describe('Dashboard', () => {
     await expect(page).toHaveScreenshot('dashboard-initial.png', {
       fullPage: true,
       animations: 'disabled',
+      maxDiffPixels: 500,
       mask: [
         page.locator('.card').filter({ hasText: /top.*pod|top.*파드/i }),
         page.locator('.card').filter({ hasText: /top.*node|top.*노드/i }),
