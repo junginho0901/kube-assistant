@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, Member, RoleWithDetails } from '@/services/api'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, Member } from '@/services/api'
 import { CheckCircle, ChevronDown, ChevronUp, Clock, Copy, Download, KeyRound, Pencil, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -8,6 +8,7 @@ import { ModalOverlay } from '@/components/ModalOverlay'
 import { useTranslation } from 'react-i18next'
 import { usePermission } from '@/hooks/usePermission'
 import CustomDropdown from '@/components/CustomDropdown'
+import { useAdminUserData } from './admin-users/useAdminUserData'
 
 export default function AdminUsers() {
   const navigate = useNavigate()
@@ -49,37 +50,10 @@ export default function AdminUsers() {
   const { has: hasPerm } = usePermission()
   const canEditUsers = hasPerm('admin.users.update')
 
-  const { data: hqOptions = [] } = useQuery({
-    queryKey: ['organizations', 'hq'],
-    queryFn: () => api.listOrganizations('hq'),
-    staleTime: 60000,
-  })
-  const { data: teamOptions = [] } = useQuery({
-    queryKey: ['organizations', 'team'],
-    queryFn: () => api.listOrganizations('team'),
-    staleTime: 60000,
-  })
-
-  const { data: roles = [] } = useQuery<RoleWithDetails[]>({
-    queryKey: ['roles'],
-    queryFn: api.listRoles,
-    staleTime: 60000,
-  })
-
-  const { data: me } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-    staleTime: 30000,
-    retry: false,
-    enabled: !reauthModalOpen,
-  })
-
-  const { data: users, isLoading, isError } = useQuery({
-    queryKey: ['admin-users', limit, offset],
-    queryFn: () => api.adminListUsers({ limit, offset }),
-    staleTime: 5000,
-    retry: false,
-    enabled: !reauthModalOpen,
+  const { hqOptions, teamOptions, roles, me, users, isLoading, isError } = useAdminUserData({
+    reauthModalOpen,
+    limit,
+    offset,
   })
 
   const updateRoleMutation = useMutation({
