@@ -23,7 +23,7 @@ export function ModalOverlay({ children, onClose, closeOnOverlayClick = true }: 
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4"
       onMouseDown={(e) => { mouseDownTargetRef.current = e.target }}
       onClick={(e) => {
         if (!closeOnOverlayClick || !onClose) return
