@@ -41,20 +41,19 @@ export function PodLogsTab({
   const [isDownloading, setIsDownloading] = useState(false)
 
   const logsEndRef = useRef<HTMLDivElement>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const retryTimerRef = useRef<number | null>(null)
-  const cancelledRef = useRef(false)
   const containerDropdownRef = useRef<HTMLDivElement>(null)
   const tailLinesDropdownRef = useRef<HTMLDivElement>(null)
 
   // 로그 스트리밍 (WebSocket).
   //
   // ArgoCD 의 pod-logs-viewer 는 rxjs 의 retryWhen(delay(500)) 으로 끊기면
-  // 자동 재연결. 우리는 native WebSocket 이라 같은 동작을 직접 구현 — pod
-  // 가 이제 막 만들어져 첫 ws 가 onmessage 받기 전 close 되는 케이스 (예:
-  // 새 pod 클릭 직후) 에 사용자가 다른 탭 갔다 와야 복구되던 문제 해결.
+  // 자동 재연결. 우리는 native WebSocket 이라 같은 동작을 직접 구현.
+  //
+  // 모든 effect-life 상태 (cancelled, currentWs, retryTimer, attempt) 를
+  // closure-local 로 둠 — useRef 로 두면 이전 effect 의 retry callback 이
+  // 새 effect 의 ref 를 덮어쓰며 race 가 발생해서, "한 번 No logs available
+  // 뜨면 다른 pod 도 다 No logs" 같은 stuck 상태가 생겼었음.
   useEffect(() => {
-    cancelledRef.current = false
     if (!selectedContainer) {
       setLogs('')
       setIsStreamingLogs(false)
@@ -64,9 +63,12 @@ export function PodLogsTab({
     setIsStreamingLogs(true)
     setLogs('')
 
+    let cancelled = false
+    let currentWs: WebSocket | null = null
+    let retryTimer: number | null = null
     let attempt = 0
 
-    const detachAndClose = (ws: any) => {
+    const detachAndClose = (ws: WebSocket | null) => {
       if (!ws) return
       ws.onopen = null
       ws.onmessage = null
@@ -82,23 +84,23 @@ export function PodLogsTab({
     }
 
     const scheduleRetry = () => {
-      if (cancelledRef.current) return
-      if (retryTimerRef.current != null) return
+      if (cancelled) return
+      if (retryTimer != null) return
       // exponential backoff: 500ms → 1s → 2s → 5s (max).
       const delay = Math.min(500 * Math.pow(2, attempt), 5000)
       attempt += 1
-      retryTimerRef.current = window.setTimeout(() => {
-        retryTimerRef.current = null
-        if (cancelledRef.current) return
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null
+        if (cancelled) return
         connect()
       }, delay)
     }
 
     const connect = () => {
+      if (cancelled) return
       try {
-        // 이전 ws 가 남아있으면 먼저 정리.
-        detachAndClose(abortControllerRef.current as any)
-        abortControllerRef.current = null
+        detachAndClose(currentWs)
+        currentWs = null
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
         const rawWsBase = (import.meta.env.VITE_WS_URL || '').trim()
@@ -113,20 +115,23 @@ export function PodLogsTab({
         const wsUrl = `${wsBase}/api/v1/cluster/namespaces/${pod.namespace}/pods/${pod.name}/logs/ws?container=${selectedContainer}&tail_lines=100`
 
         const ws = new WebSocket(wsUrl)
-        abortControllerRef.current = ws as any
+        currentWs = ws
         setIsStreamingLogs(true)
 
         ws.onopen = () => {
+          if (cancelled) return
           // 연결 성공 — backoff 리셋해서 다음 끊김 시 다시 빠르게 재시도.
           attempt = 0
         }
 
         ws.onmessage = (event) => {
+          if (cancelled) return
           if (typeof event.data === 'string') {
             setLogs((prev) => prev + event.data)
           } else {
             const reader = new FileReader()
             reader.onload = () => {
+              if (cancelled) return
               const text = reader.result as string
               setLogs((prev) => prev + text)
             }
@@ -135,17 +140,17 @@ export function PodLogsTab({
         }
 
         ws.onerror = (error) => {
-          // onerror 는 onclose 가 따라오므로 거기서 retry 결정. 메시지를 logs
-          // 에 끼워 넣으면 정상 로그와 섞이므로 콘솔로만.
+          // onerror 는 onclose 가 따라오므로 retry 결정은 거기서. logs 에는
+          // 끼워 넣지 않음 (정상 로그와 섞임).
           console.warn('Pod logs WS error:', error)
         }
 
         ws.onclose = (event) => {
+          if (cancelled) return
           if (event.code === 1008) {
             handleUnauthorized()
             return
           }
-          if (cancelledRef.current) return
           // 끊겼지만 effect 가 살아있다 → 재연결 시도.
           scheduleRetry()
         }
@@ -158,13 +163,13 @@ export function PodLogsTab({
     connect()
 
     return () => {
-      cancelledRef.current = true
-      if (retryTimerRef.current != null) {
-        window.clearTimeout(retryTimerRef.current)
-        retryTimerRef.current = null
+      cancelled = true
+      if (retryTimer != null) {
+        window.clearTimeout(retryTimer)
+        retryTimer = null
       }
-      detachAndClose(abortControllerRef.current as any)
-      abortControllerRef.current = null
+      detachAndClose(currentWs)
+      currentWs = null
       setIsStreamingLogs(false)
     }
   }, [pod, selectedContainer, tr])
