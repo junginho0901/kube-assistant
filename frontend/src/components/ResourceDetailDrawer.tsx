@@ -1,14 +1,25 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { X, Info, FileCode, Trash2, ArrowLeft, ArrowUpRight, Package } from 'lucide-react'
 import { useResourceDetail } from './ResourceDetailContext'
 import { usePermission } from '@/hooks/usePermission'
 import { useAIContext } from '@/hooks/useAIContext'
 import { useModalStackEntry } from '@/hooks/useModalStack'
 import { buildResourceLink } from '@/utils/resourceLink'
 import { api } from '@/services/api'
+import {
+  TabId,
+  WORKLOAD_KINDS,
+  NETWORK_KINDS,
+  CONFIG_STORAGE_KINDS,
+  SELF_LOADING_KINDS,
+  UNRESOLVABLE_KINDS,
+  decodeSecretYaml,
+  kindToPlural,
+} from './resource-detail/utils'
+import { useResourceDelete } from './resource-detail/useResourceDelete'
+import { useResourceYaml } from './resource-detail/useResourceYaml'
+import { ResourceDetailHeader } from './resource-detail/ResourceDetailHeader'
 import YamlEditor from './YamlEditor'
 import { ModalOverlay } from './ModalOverlay'
 
@@ -50,221 +61,13 @@ import CRDInfo from './resource-detail/CRDInfo'
 import CustomResourceInstanceInfo from './resource-detail/CustomResourceInstanceInfo'
 import GenericInfo from './resource-detail/GenericInfo'
 
-// extractHelmRelease returns the owning Helm release coordinates
-// (namespace, name) if the given raw resource JSON carries the
-// meta.helm.sh annotations. The managed-by label is an extra signal
-// but we do not require it — Helm sets the annotations even when a
-// chart intentionally omits the label.
-function extractHelmRelease(
-  rawJson: Record<string, unknown> | null | undefined,
-): { namespace: string; name: string } | null {
-  const metadata = (rawJson?.metadata ?? {}) as Record<string, unknown>
-  const annotations = (metadata?.annotations ?? {}) as Record<string, string>
-  const name = annotations['meta.helm.sh/release-name']
-  const ns = annotations['meta.helm.sh/release-namespace']
-  if (typeof name !== 'string' || !name) return null
-  if (typeof ns !== 'string' || !ns) return null
-  return { namespace: ns, name }
-}
-
-// HelmReleaseBadge surfaces the owning Helm release on any resource
-// that was installed via Helm. Placed in the drawer header so users
-// can jump from "why is this pod here?" to the Helm detail page in
-// one click.
-function HelmReleaseBadge({ rawJson }: { rawJson: Record<string, unknown> | null | undefined }) {
-  const rel = extractHelmRelease(rawJson)
-  if (!rel) return null
-  const to = `/helm/releases/${encodeURIComponent(rel.namespace)}/${encodeURIComponent(rel.name)}`
-  return (
-    <Link
-      to={to}
-      className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-primary-500/40 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-200 hover:bg-primary-500/20"
-      title={`Helm release ${rel.namespace}/${rel.name}`}
-    >
-      <Package className="w-3 h-3" />
-      <span className="font-medium">{rel.name}</span>
-      <span className="text-primary-400/80">·</span>
-      <span className="text-primary-300/90">{rel.namespace}</span>
-      <ArrowUpRight className="w-3 h-3" />
-    </Link>
-  )
-}
-
-function decodeSecretYaml(yaml: string): string {
-  const lines = yaml.split('\n')
-  const result: string[] = []
-  let inDataBlock = false
-  let dataIndent = -1
-  for (const line of lines) {
-    if (/^data:\s*$/.test(line)) {
-      result.push('stringData:')
-      inDataBlock = true
-      dataIndent = -1
-      continue
-    }
-    if (inDataBlock) {
-      const match = line.match(/^(\s+)(\S+?):\s*(.+)$/)
-      if (match) {
-        const [, indent, key, value] = match
-        if (dataIndent < 0) dataIndent = indent.length
-        if (indent.length === dataIndent) {
-          const trimmed = value.trim()
-          try {
-            const decoded = atob(trimmed)
-            if (!/[\x00-\x08\x0E-\x1F]/.test(decoded)) {
-              const needsQuote = decoded.includes(':') || decoded.includes('#') || decoded.includes('\n') || decoded.includes('"') || decoded.includes("'") || decoded.startsWith(' ') || decoded.endsWith(' ')
-              result.push(`${indent}${key}: ${needsQuote ? JSON.stringify(decoded) : decoded}`)
-              continue
-            }
-          } catch { /* not valid base64, keep as-is */ }
-          result.push(line)
-          continue
-        }
-      }
-      if (line.length > 0 && !line.startsWith(' ')) {
-        inDataBlock = false
-      }
-    }
-    result.push(line)
-  }
-  return result.join('\n')
-}
-
-function encodeSecretYaml(yaml: string): string {
-  const lines = yaml.split('\n')
-  const result: string[] = []
-  let inStringDataBlock = false
-  let blockIndent = -1
-  for (const line of lines) {
-    if (/^stringData:\s*$/.test(line)) {
-      result.push('data:')
-      inStringDataBlock = true
-      blockIndent = -1
-      continue
-    }
-    if (inStringDataBlock) {
-      const match = line.match(/^(\s+)(\S+?):\s*(.+)$/)
-      if (match) {
-        const [, indent, key, value] = match
-        if (blockIndent < 0) blockIndent = indent.length
-        if (indent.length === blockIndent) {
-          let raw = value.trim()
-          if (raw.startsWith('"') && raw.endsWith('"')) {
-            try { raw = JSON.parse(raw) } catch { /* keep as-is */ }
-          }
-          result.push(`${indent}${key}: ${btoa(raw)}`)
-          continue
-        }
-      }
-      if (line.length > 0 && !line.startsWith(' ')) {
-        inStringDataBlock = false
-      }
-    }
-    result.push(line)
-  }
-  return result.join('\n')
-}
-
-type TabId = 'info' | 'yaml'
-
-const WORKLOAD_KINDS = new Set(['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob'])
-const NETWORK_KINDS = new Set(['Ingress', 'IngressClass', 'NetworkPolicy', 'Endpoints', 'EndpointSlice'])
-const CONFIG_STORAGE_KINDS = new Set(['PersistentVolume', 'PersistentVolumeClaim', 'StorageClass', 'VolumeAttachment'])
-
-// Kinds whose info components fetch their own data and don't need injected rawJson.
-const SELF_LOADING_KINDS = new Set(['Node', 'Namespace'])
-// CustomResourceInstance needs crd_name in rawJson and cannot be resolved via kindToPlural.
-const UNRESOLVABLE_KINDS = new Set(['CustomResourceInstance'])
-
-function kindToPlural(kind: string): string {
-  const map: Record<string, string> = {
-    Pod: 'pod', Node: 'node', Namespace: 'namespace', Service: 'service',
-    Deployment: 'deployment', ReplicaSet: 'replicaset', StatefulSet: 'statefulset',
-    DaemonSet: 'daemonset', Job: 'job', CronJob: 'cronjob',
-    ConfigMap: 'configmap', Secret: 'secret', Ingress: 'ingress',
-    NetworkPolicy: 'networkpolicy', PersistentVolumeClaim: 'persistentvolumeclaim',
-    PersistentVolume: 'persistentvolume', HorizontalPodAutoscaler: 'horizontalpodautoscaler',
-    VerticalPodAutoscaler: 'verticalpodautoscaler',
-    Endpoints: 'endpoints', EndpointSlice: 'endpointslice',
-    IngressClass: 'ingressclass',
-    Gateway: 'gateway',
-    GatewayClass: 'gatewayclass',
-    HTTPRoute: 'httproute',
-    GRPCRoute: 'grpcroute',
-    ReferenceGrant: 'referencegrant',
-    BackendTLSPolicy: 'backendtlspolicy',
-    BackendTrafficPolicy: 'backendtrafficpolicy',
-    DeviceClass: 'deviceclass',
-    ResourceClaim: 'resourceclaim',
-    ResourceClaimTemplate: 'resourceclaimtemplate',
-    ResourceSlice: 'resourceslice',
-    StorageClass: 'storageclass',
-    VolumeAttachment: 'volumeattachment',
-    ServiceAccount: 'serviceaccount',
-    Role: 'role',
-    RoleBinding: 'rolebinding',
-    ClusterRole: 'clusterrole',
-    ClusterRoleBinding: 'clusterrolebinding',
-    PodDisruptionBudget: 'poddisruptionbudget',
-    PriorityClass: 'priorityclass',
-    RuntimeClass: 'runtimeclass',
-    Lease: 'lease',
-    ResourceQuota: 'resourcequota',
-    LimitRange: 'limitrange',
-    MutatingWebhookConfiguration: 'mutatingwebhookconfiguration',
-    ValidatingWebhookConfiguration: 'validatingwebhookconfiguration',
-    CustomResourceDefinition: 'customresourcedefinition',
-    CustomResourceInstance: 'customresourceinstance',
-  }
-  return map[kind] ?? kind.toLowerCase()
-}
-
-function kindIcon(kind: string): string {
-  const map: Record<string, string> = {
-    Node: '🖥️', Namespace: '📦', Pod: '🔵', Deployment: '🚀', StatefulSet: '📊',
-    DaemonSet: '👾', ReplicaSet: '📋', Job: '⚡', CronJob: '⏰',
-    Service: '🌐', Ingress: '🔀', NetworkPolicy: '🛡️',
-    IngressClass: '🧩',
-    EndpointSlice: '🧩',
-    Gateway: '🚪',
-    GatewayClass: '🚏',
-    HTTPRoute: '🧭',
-    GRPCRoute: '📡',
-    ReferenceGrant: '🔗',
-    BackendTLSPolicy: '🔒',
-    BackendTrafficPolicy: '🚦',
-    DeviceClass: '🎮',
-    ResourceClaim: '📋',
-    ResourceClaimTemplate: '📄',
-    ResourceSlice: '🧩',
-    ServiceAccount: '👤', Role: '🔐', RoleBinding: '🔗', ClusterRole: '🔐', ClusterRoleBinding: '🔗',
-    ConfigMap: '📝', Secret: '🔑', PersistentVolume: '💾', PersistentVolumeClaim: '💿',
-    StorageClass: '🗄️', VolumeAttachment: '🔗', HorizontalPodAutoscaler: '📈', VerticalPodAutoscaler: '📊',
-    PodDisruptionBudget: '🛡️',
-    PriorityClass: '⚡',
-    RuntimeClass: '🔧',
-    Lease: '🤝',
-    ResourceQuota: '📊',
-    LimitRange: '📏',
-    MutatingWebhookConfiguration: '🔄',
-    ValidatingWebhookConfiguration: '✅',
-    CustomResourceDefinition: '🧩',
-    CustomResourceInstance: '📦',
-  }
-  return map[kind] ?? '📄'
-}
 
 export default function ResourceDetailDrawer() {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const { target, close, goBack, canGoBack } = useResourceDetail()
   const isTopModal = useModalStackEntry(!!target)
   const [tab, setTab] = useState<TabId>('info')
-  const [yamlRefreshNonce, setYamlRefreshNonce] = useState(0)
-  const [isYamlDirty, setIsYamlDirty] = useState(false)
   const [applyToast, setApplyToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
 
   const ns = target?.namespace
@@ -272,7 +75,34 @@ export default function ResourceDetailDrawer() {
   const kind = target?.kind ?? ''
   const { has } = usePermission()
   const canDelete = has(`resource.${kind.toLowerCase()}.delete`)
+
+  const {
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    deleteError,
+    setDeleteError,
+    deleteMutation,
+  } = useResourceDelete({
+    target: target ? { kind: target.kind, namespace: target.namespace ?? null, name: target.name, rawJson: (target as any).rawJson } : null,
+    close,
+  })
   const canEditYaml = has(`resource.${kind.toLowerCase()}.edit`)
+
+  const {
+    yamlData,
+    yamlLoading,
+    yamlFetching,
+    yamlError,
+    setYamlRefreshNonce,
+    isYamlDirty,
+    setIsYamlDirty,
+    handleApplyYaml,
+    invalidateAfterApply,
+  } = useResourceYaml({
+    target: target ? { kind: target.kind, namespace: target.namespace ?? null, name: target.name, rawJson: (target as any).rawJson } : null,
+    tab,
+    canEditYaml,
+  })
 
   const needsRawJsonFetch = !!target
     && !target.rawJson
@@ -290,25 +120,6 @@ export default function ResourceDetailDrawer() {
 
   const effectiveRawJson = target?.rawJson ?? fetchedRawJson
 
-  const { data: yamlData, isLoading: yamlLoading, isFetching: yamlFetching, isError: yamlError } = useQuery({
-    queryKey: ['resource-yaml', kind, ns, name, yamlRefreshNonce],
-    queryFn: async () => {
-      if (kind === 'Node') return api.getNodeYaml(name, yamlRefreshNonce > 0)
-      if (kind === 'Namespace') return api.getNamespaceYaml(name, yamlRefreshNonce > 0)
-      if (kind === 'Secret' && ns) return api.getSecretYaml(ns, name)
-      if (kind === 'CustomResourceDefinition') return api.getResourceYaml('customresourcedefinitions', name, undefined)
-      if (kind === 'CustomResourceInstance') {
-        const rj = target?.rawJson as Record<string, unknown> | undefined
-        const crdN = (rj?.crd_name as string) || ''
-        const plural = crdN ? crdN.split('.')[0] : ''
-        if (plural) return api.getResourceYaml(plural, name, ns || undefined)
-      }
-      return api.getResourceYaml(kindToPlural(kind), name, ns || undefined)
-    },
-    enabled: !!target && tab === 'yaml',
-    staleTime: 10_000,
-    retry: 1,
-  })
 
   // 플로팅 AI 위젯용 오버레이 스냅샷 (Info/YAML 2탭만)
   const aiSnapshot = useMemo(() => {
@@ -357,171 +168,7 @@ export default function ResourceDetailDrawer() {
 
   useAIContext(aiSnapshot, [aiSnapshot])
 
-  const handleApplyYaml = async (rawYaml: string) => {
-    const yaml = kind === 'Secret' && canEditYaml ? encodeSecretYaml(rawYaml) : rawYaml
-    if (kind === 'Node') await api.applyNodeYaml(name, yaml)
-    else if (kind === 'Namespace') await api.applyNamespaceYaml(name, yaml)
-    else if (kind === 'CustomResourceDefinition') await api.applyResourceYaml('customresourcedefinitions', name, yaml, undefined)
-    else if (kind === 'CustomResourceInstance') {
-      const rj = target?.rawJson as Record<string, unknown> | undefined
-      const crdN = (rj?.crd_name as string) || ''
-      const plural = crdN ? crdN.split('.')[0] : ''
-      if (plural) await api.applyResourceYaml(plural, name, yaml, ns || undefined)
-    }
-    else await api.applyResourceYaml(kindToPlural(kind), name, yaml, ns || undefined)
-  }
 
-  const invalidateAfterApply = useCallback(() => {
-    setYamlRefreshNonce(prev => prev + 1)
-    queryClient.invalidateQueries({ queryKey: ['resource-yaml'] })
-    if (kind === 'Node') {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes'] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', name] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'pods', name] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'node-metrics'] })
-    } else if (kind === 'Namespace') {
-      queryClient.invalidateQueries({ queryKey: ['namespace-describe', name] })
-      queryClient.invalidateQueries({ queryKey: ['namespaces'] })
-      queryClient.invalidateQueries({ queryKey: ['namespace-resource-quotas', name] })
-      queryClient.invalidateQueries({ queryKey: ['namespace-limit-ranges', name] })
-    } else if (kind === 'Pod') {
-      queryClient.invalidateQueries({ queryKey: ['pod-describe', ns, name] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'pods'] })
-    } else if (kind === 'PersistentVolumeClaim' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs'] })
-      queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs', ns] })
-      queryClient.invalidateQueries({ queryKey: ['pvc-describe', ns, name] })
-    } else if (kind === 'PersistentVolume') {
-      queryClient.invalidateQueries({ queryKey: ['storage', 'pvs'] })
-      queryClient.invalidateQueries({ queryKey: ['pv-describe', name] })
-    } else if (kind === 'StorageClass') {
-      queryClient.invalidateQueries({ queryKey: ['storage', 'storageclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['storageclass-describe', name] })
-    } else if (kind === 'VolumeAttachment') {
-      queryClient.invalidateQueries({ queryKey: ['storage', 'volumeattachments'] })
-      queryClient.invalidateQueries({ queryKey: ['volumeattachment-describe', name] })
-    } else if (kind === 'Endpoints' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['network', 'endpoints'] })
-      queryClient.invalidateQueries({ queryKey: ['network', 'endpoints', ns] })
-      queryClient.invalidateQueries({ queryKey: ['endpoint-describe', ns, name] })
-    } else if (kind === 'EndpointSlice' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices'] })
-      queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices', ns] })
-      queryClient.invalidateQueries({ queryKey: ['endpointslice-describe', ns, name] })
-    } else if (kind === 'Ingress' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['network', 'ingresses'] })
-      queryClient.invalidateQueries({ queryKey: ['network', 'ingresses', ns] })
-      queryClient.invalidateQueries({ queryKey: ['ingress-detail', ns, name] })
-    } else if (kind === 'IngressClass') {
-      queryClient.invalidateQueries({ queryKey: ['network', 'ingressclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['ingressclass-describe', name] })
-    } else if (kind === 'NetworkPolicy' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies'] })
-      queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies', ns] })
-      queryClient.invalidateQueries({ queryKey: ['networkpolicy-describe', ns, name] })
-    } else if (kind === 'Gateway' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways', ns] })
-      queryClient.invalidateQueries({ queryKey: ['gateway-describe', ns, name] })
-    } else if (kind === 'GatewayClass') {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'gatewayclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['gatewayclass-describe', name] })
-    } else if (kind === 'HTTPRoute' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'httproutes'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'httproutes', ns] })
-      queryClient.invalidateQueries({ queryKey: ['httproute-describe', ns, name] })
-    } else if (kind === 'GRPCRoute' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'grpcroutes'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'grpcroutes', ns] })
-      queryClient.invalidateQueries({ queryKey: ['grpcroute-describe', ns, name] })
-    } else if (kind === 'ReferenceGrant' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants', ns] })
-      queryClient.invalidateQueries({ queryKey: ['referencegrant-describe', ns, name] })
-    } else if (kind === 'BackendTLSPolicy' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies', ns] })
-      queryClient.invalidateQueries({ queryKey: ['backendtlspolicy-describe', ns, name] })
-    } else if (kind === 'BackendTrafficPolicy' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies'] })
-      queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies', ns] })
-      queryClient.invalidateQueries({ queryKey: ['backendtrafficpolicy-describe', ns, name] })
-    } else if (kind === 'DeviceClass') {
-      queryClient.invalidateQueries({ queryKey: ['gpu', 'deviceclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['deviceclass-describe', name] })
-    } else if (kind === 'ResourceClaim' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceclaims'] })
-      queryClient.invalidateQueries({ queryKey: ['resourceclaim-describe', ns, name] })
-    } else if (kind === 'ResourceClaimTemplate' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceclaimtemplates'] })
-      queryClient.invalidateQueries({ queryKey: ['resourceclaimtemplate-describe', ns, name] })
-    } else if (kind === 'ResourceSlice') {
-      queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceslices'] })
-      queryClient.invalidateQueries({ queryKey: ['resourceslice-describe', name] })
-    } else if (kind === 'ServiceAccount' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts'] })
-      queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts', ns] })
-      queryClient.invalidateQueries({ queryKey: ['serviceaccount-describe', ns, name] })
-    } else if (kind === 'Role' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['security', 'roles'] })
-      queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] })
-      queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] })
-    } else if (kind === 'RoleBinding' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings'] })
-      queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings', ns] })
-      queryClient.invalidateQueries({ queryKey: ['rolebinding-describe', ns, name] })
-    } else if (kind === 'ClusterRole') {
-      queryClient.invalidateQueries({ queryKey: ['security', 'clusterroles'] })
-      queryClient.invalidateQueries({ queryKey: ['clusterrole-describe', name] })
-    } else if (kind === 'ClusterRoleBinding') {
-      queryClient.invalidateQueries({ queryKey: ['security', 'clusterrolebindings'] })
-      queryClient.invalidateQueries({ queryKey: ['clusterrolebinding-describe', name] })
-    } else if (kind === 'ConfigMap' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] })
-      queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] })
-      queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] })
-    } else if (kind === 'Secret' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] })
-      queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] })
-      queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] })
-    } else if (kind === 'PodDisruptionBudget' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['workloads', 'pdbs'] })
-      queryClient.invalidateQueries({ queryKey: ['workloads', 'pdbs', ns] })
-      queryClient.invalidateQueries({ queryKey: ['pdb-describe', ns, name] })
-    } else if (kind === 'PriorityClass') {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'priorityclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['priorityclass-describe', name] })
-    } else if (kind === 'RuntimeClass') {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'runtimeclasses'] })
-      queryClient.invalidateQueries({ queryKey: ['runtimeclass-describe', name] })
-    } else if (kind === 'Lease' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'leases'] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'leases', ns] })
-      queryClient.invalidateQueries({ queryKey: ['lease-describe', ns, name] })
-    } else if (kind === 'ResourceQuota' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas'] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas', ns] })
-      queryClient.invalidateQueries({ queryKey: ['resourcequota-describe', ns, name] })
-    } else if (kind === 'LimitRange' && ns) {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges'] })
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges', ns] })
-      queryClient.invalidateQueries({ queryKey: ['limitrange-describe', ns, name] })
-    } else if (kind === 'MutatingWebhookConfiguration') {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'mutatingwebhookconfigurations'] })
-      queryClient.invalidateQueries({ queryKey: ['mutatingwebhookconfiguration-describe', name] })
-    } else if (kind === 'ValidatingWebhookConfiguration') {
-      queryClient.invalidateQueries({ queryKey: ['cluster', 'validatingwebhookconfigurations'] })
-      queryClient.invalidateQueries({ queryKey: ['validatingwebhookconfiguration-describe', name] })
-    } else if (kind === 'CustomResourceDefinition') {
-      queryClient.invalidateQueries({ queryKey: ['custom-resources', 'crds'] })
-      queryClient.invalidateQueries({ queryKey: ['crd-describe', name] })
-    } else if (kind === 'CustomResourceInstance') {
-      queryClient.invalidateQueries({ queryKey: ['custom-resources', 'instances'] })
-      queryClient.invalidateQueries({ queryKey: ['cr-instance-describe'] })
-    } else {
-      queryClient.invalidateQueries({ queryKey: ['search-resources'] })
-    }
-  }, [queryClient, kind, ns, name])
 
   const confirmDiscardYaml = () => {
     if (!isYamlDirty) return true
@@ -533,8 +180,6 @@ export default function ResourceDetailDrawer() {
     setIsYamlDirty(false)
     setApplyToast(null)
     setYamlRefreshNonce(0)
-    setDeleteDialogOpen(false)
-    setDeleteError(null)
   }
 
   const handleClose = () => {
@@ -571,509 +216,6 @@ export default function ResourceDetailDrawer() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [target, isYamlDirty, isTopModal])
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (kind === 'Pod' && ns) {
-        await api.deletePod(ns, name)
-        return
-      }
-      if (kind === 'Namespace') {
-        await api.deleteNamespace(name)
-        return
-      }
-      if (kind === 'Node') {
-        await api.deleteNode(name)
-        return
-      }
-      if (kind === 'Deployment' && ns) {
-        await api.deleteDeployment(ns, name)
-        return
-      }
-      if (kind === 'StatefulSet' && ns) {
-        await api.deleteStatefulSet(ns, name)
-        return
-      }
-      if (kind === 'DaemonSet' && ns) {
-        await api.deleteDaemonSet(ns, name)
-        return
-      }
-      if (kind === 'Job' && ns) {
-        await api.deleteJob(ns, name)
-        return
-      }
-      if (kind === 'ReplicaSet' && ns) {
-        await api.deleteReplicaSet(ns, name)
-        return
-      }
-      if (kind === 'CronJob' && ns) {
-        await api.deleteCronJob(ns, name)
-        return
-      }
-      if (kind === 'PersistentVolumeClaim' && ns) {
-        await api.deletePVC(ns, name)
-        return
-      }
-      if (kind === 'PersistentVolume') {
-        await api.deletePV(name)
-        return
-      }
-      if (kind === 'StorageClass') {
-        await api.deleteStorageClass(name)
-        return
-      }
-      if (kind === 'VolumeAttachment') {
-        await api.deleteVolumeAttachment(name)
-        return
-      }
-      if (kind === 'Service' && ns) {
-        await api.deleteService(ns, name)
-        return
-      }
-      if (kind === 'Endpoints' && ns) {
-        await api.deleteEndpoint(ns, name)
-        return
-      }
-      if (kind === 'EndpointSlice' && ns) {
-        await api.deleteEndpointSlice(ns, name)
-        return
-      }
-      if (kind === 'Ingress' && ns) {
-        await api.deleteIngress(ns, name)
-        return
-      }
-      if (kind === 'IngressClass') {
-        await api.deleteIngressClass(name)
-        return
-      }
-      if (kind === 'NetworkPolicy' && ns) {
-        await api.deleteNetworkPolicy(ns, name)
-        return
-      }
-      if (kind === 'Gateway' && ns) {
-        await api.deleteGateway(ns, name)
-        return
-      }
-      if (kind === 'GatewayClass') {
-        await api.deleteGatewayClass(name)
-        return
-      }
-      if (kind === 'HTTPRoute' && ns) {
-        await api.deleteHTTPRoute(ns, name)
-        return
-      }
-      if (kind === 'GRPCRoute' && ns) {
-        await api.deleteGRPCRoute(ns, name)
-        return
-      }
-      if (kind === 'ReferenceGrant' && ns) {
-        await api.deleteReferenceGrant(ns, name)
-        return
-      }
-      if (kind === 'BackendTLSPolicy' && ns) {
-        await api.deleteBackendTLSPolicy(ns, name)
-        return
-      }
-      if (kind === 'BackendTrafficPolicy' && ns) {
-        await api.deleteBackendTrafficPolicy(ns, name)
-        return
-      }
-      if (kind === 'DeviceClass') {
-        await api.deleteDeviceClass(name)
-        return
-      }
-      if (kind === 'ResourceClaim' && ns) {
-        await api.deleteResourceClaim(ns, name)
-        return
-      }
-      if (kind === 'ResourceClaimTemplate' && ns) {
-        await api.deleteResourceClaimTemplate(ns, name)
-        return
-      }
-      if (kind === 'ResourceSlice') {
-        await api.deleteResourceSlice(name)
-        return
-      }
-      if (kind === 'ServiceAccount' && ns) {
-        await api.deleteServiceAccount(ns, name)
-        return
-      }
-      if (kind === 'Role' && ns) {
-        await api.deleteRole(ns, name)
-        return
-      }
-      if (kind === 'RoleBinding' && ns) {
-        await api.deleteRoleBinding(ns, name)
-        return
-      }
-      if (kind === 'ClusterRole') {
-        await api.deleteClusterRole(name)
-        return
-      }
-      if (kind === 'ClusterRoleBinding') {
-        await api.deleteClusterRoleBinding(name)
-        return
-      }
-      if (kind === 'ConfigMap' && ns) {
-        await api.deleteConfigMap(ns, name)
-        return
-      }
-      if (kind === 'Secret' && ns) {
-        await api.deleteSecret(ns, name)
-        return
-      }
-      if (kind === 'HorizontalPodAutoscaler' && ns) {
-        await api.deleteHPA(ns, name)
-        return
-      }
-      if (kind === 'VerticalPodAutoscaler' && ns) {
-        await api.deleteVPA(ns, name)
-        return
-      }
-      if (kind === 'PodDisruptionBudget' && ns) {
-        await api.deletePDB(ns, name)
-        return
-      }
-      if (kind === 'PriorityClass') {
-        await api.deletePriorityClass(name)
-        return
-      }
-      if (kind === 'RuntimeClass') {
-        await api.deleteRuntimeClass(name)
-        return
-      }
-      if (kind === 'Lease' && ns) {
-        await api.deleteLease(ns, name)
-        return
-      }
-      if (kind === 'ResourceQuota' && ns) {
-        await api.deleteResourceQuota(ns, name)
-        return
-      }
-      if (kind === 'LimitRange' && ns) {
-        await api.deleteLimitRange(ns, name)
-        return
-      }
-      if (kind === 'MutatingWebhookConfiguration') {
-        await api.deleteMutatingWebhookConfiguration(name)
-        return
-      }
-      if (kind === 'ValidatingWebhookConfiguration') {
-        await api.deleteValidatingWebhookConfiguration(name)
-        return
-      }
-      if (kind === 'CustomResourceDefinition') {
-        await api.deleteCRD(name)
-        return
-      }
-      if (kind === 'CustomResourceInstance') {
-        const rj = target?.rawJson as Record<string, unknown> | undefined
-        const g = (rj?.group as string) || ''
-        const v = (rj?.version as string) || ''
-        const crdN = (rj?.crd_name as string) || ''
-        const pl = crdN ? crdN.split('.')[0] : ''
-        if (g && v && pl) {
-          await api.deleteCustomResourceInstance(g, v, pl, ns || '-', name)
-          return
-        }
-      }
-      throw new Error('Delete is not supported for this resource.')
-    },
-    onSuccess: async () => {
-      if (kind === 'Pod' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'pods'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'pods', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['pod-describe', ns, name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-pods', ns] }),
-        ])
-      } else if (kind === 'Node') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes'] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'describe', name] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'nodes', 'pods', name] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'node-metrics'] }),
-        ])
-      } else if (kind === 'Namespace') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['namespaces'] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-describe', name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-pods', name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-rq', name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-lr', name] }),
-        ])
-      } else if (kind === 'Deployment' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'deployments'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'deployments', ns] }),
-        ])
-      } else if (kind === 'StatefulSet' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'statefulsets'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'statefulsets', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['statefulset-describe', ns, name] }),
-        ])
-      } else if (kind === 'DaemonSet' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'daemonsets'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'daemonsets', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['daemonset-describe', ns, name] }),
-          queryClient.invalidateQueries({ queryKey: ['workload-describe', 'DaemonSet', ns, name] }),
-        ])
-      } else if (kind === 'Job' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'jobs'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'jobs', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['workload-describe', 'Job', ns, name] }),
-        ])
-      } else if (kind === 'ReplicaSet' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'replicasets'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'replicasets', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['replicasets', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['workload-describe', 'ReplicaSet', ns, name] }),
-        ])
-      } else if (kind === 'CronJob' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'cronjobs'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'cronjobs', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['workload-describe', 'CronJob', ns, name] }),
-        ])
-      } else if (kind === 'PersistentVolumeClaim' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs'] }),
-          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs', 'all'] }),
-          queryClient.invalidateQueries({ queryKey: ['storage', 'pvcs', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['pvc-describe', ns, name] }),
-        ])
-      } else if (kind === 'PersistentVolume') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['storage', 'pvs'] }),
-          queryClient.invalidateQueries({ queryKey: ['pv-describe', name] }),
-        ])
-      } else if (kind === 'StorageClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['storage', 'storageclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['storageclass-describe', name] }),
-        ])
-      } else if (kind === 'VolumeAttachment') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['storage', 'volumeattachments'] }),
-          queryClient.invalidateQueries({ queryKey: ['volumeattachment-describe', name] }),
-        ])
-      } else if (kind === 'Service' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'services'] }),
-          queryClient.invalidateQueries({ queryKey: ['network', 'services', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['service-describe', ns, name] }),
-        ])
-      } else if (kind === 'Endpoints' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'endpoints'] }),
-          queryClient.invalidateQueries({ queryKey: ['network', 'endpoints', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['endpoint-describe', ns, name] }),
-        ])
-      } else if (kind === 'EndpointSlice' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices'] }),
-          queryClient.invalidateQueries({ queryKey: ['network', 'endpointslices', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['endpointslice-describe', ns, name] }),
-        ])
-      } else if (kind === 'Ingress' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'ingresses'] }),
-          queryClient.invalidateQueries({ queryKey: ['network', 'ingresses', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['ingress-detail', ns, name] }),
-        ])
-      } else if (kind === 'IngressClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'ingressclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['ingressclass-describe', name] }),
-        ])
-      } else if (kind === 'NetworkPolicy' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies'] }),
-          queryClient.invalidateQueries({ queryKey: ['network', 'networkpolicies', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['networkpolicy-describe', ns, name] }),
-        ])
-      } else if (kind === 'Gateway' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'gateways', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway-describe', ns, name] }),
-        ])
-      } else if (kind === 'GatewayClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'gatewayclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['gatewayclass-describe', name] }),
-        ])
-      } else if (kind === 'HTTPRoute' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'httproutes'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'httproutes', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['httproute-describe', ns, name] }),
-        ])
-      } else if (kind === 'GRPCRoute' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'grpcroutes'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'grpcroutes', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['grpcroute-describe', ns, name] }),
-        ])
-      } else if (kind === 'ReferenceGrant' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'referencegrants', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['referencegrant-describe', ns, name] }),
-        ])
-      } else if (kind === 'BackendTLSPolicy' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtlspolicies', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['backendtlspolicy-describe', ns, name] }),
-        ])
-      } else if (kind === 'BackendTrafficPolicy' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies'] }),
-          queryClient.invalidateQueries({ queryKey: ['gateway', 'backendtrafficpolicies', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['backendtrafficpolicy-describe', ns, name] }),
-        ])
-      } else if (kind === 'DeviceClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gpu', 'deviceclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['deviceclass-describe', name] }),
-        ])
-      } else if (kind === 'ResourceClaim' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceclaims'] }),
-          queryClient.invalidateQueries({ queryKey: ['resourceclaim-describe', ns, name] }),
-        ])
-      } else if (kind === 'ResourceClaimTemplate' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceclaimtemplates'] }),
-          queryClient.invalidateQueries({ queryKey: ['resourceclaimtemplate-describe', ns, name] }),
-        ])
-      } else if (kind === 'ResourceSlice') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['gpu', 'resourceslices'] }),
-          queryClient.invalidateQueries({ queryKey: ['resourceslice-describe', name] }),
-        ])
-      } else if (kind === 'ServiceAccount' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts'] }),
-          queryClient.invalidateQueries({ queryKey: ['security', 'serviceaccounts', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['serviceaccount-describe', ns, name] }),
-        ])
-      } else if (kind === 'Role' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['security', 'roles'] }),
-          queryClient.invalidateQueries({ queryKey: ['security', 'roles', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['role-describe', ns, name] }),
-        ])
-      } else if (kind === 'RoleBinding' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings'] }),
-          queryClient.invalidateQueries({ queryKey: ['security', 'rolebindings', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['rolebinding-describe', ns, name] }),
-        ])
-      } else if (kind === 'ClusterRole') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['security', 'clusterroles'] }),
-          queryClient.invalidateQueries({ queryKey: ['clusterrole-describe', name] }),
-        ])
-      } else if (kind === 'ClusterRoleBinding') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['security', 'clusterrolebindings'] }),
-          queryClient.invalidateQueries({ queryKey: ['clusterrolebinding-describe', name] }),
-        ])
-      } else if (kind === 'ConfigMap' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps'] }),
-          queryClient.invalidateQueries({ queryKey: ['configuration', 'configmaps', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['configmap-describe', ns, name] }),
-        ])
-      } else if (kind === 'Secret' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets'] }),
-          queryClient.invalidateQueries({ queryKey: ['configuration', 'secrets', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['secret-describe', ns, name] }),
-        ])
-      } else if (kind === 'HorizontalPodAutoscaler' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'hpas'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'hpas', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['hpa-describe', ns, name] }),
-        ])
-      } else if (kind === 'VerticalPodAutoscaler' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'vpas'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'vpas', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['vpa-describe', ns, name] }),
-        ])
-      } else if (kind === 'PodDisruptionBudget' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'pdbs'] }),
-          queryClient.invalidateQueries({ queryKey: ['workloads', 'pdbs', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['pdb-describe', ns, name] }),
-        ])
-      } else if (kind === 'PriorityClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'priorityclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['priorityclass-describe', name] }),
-        ])
-      } else if (kind === 'RuntimeClass') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'runtimeclasses'] }),
-          queryClient.invalidateQueries({ queryKey: ['runtimeclass-describe', name] }),
-        ])
-      } else if (kind === 'Lease' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'leases'] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'leases', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['lease-describe', ns, name] }),
-        ])
-      } else if (kind === 'ResourceQuota' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas'] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'resourcequotas', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['resourcequota-describe', ns, name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-rq', ns] }),
-        ])
-      } else if (kind === 'LimitRange' && ns) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges'] }),
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'limitranges', ns] }),
-          queryClient.invalidateQueries({ queryKey: ['limitrange-describe', ns, name] }),
-          queryClient.invalidateQueries({ queryKey: ['namespace-lr', ns] }),
-        ])
-      } else if (kind === 'MutatingWebhookConfiguration') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'mutatingwebhookconfigurations'] }),
-          queryClient.invalidateQueries({ queryKey: ['mutatingwebhookconfiguration-describe', name] }),
-        ])
-      } else if (kind === 'ValidatingWebhookConfiguration') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['cluster', 'validatingwebhookconfigurations'] }),
-          queryClient.invalidateQueries({ queryKey: ['validatingwebhookconfiguration-describe', name] }),
-        ])
-      } else if (kind === 'CustomResourceDefinition') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['custom-resources', 'crds'] }),
-          queryClient.invalidateQueries({ queryKey: ['crd-describe', name] }),
-        ])
-      } else if (kind === 'CustomResourceInstance') {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['custom-resources', 'instances'] }),
-          queryClient.invalidateQueries({ queryKey: ['cr-instance-describe'] }),
-        ])
-      }
-
-      close()
-      resetDrawerState()
-    },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail || err?.message || 'Failed to delete resource.'
-      setDeleteError(String(detail))
-    },
-  })
 
   if (!target) return null
 
@@ -1129,72 +271,27 @@ export default function ResourceDetailDrawer() {
         }}
       />
       <div className="fixed inset-y-0 right-0 w-full max-w-[740px] bg-slate-900 border-l border-slate-700 z-[1110] flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-slate-700 shrink-0">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm">{kindIcon(kind)}</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-medium">{kind}</span>
-              {ns && <span className="text-xs text-slate-500">{ns}</span>}
-            </div>
-            <h2 className="text-lg font-semibold text-white truncate">{name}</h2>
-            <HelmReleaseBadge rawJson={effectiveRawJson} />
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {canGoBack && (
-              <button
-                onClick={() => {
-                  if (!confirmDiscardYaml()) return
-                  resetDrawerState()
-                  goBack()
-                }}
-                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-700 transition-colors"
-                title={t('common.back', { defaultValue: 'Back' })}
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={handleClose} className="text-slate-400 hover:text-white p-1">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center justify-between px-5 py-2 border-b border-slate-800 text-xs shrink-0 gap-2">
-          <div className="flex items-center gap-2">
-            {([
-              { id: 'info' as TabId, label: t('common.info', { defaultValue: 'Info' }), icon: Info },
-              { id: 'yaml' as TabId, label: 'YAML', icon: FileCode },
-            ]).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => handleTabChange(id)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md border transition-colors ${
-                  tab === id
-                    ? 'border-slate-500 bg-slate-800 text-white'
-                    : 'border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteError(null)
-                setDeleteDialogOpen(true)
-              }}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-md border border-red-700/60 bg-red-900/20 text-red-300 hover:bg-red-900/40"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {`Delete ${kind}`}
-            </button>
-          )}
-        </div>
+        <ResourceDetailHeader
+          kind={kind}
+          ns={ns}
+          name={name}
+          effectiveRawJson={effectiveRawJson}
+          canGoBack={canGoBack}
+          canDelete={canDelete}
+          tab={tab}
+          onClose={handleClose}
+          onGoBack={() => {
+            if (!confirmDiscardYaml()) return
+            resetDrawerState()
+            goBack()
+          }}
+          onTabChange={handleTabChange}
+          onDeleteClick={() => {
+            setDeleteError(null)
+            setDeleteDialogOpen(true)
+          }}
+          t={t}
+        />
 
         {/* Content */}
         <div ref={contentScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
