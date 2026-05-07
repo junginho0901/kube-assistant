@@ -5,6 +5,7 @@ import { api, Session } from '@/services/api'
 import { chatStreamManager, ChatStreamState } from '@/services/chatStreamManager'
 import { stripToolDetails } from '@/services/chatTextUtils'
 import { useChatSessions } from './ai-chat/useChatSessions'
+import { useChatStreamSync } from './ai-chat/useChatStreamSync'
 import ParticleWaveLoader from '@/components/ParticleWaveLoader'
 import { Send, Bot, User, Sparkles, Plus, MessageSquare, Trash2, Edit2, Check, X, StopCircle, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -331,48 +332,7 @@ export default function AIChat() {
     messagesRef.current = messages
   }, [messages])
 
-  // 현재 선택된 세션이 스트리밍 중인 세션이라면, 스트리밍 내용을 UI에 반영
-  useEffect(() => {
-    if (streamState.status !== 'streaming') return
-    if (!streamState.sessionId) return
-    if (selectedSessionId !== streamState.sessionId) return
-    if (viewSessionId !== selectedSessionId) return
-
-    const combinedContent = streamState.functionCallsContent + streamState.assistantContent
-
-    setMessages((prev) => {
-      const tempAssistantIndex = prev.findIndex((msg) => msg.role === 'assistant' && msg.isTemporary)
-
-      if (tempAssistantIndex !== -1) {
-        const updated = [...prev]
-        updated[tempAssistantIndex] = {
-          ...updated[tempAssistantIndex],
-          content: combinedContent,
-          toolCalls: streamState.toolCalls && streamState.toolCalls.length > 0 ? [...streamState.toolCalls] : undefined,
-          streamingPhase: streamState.streamingPhase ?? updated[tempAssistantIndex].streamingPhase,
-        }
-        return updated
-      }
-
-      // DB에는 아직 assistant 메시지가 없을 수 있으므로, 임시 assistant 메시지를 추가한다.
-      const nextMessages = [...prev]
-      if (!nextMessages.some((m) => m.role === 'user') && streamState.userMessage) {
-        nextMessages.push({
-          role: 'user',
-          content: streamState.userMessage,
-          isTemporary: true,
-        })
-      }
-      nextMessages.push({
-        role: 'assistant',
-        content: combinedContent,
-        isTemporary: true,
-        toolCalls: streamState.toolCalls && streamState.toolCalls.length > 0 ? [...streamState.toolCalls] : undefined,
-        streamingPhase: streamState.streamingPhase ?? 'waiting',
-      })
-      return nextMessages
-    })
-  }, [selectedSessionId, streamState, viewSessionId])
+  useChatStreamSync({ streamState, selectedSessionId, viewSessionId, setMessages })
 
   // 스트리밍 종료 시(완료/오류/중단) 세션 목록/상세를 갱신하고 임시 플래그를 정리
   const prevStreamStatusRef = useRef(streamState.status)
