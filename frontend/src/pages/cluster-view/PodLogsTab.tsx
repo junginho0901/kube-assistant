@@ -42,48 +42,63 @@ export function PodLogsTab({
 
   const logsEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const retryTimerRef = useRef<number | null>(null)
+  const cancelledRef = useRef(false)
   const containerDropdownRef = useRef<HTMLDivElement>(null)
   const tailLinesDropdownRef = useRef<HTMLDivElement>(null)
 
-  // 로그 스트리밍 (WebSocket)
+  // 로그 스트리밍 (WebSocket).
+  //
+  // ArgoCD 의 pod-logs-viewer 는 rxjs 의 retryWhen(delay(500)) 으로 끊기면
+  // 자동 재연결. 우리는 native WebSocket 이라 같은 동작을 직접 구현 — pod
+  // 가 이제 막 만들어져 첫 ws 가 onmessage 받기 전 close 되는 케이스 (예:
+  // 새 pod 클릭 직후) 에 사용자가 다른 탭 갔다 와야 복구되던 문제 해결.
   useEffect(() => {
+    cancelledRef.current = false
     if (!selectedContainer) {
       setLogs('')
       setIsStreamingLogs(false)
-      if (abortControllerRef.current) {
-        const ws = abortControllerRef.current as any
-        if (ws && ws.close) {
-          ws.close()
-        }
-        abortControllerRef.current = null
-      }
       return
     }
 
     setIsStreamingLogs(true)
     setLogs('')
 
-    const streamLogs = () => {
+    let attempt = 0
+
+    const detachAndClose = (ws: any) => {
+      if (!ws) return
+      ws.onopen = null
+      ws.onmessage = null
+      ws.onerror = null
+      ws.onclose = null
       try {
-        if (abortControllerRef.current) {
-          const oldWs = abortControllerRef.current as any
-          if (oldWs) {
-            // close() 가 비동기 라 onerror/onclose 가 새 effect 의 logs state 를
-            // 오염시키지 않도록 handler 부터 떼고 close.
-            oldWs.onopen = null
-            oldWs.onmessage = null
-            oldWs.onerror = null
-            oldWs.onclose = null
-            try {
-              if (oldWs.readyState === WebSocket.OPEN || oldWs.readyState === WebSocket.CONNECTING) {
-                oldWs.close()
-              }
-            } catch (e) {
-              console.error('Error closing WebSocket:', e)
-            }
-          }
-          abortControllerRef.current = null
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close()
         }
+      } catch (e) {
+        console.error('Error closing WebSocket:', e)
+      }
+    }
+
+    const scheduleRetry = () => {
+      if (cancelledRef.current) return
+      if (retryTimerRef.current != null) return
+      // exponential backoff: 500ms → 1s → 2s → 5s (max).
+      const delay = Math.min(500 * Math.pow(2, attempt), 5000)
+      attempt += 1
+      retryTimerRef.current = window.setTimeout(() => {
+        retryTimerRef.current = null
+        if (cancelledRef.current) return
+        connect()
+      }, delay)
+    }
+
+    const connect = () => {
+      try {
+        // 이전 ws 가 남아있으면 먼저 정리.
+        detachAndClose(abortControllerRef.current as any)
+        abortControllerRef.current = null
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
         const rawWsBase = (import.meta.env.VITE_WS_URL || '').trim()
@@ -99,9 +114,11 @@ export function PodLogsTab({
 
         const ws = new WebSocket(wsUrl)
         abortControllerRef.current = ws as any
+        setIsStreamingLogs(true)
 
         ws.onopen = () => {
-          console.log('WebSocket connected')
+          // 연결 성공 — backoff 리셋해서 다음 끊김 시 다시 빠르게 재시도.
+          attempt = 0
         }
 
         ws.onmessage = (event) => {
@@ -118,41 +135,36 @@ export function PodLogsTab({
         }
 
         ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
-          setLogs((prev) => prev + `\n\n${tr('clusterView.logs.streamError', 'An error occurred while streaming logs.')}`)
+          // onerror 는 onclose 가 따라오므로 거기서 retry 결정. 메시지를 logs
+          // 에 끼워 넣으면 정상 로그와 섞이므로 콘솔로만.
+          console.warn('Pod logs WS error:', error)
         }
 
         ws.onclose = (event) => {
           if (event.code === 1008) {
             handleUnauthorized()
+            return
           }
-          console.log('WebSocket closed')
-          setIsStreamingLogs(false)
+          if (cancelledRef.current) return
+          // 끊겼지만 effect 가 살아있다 → 재연결 시도.
+          scheduleRetry()
         }
-
       } catch (error: any) {
         console.error('Error creating WebSocket:', error)
-        setLogs(`${tr('clusterView.logs.fetchError', 'Failed to load logs.')}\n\n${tr('clusterView.logs.errorLabel', 'Error')}: ${error.message}`)
-        setIsStreamingLogs(false)
+        scheduleRetry()
       }
     }
 
-    streamLogs()
+    connect()
 
     return () => {
-      if (abortControllerRef.current) {
-        const ws = abortControllerRef.current as any
-        if (ws) {
-          ws.onopen = null
-          ws.onmessage = null
-          ws.onerror = null
-          ws.onclose = null
-          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-            ws.close()
-          }
-        }
-        abortControllerRef.current = null
+      cancelledRef.current = true
+      if (retryTimerRef.current != null) {
+        window.clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
       }
+      detachAndClose(abortControllerRef.current as any)
+      abortControllerRef.current = null
       setIsStreamingLogs(false)
     }
   }, [pod, selectedContainer, tr])
