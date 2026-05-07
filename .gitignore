@@ -97,3 +97,5 @@ CopilotKit/
 plugins/
 devtron/
 helm-dashboard/
+spot-gpu-lotto/
+test-results/
