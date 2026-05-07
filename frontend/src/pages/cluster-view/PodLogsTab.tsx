@@ -66,6 +66,9 @@ export function PodLogsTab({
     let cancelled = false
     let currentWs: WebSocket | null = null
     let retryTimer: number | null = null
+    let healthCheckTimer: number | null = null
+    let bufferFlushTimer: number | null = null
+    let pendingChunk = ''
     let attempt = 0
 
     const detachAndClose = (ws: WebSocket | null) => {
@@ -81,6 +84,27 @@ export function PodLogsTab({
       } catch (e) {
         console.error('Error closing WebSocket:', e)
       }
+    }
+
+    // bufferTime(100ms) 흉내 — argocd 가 rxjs bufferTime 으로 묶어 setLogs
+    // 폭주를 막는 패턴. burst 받을 때 React 가 매 메시지마다 re-render 하다
+    // 다른 setter 와의 batch 가 꼬여 isStreamingLogs 가 false 로 커밋되는
+    // 케이스를 방지.
+    const flushPending = () => {
+      if (cancelled) return
+      if (pendingChunk.length === 0) return
+      const chunk = pendingChunk
+      pendingChunk = ''
+      setLogs((prev) => prev + chunk)
+    }
+
+    const queueChunk = (text: string) => {
+      pendingChunk += text
+      if (bufferFlushTimer != null) return
+      bufferFlushTimer = window.setTimeout(() => {
+        bufferFlushTimer = null
+        flushPending()
+      }, 100)
     }
 
     const scheduleRetry = () => {
@@ -127,13 +151,13 @@ export function PodLogsTab({
         ws.onmessage = (event) => {
           if (cancelled) return
           if (typeof event.data === 'string') {
-            setLogs((prev) => prev + event.data)
+            queueChunk(event.data)
           } else {
             const reader = new FileReader()
             reader.onload = () => {
               if (cancelled) return
               const text = reader.result as string
-              setLogs((prev) => prev + text)
+              queueChunk(text)
             }
             reader.readAsText(event.data)
           }
@@ -151,7 +175,14 @@ export function PodLogsTab({
             handleUnauthorized()
             return
           }
-          // 끊겼지만 effect 가 살아있다 → 재연결 시도.
+          // 정상 종료 (1000) 면 retry 안 함 — backend 가 stream 을 일부러
+          // 끝낸 케이스. 누적 chunk flush 후 streaming 상태 해제.
+          if (event.code === 1000) {
+            flushPending()
+            setIsStreamingLogs(false)
+            return
+          }
+          // 그 외 (1006 abnormal, 1011 server error 등) 는 재연결 시도.
           scheduleRetry()
         }
       } catch (error: any) {
@@ -160,6 +191,19 @@ export function PodLogsTab({
       }
     }
 
+    // argocd 의 EventSource readyState===CLOSED 폴링 패턴 흉내. WebSocket 이
+    // onclose 이벤트를 silently 빠뜨리는 환경 (특정 proxy/timeout) 에서
+    // ws 가 CLOSED 인데 retry 가 트리거 안 되는 stuck 을 방어.
+    healthCheckTimer = window.setInterval(() => {
+      if (cancelled) return
+      const ws = currentWs
+      if (!ws) return
+      if (ws.readyState === WebSocket.CLOSED && retryTimer == null) {
+        console.warn('Pod logs WS silently CLOSED — forcing retry')
+        scheduleRetry()
+      }
+    }, 500)
+
     connect()
 
     return () => {
@@ -167,6 +211,14 @@ export function PodLogsTab({
       if (retryTimer != null) {
         window.clearTimeout(retryTimer)
         retryTimer = null
+      }
+      if (healthCheckTimer != null) {
+        window.clearInterval(healthCheckTimer)
+        healthCheckTimer = null
+      }
+      if (bufferFlushTimer != null) {
+        window.clearTimeout(bufferFlushTimer)
+        bufferFlushTimer = null
       }
       detachAndClose(currentWs)
       currentWs = null
