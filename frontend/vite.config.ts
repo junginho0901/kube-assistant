@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -18,5 +19,9 @@ export default defineConfig({
     port: 5173,
     // MSA 구조: API Gateway(nginx)가 모든 요청을 라우팅하므로 프록시 불필요
     // Gateway가 frontend:5173으로 프록시하고, API 요청은 해당 서비스로 라우팅
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 })
