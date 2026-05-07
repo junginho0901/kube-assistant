@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/services/api'
 import type { PodInfo } from '@/services/api'
@@ -61,6 +61,7 @@ export default function ClusterView() {
       t(key, { defaultValue: fallback, ...options }),
     [t],
   )
+  const queryClient = useQueryClient()
   const locale = i18n.language === 'ko' ? 'ko-KR' : 'en-US'
   const na = tr('common.notAvailable', 'N/A')
   const emptyValue = tr('common.empty', '-')
@@ -375,6 +376,12 @@ export default function ClusterView() {
         setSelectedPod(null)
       }
       closeDeleteModal()
+      // watch 의 DELETED 이벤트가 누락/지연되어 cache 가 안 갱신되는 케이스를
+      // 보완하기 위한 fallback refetch — 즉시 + graceful 시간 이후 한 번 더.
+      queryClient.invalidateQueries({ queryKey: ['all-pods', selectedNamespace] })
+      window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['all-pods', selectedNamespace] })
+      }, 5000)
     } catch (error: any) {
       setDeletingPods(prev => {
         const next = new Set(prev)
