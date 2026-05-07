@@ -29,6 +29,14 @@ export interface PodHealth {
 
 export const getPodHealth = (pod: any): PodHealth => {
   const phase = pod?.phase || pod?.status || 'Unknown'
+
+  // deletionTimestamp 가 셋되었으면 phase 가 여전히 'Running' 이라도 graceful
+  // shutdown 중인 Terminating 상태. ReplicaSet 이 새 pod 즉시 만들고 이전
+  // pod 가 잠시 살아있는 정상 K8s 동작을 사용자에게 명확히 표시.
+  if (pod?.deletion_timestamp) {
+    return { level: 'warn' as const, reason: 'Terminating', phase }
+  }
+
   const containers = Array.isArray(pod?.containers) ? pod.containers : []
   const initContainers = Array.isArray(pod?.init_containers) ? pod.init_containers : []
   const statusReason = isCompletedReason(pod?.status_reason) ? null : pod?.status_reason
@@ -133,6 +141,14 @@ export const getPodHealth = (pod: any): PodHealth => {
 }
 
 export const getHealthIcon = (level: 'ok' | 'warn' | 'error', reason?: string) => {
+  if (reason === 'Terminating') {
+    return (
+      <span
+        className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent"
+        aria-label="terminating"
+      />
+    )
+  }
   if (reason === 'PodInitializing' || reason === 'ContainerCreating') {
     return (
       <span
