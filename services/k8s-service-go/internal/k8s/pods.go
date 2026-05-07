@@ -464,7 +464,7 @@ func formatPodDetail(p *corev1.Pod) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"name":            p.Name,
 		"namespace":       p.Namespace,
 		"status":          status,
@@ -482,6 +482,13 @@ func formatPodDetail(p *corev1.Pod) map[string]interface{} {
 		"ready":           fmt.Sprintf("%d/%d", totalReady, totalContainers),
 		"created_at":      toISO(&p.CreationTimestamp),
 	}
+	// graceful shutdown 중인 pod 를 frontend 에서 'Terminating' 으로 표시할 수
+	// 있도록 list 응답에도 노출. 이 필드가 없으면 phase 가 여전히 'Running' 인
+	// pod 가 새 pod 와 동시에 두 개 'Running' 으로 보임.
+	if p.DeletionTimestamp != nil {
+		out["deletion_timestamp"] = toISO(p.DeletionTimestamp)
+	}
+	return out
 }
 
 // podReadyString returns a "ready/total" string for a pod.
