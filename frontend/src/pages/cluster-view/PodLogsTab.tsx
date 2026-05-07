@@ -34,7 +34,7 @@ export function PodLogsTab({
   tr,
 }: Props) {
   const [logs, setLogs] = useState<string>('')
-  const [, setIsStreamingLogs] = useState(false)
+  const [isStreamingLogs, setIsStreamingLogs] = useState(false)
   const [isContainerDropdownOpen, setIsContainerDropdownOpen] = useState(false)
   const [isTailLinesDropdownOpen, setIsTailLinesDropdownOpen] = useState(false)
   const [downloadTailLines, setDownloadTailLines] = useState<number>(1000)
@@ -67,7 +67,13 @@ export function PodLogsTab({
       try {
         if (abortControllerRef.current) {
           const oldWs = abortControllerRef.current as any
-          if (oldWs && oldWs.close) {
+          if (oldWs) {
+            // close() 가 비동기 라 onerror/onclose 가 새 effect 의 logs state 를
+            // 오염시키지 않도록 handler 부터 떼고 close.
+            oldWs.onopen = null
+            oldWs.onmessage = null
+            oldWs.onerror = null
+            oldWs.onclose = null
             try {
               if (oldWs.readyState === WebSocket.OPEN || oldWs.readyState === WebSocket.CONNECTING) {
                 oldWs.close()
@@ -136,8 +142,14 @@ export function PodLogsTab({
     return () => {
       if (abortControllerRef.current) {
         const ws = abortControllerRef.current as any
-        if (ws && ws.close) {
-          ws.close()
+        if (ws) {
+          ws.onopen = null
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close()
+          }
         }
         abortControllerRef.current = null
       }
@@ -371,7 +383,11 @@ export function PodLogsTab({
       {/* 로그 - 스크롤 가능 */}
       <div className="flex-1 bg-slate-900 rounded-lg p-4 mt-4 font-mono text-sm text-slate-300 overflow-x-auto overflow-y-auto">
         <pre className="whitespace-pre-wrap break-words">
-          {logs || tr('clusterView.logs.loading', 'Loading logs...')}
+          {logs
+            ? logs
+            : isStreamingLogs
+              ? tr('clusterView.logs.loading', 'Loading logs...')
+              : tr('clusterView.logs.empty', 'No logs available.')}
         </pre>
         <div ref={logsEndRef} />
       </div>
