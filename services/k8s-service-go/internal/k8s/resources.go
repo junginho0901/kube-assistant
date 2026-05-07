@@ -408,8 +408,30 @@ func (s *Service) ApplyResourceYAML(ctx context.Context, resourceType, namespace
 	}, nil
 }
 
+// resolveCreateNamespace 는 Create-from-YAML 시점의 namespace 결정 규칙을 캡슐화.
+// 별도 함수로 빼서 테이블 테스트 가능하게 함.
+func resolveCreateNamespace(yamlNs, defaultNs string, namespaced bool) string {
+	if !namespaced {
+		return ""
+	}
+	if yamlNs != "" {
+		return yamlNs
+	}
+	if defaultNs != "" {
+		return defaultNs
+	}
+	return "default"
+}
+
 // CreateResourcesFromYAML creates resources from a YAML string, supporting multi-document YAML.
-func (s *Service) CreateResourcesFromYAML(ctx context.Context, yamlStr string) ([]map[string]interface{}, error) {
+//
+// Namespace 결정 우선순위 (namespaced 리소스에 한해):
+//  1. YAML 의 metadata.namespace
+//  2. defaultNamespace 인자 (UI 의 namespace 드롭다운에서 선택된 값)
+//  3. "default"
+//
+// cluster-scoped 리소스 (Namespace, ClusterRole 등) 는 위 로직과 무관하게 "" 유지.
+func (s *Service) CreateResourcesFromYAML(ctx context.Context, yamlStr, defaultNamespace string) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 
 	reader := bufio.NewReader(bytes.NewBufferString(yamlStr))
@@ -456,10 +478,10 @@ func (s *Service) CreateResourcesFromYAML(ctx context.Context, yamlStr string) (
 			}
 		}
 
-		namespace := obj.GetNamespace()
-		if !namespaced {
-			namespace = ""
-		}
+		namespace := resolveCreateNamespace(obj.GetNamespace(), defaultNamespace, namespaced)
+		// 응답의 namespace 필드 + audit 등 후속 동작이 정확한 ns 를 보도록
+		// 객체에도 반영. cluster-scoped 면 빈 문자열로 셋되어 무해.
+		obj.SetNamespace(namespace)
 
 		created, err := s.CreateResource(ctx, gvr, namespace, obj)
 		if err != nil {

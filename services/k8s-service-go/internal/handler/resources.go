@@ -233,7 +233,8 @@ func (h *Handler) CreateResourcesFromYAML(w http.ResponseWriter, r *http.Request
 	}
 
 	var body struct {
-		YAML string `json:"yaml"`
+		YAML      string `json:"yaml"`
+		Namespace string `json:"namespace"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request body: "+err.Error())
@@ -241,9 +242,12 @@ func (h *Handler) CreateResourcesFromYAML(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
-	data, err := h.svc.CreateResourcesFromYAML(ctx, body.YAML)
+	data, err := h.svc.CreateResourcesFromYAML(ctx, body.YAML, body.Namespace)
 	h.recordAuditWithPayload(r, "k8s.yaml.create", "multi", "", "", err,
-		nil, audit.MustJSON(map[string]interface{}{"yaml_len": len(body.YAML)}))
+		nil, audit.MustJSON(map[string]interface{}{
+			"yaml_len":          len(body.YAML),
+			"default_namespace": body.Namespace,
+		}))
 	if err != nil {
 		h.handleError(w, err)
 		return
