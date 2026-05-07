@@ -91,16 +91,126 @@ func podToInfo(obj *unstructured.Unstructured) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
-		"name":      metadata["name"],
-		"namespace": metadata["namespace"],
-		"phase":     phase,
-		"status":    phase,
-		"node_name": nodeName,
-		"pod_ip":    podIP,
-		"labels":    metadata["labels"],
-		"created_at": metadata["creationTimestamp"],
+	// containers / init_containers / ready / restart_count 는 frontend 가
+	// PodLogsTab/PodSummaryTab 에서 사용. 이전엔 watch 응답에 빠져 있어서
+	// MODIFIED 이벤트가 list 의 PodInfo 를 덮어쓰면 containers=[] 가 되고,
+	// 그 pod 클릭 시 'select container' 빈칸 + 'No logs available.' stuck.
+	containerStatuses := map[string]map[string]interface{}{}
+	if status != nil {
+		if css, ok := status["containerStatuses"].([]interface{}); ok {
+			for _, cs := range css {
+				csm, _ := cs.(map[string]interface{})
+				if csm == nil {
+					continue
+				}
+				name, _ := csm["name"].(string)
+				if name == "" {
+					continue
+				}
+				containerStatuses[name] = csm
+			}
+		}
 	}
+
+	totalReady := 0
+	totalContainers := 0
+	totalRestarts := int64(0)
+	containers := []map[string]interface{}{}
+	if spec != nil {
+		if specContainers, ok := spec["containers"].([]interface{}); ok {
+			for _, c := range specContainers {
+				cm, _ := c.(map[string]interface{})
+				if cm == nil {
+					continue
+				}
+				name, _ := cm["name"].(string)
+				image, _ := cm["image"].(string)
+				container := map[string]interface{}{
+					"name":  name,
+					"image": image,
+				}
+				if cs := containerStatuses[name]; cs != nil {
+					if ready, ok := cs["ready"].(bool); ok {
+						container["ready"] = ready
+						if ready {
+							totalReady++
+						}
+					}
+					if rc, ok := cs["restartCount"].(int64); ok {
+						container["restart_count"] = rc
+						totalRestarts += rc
+					} else if rc, ok := cs["restartCount"].(float64); ok {
+						container["restart_count"] = int64(rc)
+						totalRestarts += int64(rc)
+					}
+					if state, ok := cs["state"].(map[string]interface{}); ok {
+						container["state"] = state
+					}
+				}
+				containers = append(containers, container)
+				totalContainers++
+			}
+		}
+	}
+
+	initContainers := []map[string]interface{}{}
+	if spec != nil {
+		if specIC, ok := spec["initContainers"].([]interface{}); ok {
+			for _, c := range specIC {
+				cm, _ := c.(map[string]interface{})
+				if cm == nil {
+					continue
+				}
+				name, _ := cm["name"].(string)
+				image, _ := cm["image"].(string)
+				ic := map[string]interface{}{
+					"name":  name,
+					"image": image,
+				}
+				initContainers = append(initContainers, ic)
+			}
+		}
+	}
+
+	// container-level reason (waiting/terminated) 우선
+	reason := ""
+	statusReason, _ := status["reason"].(string)
+	for _, cs := range containerStatuses {
+		state, _ := cs["state"].(map[string]interface{})
+		if state == nil {
+			continue
+		}
+		if waiting, ok := state["waiting"].(map[string]interface{}); ok {
+			if r, _ := waiting["reason"].(string); r != "" {
+				reason = r
+				break
+			}
+		}
+	}
+	if reason == "" {
+		reason = statusReason
+	}
+
+	out := map[string]interface{}{
+		"name":            metadata["name"],
+		"namespace":       metadata["namespace"],
+		"phase":           phase,
+		"status":          phase,
+		"reason":          reason,
+		"status_reason":   reason,
+		"node_name":       nodeName,
+		"pod_ip":          podIP,
+		"labels":          metadata["labels"],
+		"created_at":      metadata["creationTimestamp"],
+		"containers":      containers,
+		"init_containers": initContainers,
+		"restart_count":   totalRestarts,
+		"ready":           fmt.Sprintf("%d/%d", totalReady, totalContainers),
+	}
+	if dt, ok := metadata["deletionTimestamp"].(string); ok && dt != "" {
+		out["deletion_timestamp"] = dt
+	}
+	return out
 }
 
 func nodeToInfo(obj *unstructured.Unstructured) map[string]interface{} {
