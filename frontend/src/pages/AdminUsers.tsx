@@ -2,16 +2,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, Member } from '@/services/api'
 import { CheckCircle, ChevronDown, ChevronUp, Clock, Copy, Download, KeyRound, Pencil, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { clearAccessToken } from '@/services/auth'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import { useTranslation } from 'react-i18next'
 import { usePermission } from '@/hooks/usePermission'
 import CustomDropdown from '@/components/CustomDropdown'
 import { useAdminUserData } from './admin-users/useAdminUserData'
+import { ReauthModal } from './admin-users/ReauthModal'
+import { CreateUserModal } from './admin-users/CreateUserModal'
 
 export default function AdminUsers() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const tr = (key: string, fallback: string, options?: Record<string, any>) =>
@@ -954,126 +953,20 @@ export default function AdminUsers() {
         </ModalOverlay>
       )}
 
-      {/* Create user modal */}
-      {createModalOpen && (
-        <ModalOverlay>
-          <div
-            className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-            aria-label={tr('adminUsers.createUserTitle', 'Add user')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-white">
-              {tr('adminUsers.createUserTitle', 'Add user')}
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              {tr('adminUsers.createUserSubtitle', 'Create a new user account with a specified role.')}
-            </p>
-
-            <form
-              className="mt-5 space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (!newUser.name || !newUser.email || !newUser.password || !newUser.role_id) return
-                createUserMutation.mutate()
-              }}
-            >
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.name', 'Name')}</label>
-                <input
-                  value={newUser.name}
-                  onChange={(e) => setNewUser((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  placeholder={tr('adminUsers.form.namePlaceholder', 'Jane Doe')}
-                  autoFocus
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <CustomDropdown
-                  label={tr('adminUsers.form.hq', 'HQ')}
-                  placeholder={tr('adminUsers.form.selectHq', 'Select HQ')}
-                  options={hqOptions.map((o) => ({ value: o.name, label: o.name }))}
-                  value={newUser.hq}
-                  onChange={(v) => setNewUser((p) => ({ ...p, hq: v }))}
-                />
-                <CustomDropdown
-                  label={tr('adminUsers.form.team', 'Team')}
-                  placeholder={tr('adminUsers.form.selectTeam', 'Select Team')}
-                  options={teamOptions.map((o) => ({ value: o.name, label: o.name }))}
-                  value={newUser.team}
-                  onChange={(v) => setNewUser((p) => ({ ...p, team: v }))}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.email', 'Email')}</label>
-                <input
-                  value={newUser.email}
-                  onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  placeholder="user@example.com"
-                  type="email"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.password', 'Password')}</label>
-                <input
-                  value={newUser.password}
-                  onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  placeholder={tr('adminUsers.form.passwordPlaceholder', 'Initial password')}
-                  type="password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">{tr('adminUsers.form.role', 'Role')}</label>
-                <select
-                  value={newUser.role_id}
-                  onChange={(e) => setNewUser((p) => ({ ...p, role_id: Number(e.target.value) }))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary-600"
-                >
-                  <option value={0}>{tr('adminUsers.form.selectRole', 'Select role')}</option>
-                  {roles.filter((r) => r.name !== 'pending').map((r) => (
-                    <option key={r.id} value={r.id}>{r.name.toUpperCase()}</option>
-                  ))}
-                </select>
-              </div>
-
-              {createUserMutation.isError && (
-                <div className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-                  {tr('adminUsers.createUserError', 'Failed to create user.')}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateModalOpen(false)
-                    setNewUser({ name: '', email: '', password: '', role_id: 0, hq: '', team: '' })
-                  }}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
-                >
-                  {tr('adminUsers.form.cancel', 'Cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={createUserMutation.isPending || !newUser.name || !newUser.email || !newUser.password || !newUser.role_id}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-50"
-                >
-                  {createUserMutation.isPending
-                    ? tr('adminUsers.form.creating', 'Creating...')
-                    : tr('adminUsers.form.create', 'Create')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </ModalOverlay>
-      )}
+      <CreateUserModal
+        open={createModalOpen}
+        newUser={newUser}
+        onChangeNewUser={setNewUser}
+        hqOptions={hqOptions}
+        teamOptions={teamOptions}
+        roles={roles}
+        mutation={createUserMutation}
+        onClose={() => {
+          setCreateModalOpen(false)
+          setNewUser({ name: '', email: '', password: '', role_id: 0, hq: '', team: '' })
+        }}
+        tr={tr}
+      />
 
       {/* Reset password result modal — 1회용 평문 비밀번호 표시 */}
       {resetResult && (
@@ -1142,39 +1035,7 @@ export default function AdminUsers() {
         </ModalOverlay>
       )}
 
-      {reauthModalOpen && (
-        <ModalOverlay>
-          <div
-            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-            aria-label={tr('adminUsers.reauth.ariaLabel', 'Re-authentication required')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-white">
-              {tr('adminUsers.reauth.title', 'Role updated')}
-            </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              {tr('adminUsers.reauth.subtitle', 'For security, please sign in again. You will be taken to the login page.')}
-            </p>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                autoFocus
-                onClick={() => {
-                  clearAccessToken()
-                  queryClient.clear()
-                  navigate('/login', { replace: true })
-                }}
-                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500"
-              >
-                {tr('adminUsers.reauth.confirm', 'OK')}
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
+      <ReauthModal open={reauthModalOpen} tr={tr} />
     </div>
   )
 }
